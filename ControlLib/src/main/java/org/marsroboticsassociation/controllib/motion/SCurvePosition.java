@@ -31,17 +31,25 @@ public class SCurvePosition implements PositionTrajectory {
     private final double dir; // +1 if pTarget >= p0, else -1
 
     // Prefix phase: nulls out a0 before the 7-phase section
-    private final double tPrefix;   // duration (0 if a0 == 0)
+    public final double tPrefix;    // duration (0 if a0 == 0)
     private final double jPrefix;   // world-frame jerk during prefix
 
     // State at end of a0 prefix (start of braking prefix)
     private final double pAfterA0Prefix;
     private final double vAfterA0Prefix;
 
-    // Braking prefix: constant-decel phase to bring wrong-way velocity to 0
-    private final double tBrake;   // duration (0 if not needed)
-    private final double aBrake;   // world-frame constant acceleration during braking
-    private final double pBrake;   // position at end of braking
+    // Braking prefix: jerk-limited 3-sub-phase decel to bring wrong-way velocity to 0
+    public final double tBrake;        // total duration (0 if not needed)
+    public final double aBrakeHandoff; // acceleration magnitude at brake→main handoff (0 if no braking)
+    private final double pBrake;       // position at end of braking
+    private final double aMaxBrake;    // max(aMaxAccel, aMaxDecel) used during braking
+
+    // Brake sub-phase table (up to 3 sub-phases)
+    private final double[] brakeSubT = new double[4]; // absolute start times
+    private final double[] brakeSubP = new double[4];
+    private final double[] brakeSubV = new double[4];
+    private final double[] brakeSubA = new double[4];
+    private final double[] brakeSubJ = new double[3]; // world-frame jerk per sub-phase
 
     // Phase table: 8 breakpoints for the 7-phase section.
     // phaseStartT[0] = tPrefix (7-phase section begins after prefix).
@@ -73,7 +81,7 @@ public class SCurvePosition implements PositionTrajectory {
             jPrefix = 0;
             pAfterA0Prefix = p0;
             vAfterA0Prefix = v0;
-            tBrake = 0; aBrake = 0; pBrake = p0;
+            tBrake = 0; pBrake = p0; aMaxBrake = 0; aBrakeHandoff = 0;
             phaseStartP[0] = p0; phaseStartV[0] = v0; phaseStartA[0] = a0;
             for (int i = 1; i < 8; i++) {
                 phaseStartT[i] = 0;
@@ -113,28 +121,67 @@ public class SCurvePosition implements PositionTrajectory {
         this.pAfterA0Prefix = pStart;
         this.vAfterA0Prefix = vStart;
 
-        // Braking prefix: if vStart is in the wrong direction, brake to 0
-        double tBrk, aBrk, pBrk;
+        // Braking prefix: if vStart is in the wrong direction, brake to 0 with jerk-limited profile
+        double tBrk, pBrk, aBrakeVal;
+        double aHandoffActual = 0.0;
         if (vStart * dir < -1e-9) {
-            // Constant deceleration opposing velocity
-            tBrk = Math.abs(vStart) / this.aMaxDecel;
-            aBrk = -Math.signum(vStart) * this.aMaxDecel;
-            pBrk = pStart + vStart * tBrk + 0.5 * aBrk * tBrk * tBrk;
+            double speed = Math.abs(vStart);
+            aBrakeVal = Math.max(this.aMaxAccel, this.aMaxDecel);
+            double aHandoff = this.aMaxAccel; // asymmetric: handoff at aMaxAccel, not aBrakeVal
+            double triThresh = aHandoff * aHandoff / (2.0 * this.jMax); // one-sided triangle threshold
+            double tBrk1, tBrk2, tBrk3;
+            if (speed > triThresh) {
+                // Trapezoidal: ramp 0→aHandoff, hold until v=0, no ramp-down
+                tBrk1 = aHandoff / this.jMax;
+                tBrk2 = (speed - triThresh) / aHandoff;
+                tBrk3 = 0;
+                aHandoffActual = aHandoff; // = aMaxAccel
+            } else {
+                // Triangular: single ramp-up until v=0
+                tBrk1 = Math.sqrt(2.0 * speed / this.jMax);
+                tBrk2 = 0;
+                tBrk3 = 0;
+                aHandoffActual = this.jMax * tBrk1; // = sqrt(2*speed*jMax) <= aMaxAccel
+            }
+            tBrk = tBrk1 + tBrk2 + tBrk3;
+            // Jerk in world frame: braking opposes vStart direction
+            double jBrk = -Math.signum(vStart) * this.jMax;
+            brakeSubJ[0] = jBrk;
+            brakeSubJ[1] = 0;
+            brakeSubJ[2] = 0; // no ramp-down: tBrk3=0 makes this a no-op
+            // Forward-chain brake sub-phases from (pStart, vStart, 0) at absolute time tPrefix
+            brakeSubT[0] = tPrefix;
+            brakeSubP[0] = pStart;
+            brakeSubV[0] = vStart;
+            brakeSubA[0] = 0.0;
+            double[] brkDurs = { tBrk1, tBrk2, tBrk3 };
+            for (int i = 0; i < 3; i++) {
+                double dt = brkDurs[i];
+                double j  = brakeSubJ[i];
+                brakeSubP[i + 1] = brakeSubP[i] + brakeSubV[i] * dt
+                        + 0.5 * brakeSubA[i] * dt * dt + (1.0 / 6.0) * j * dt * dt * dt;
+                brakeSubV[i + 1] = brakeSubV[i] + brakeSubA[i] * dt + 0.5 * j * dt * dt;
+                brakeSubA[i + 1] = brakeSubA[i] + j * dt;
+                brakeSubT[i + 1] = brakeSubT[i] + dt;
+            }
+            pBrk = brakeSubP[3];
         } else {
-            tBrk = 0; aBrk = 0; pBrk = pStart;
+            tBrk = 0; aBrakeVal = 0; pBrk = pStart;
         }
         this.tBrake = tBrk;
-        this.aBrake = aBrk;
+        this.aMaxBrake = aBrakeVal;
         this.pBrake = pBrk;
+        this.aBrakeHandoff = aHandoffActual;
 
         double distRemaining = Math.max(0, dir * (pTarget - pBrk));
         double v0adj = (tBrk > 0) ? 0.0 : Math.min(Math.max(vStart * dir, 0.0), this.vMax);
         double vStartWorld = v0adj * dir;
+        double aStart = (tBrk > 0) ? aHandoffActual : 0.0;
 
         // ---------------------------------------------------------------
         // Bisect for vPeak. D(v) is strictly increasing in v for v in [v0adj, vMax].
         // ---------------------------------------------------------------
-        double dAtVMax = accelHalfDistFrom(v0adj, this.vMax, this.aMaxAccel, this.jMax)
+        double dAtVMax = accelHalfDistFrom(v0adj, this.vMax, this.aMaxAccel, this.jMax, aStart)
                        + halfDist(this.vMax, this.aMaxDecel, this.jMax);
 
         double vPeakSolved;
@@ -153,7 +200,7 @@ public class SCurvePosition implements PositionTrajectory {
                 double lo = v0adj, hi = this.vMax;
                 for (int i = 0; i < 64; i++) {
                     double mid = (lo + hi) * 0.5;
-                    double d = accelHalfDistFrom(v0adj, mid, this.aMaxAccel, this.jMax)
+                    double d = accelHalfDistFrom(v0adj, mid, this.aMaxAccel, this.jMax, aStart)
                              + halfDist(mid, this.aMaxDecel, this.jMax);
                     if (d < distRemaining) lo = mid;
                     else hi = mid;
@@ -172,16 +219,20 @@ public class SCurvePosition implements PositionTrajectory {
         double dvAccel = vPeakSolved - v0adj;
 
         double t1, t2, t3;
+        double trapThresh = (2.0 * this.aMaxAccel * this.aMaxAccel - aStart * aStart) / (2.0 * this.jMax);
         if (dvAccel <= 0) {
             t1 = 0; t2 = 0; t3 = 0;
-        } else if (dvAccel >= vAccelMin) {
-            t1 = this.aMaxAccel / this.jMax;
-            t2 = (dvAccel - vAccelMin) / this.aMaxAccel;
-            t3 = t1;
+        } else if (dvAccel >= trapThresh) {
+            // Trapezoidal: ramp aStart→aMaxAccel, hold, ramp aMaxAccel→0
+            t1 = (this.aMaxAccel - aStart) / this.jMax;
+            t2 = (dvAccel - trapThresh) / this.aMaxAccel;
+            t3 = this.aMaxAccel / this.jMax;
         } else {
-            t1 = Math.sqrt(dvAccel / this.jMax);
+            // Triangular: ramp aStart→aPk→0
+            double aPk = Math.sqrt(dvAccel * this.jMax + aStart * aStart / 2.0);
+            t1 = (aPk - aStart) / this.jMax;
             t2 = 0;
-            t3 = t1;
+            t3 = aPk / this.jMax;
         }
 
         double t5, t6, t7;
@@ -224,7 +275,7 @@ public class SCurvePosition implements PositionTrajectory {
         phaseStartT[0] = tPre + tBrk;
         phaseStartP[0] = pBrk;
         phaseStartV[0] = vStartWorld;
-        phaseStartA[0] = 0.0;
+        phaseStartA[0] = (tBrk > 0) ? aHandoffActual * dir : 0.0;
 
         double[] durations = { T1, T2, T3, T4, T5, T6, T7 };
         for (int i = 0; i < 7; i++) {
@@ -251,27 +302,37 @@ public class SCurvePosition implements PositionTrajectory {
      */
     private static double accelHalfDistFrom(double vFrom, double vPeak,
                                              double aMax, double jMax) {
+        return accelHalfDistFrom(vFrom, vPeak, aMax, jMax, 0.0);
+    }
+
+    /**
+     * Distance covered accelerating (with jerk-limit) from vFrom (a=aStart) to vPeak (a=0).
+     * Returns 0 if vPeak <= vFrom.
+     */
+    private static double accelHalfDistFrom(double vFrom, double vPeak,
+                                             double aMax, double jMax, double aStart) {
         double dv = vPeak - vFrom;
         if (dv <= 0) return 0;
-        double vAccelMin = aMax * aMax / jMax;
-        if (dv >= vAccelMin) {
-            // Trapezoidal accel profile
-            double T1   = aMax / jMax;
-            double T2   = (dv - vAccelMin) / aMax;
-            double vEnd1 = vFrom + 0.5 * jMax * T1 * T1; // = vFrom + vAccelMin/2
-            double d1   = vFrom * T1 + (1.0 / 6.0) * jMax * T1 * T1 * T1;
-            double d2   = vEnd1 * T2 + 0.5 * aMax * T2 * T2;
-            double vEnd2 = vEnd1 + aMax * T2;              // = vPeak - vAccelMin/2
-            double d3   = vEnd2 * T1 + 0.5 * aMax * T1 * T1 - (1.0 / 6.0) * jMax * T1 * T1 * T1;
+        double trapThresh = (2.0 * aMax * aMax - aStart * aStart) / (2.0 * jMax);
+        if (dv >= trapThresh) {
+            // Trapezoidal: ramp aStart→aMax, hold, ramp aMax→0
+            double T1p   = (aMax - aStart) / jMax;
+            double T2p   = (dv - trapThresh) / aMax;
+            double T3    = aMax / jMax;
+            double vEnd1 = vFrom + aStart * T1p + 0.5 * jMax * T1p * T1p;
+            double d1    = vFrom * T1p + 0.5 * aStart * T1p * T1p + (1.0 / 6.0) * jMax * T1p * T1p * T1p;
+            double d2    = vEnd1 * T2p + 0.5 * aMax * T2p * T2p;
+            double vEnd2 = vEnd1 + aMax * T2p;
+            double d3    = vEnd2 * T3 + 0.5 * aMax * T3 * T3 - (1.0 / 6.0) * jMax * T3 * T3 * T3;
             return d1 + d2 + d3;
         } else {
-            // Triangular accel profile
-            double Th   = Math.sqrt(dv / jMax);
-            double aPk  = Math.sqrt(jMax * dv);
-            double vEnd1 = vFrom + dv / 2.0;
-            double d1   = vFrom * Th + (1.0 / 6.0) * jMax * Th * Th * Th;
-            double d3   = vEnd1 * Th + 0.5 * aPk * Th * Th
-                          - (1.0 / 6.0) * jMax * Th * Th * Th;
+            // Triangular: ramp aStart→aPk→0
+            double aPk   = Math.sqrt(dv * jMax + aStart * aStart / 2.0);
+            double T1p   = (aPk - aStart) / jMax;
+            double T3    = aPk / jMax;
+            double vEnd1 = vFrom + aStart * T1p + 0.5 * jMax * T1p * T1p;
+            double d1    = vFrom * T1p + 0.5 * aStart * T1p * T1p + (1.0 / 6.0) * jMax * T1p * T1p * T1p;
+            double d3    = vEnd1 * T3 + 0.5 * aPk * T3 * T3 - (1.0 / 6.0) * jMax * T3 * T3 * T3;
             return d1 + d3;
         }
     }
@@ -299,8 +360,12 @@ public class SCurvePosition implements PositionTrajectory {
 
         double tBrakeEnd = tPrefix + tBrake;
         if (tBrake > 0 && t < tBrakeEnd) {
-            double dt = t - tPrefix;
-            return pAfterA0Prefix + vAfterA0Prefix * dt + 0.5 * aBrake * dt * dt;
+            int bph = findBrakePhase(t);
+            double dt = t - brakeSubT[bph];
+            double j  = brakeSubJ[bph];
+            return brakeSubP[bph] + brakeSubV[bph] * dt
+                   + 0.5 * brakeSubA[bph] * dt * dt
+                   + (1.0 / 6.0) * j * dt * dt * dt;
         }
 
         int ph = findPhase(t);
@@ -324,8 +389,10 @@ public class SCurvePosition implements PositionTrajectory {
 
         double tBrakeEnd = tPrefix + tBrake;
         if (tBrake > 0 && t < tBrakeEnd) {
-            double dt = t - tPrefix;
-            return vAfterA0Prefix + aBrake * dt;
+            int bph = findBrakePhase(t);
+            double dt = t - brakeSubT[bph];
+            double j  = brakeSubJ[bph];
+            return brakeSubV[bph] + brakeSubA[bph] * dt + 0.5 * j * dt * dt;
         }
 
         int ph = findPhase(t);
@@ -347,7 +414,9 @@ public class SCurvePosition implements PositionTrajectory {
 
         double tBrakeEnd = tPrefix + tBrake;
         if (tBrake > 0 && t < tBrakeEnd) {
-            return aBrake;
+            int bph = findBrakePhase(t);
+            double dt = t - brakeSubT[bph];
+            return brakeSubA[bph] + brakeSubJ[bph] * dt;
         }
 
         int ph = findPhase(t);
@@ -366,8 +435,15 @@ public class SCurvePosition implements PositionTrajectory {
         if (t <= 0 || t >= getTotalTime()) return true;
         if (tPrefix > 0 && t < tPrefix) return false; // prefix has active jerk
         double tBrakeEnd = tPrefix + tBrake;
-        if (tBrake > 0 && t < tBrakeEnd) return true; // constant accel, zero jerk
+        if (tBrake > 0 && t < tBrakeEnd) return brakeSubJ[findBrakePhase(t)] == 0;
         return phaseJerk[findPhase(t)] == 0;
+    }
+
+    /** Returns brake sub-phase index in [0,2] for time t during the braking prefix. */
+    private int findBrakePhase(double t) {
+        if (t >= brakeSubT[2]) return 2;
+        if (t >= brakeSubT[1]) return 1;
+        return 0;
     }
 
     /** Returns phase index in [0,6] for time t, assuming t >= phaseStartT[0]. */

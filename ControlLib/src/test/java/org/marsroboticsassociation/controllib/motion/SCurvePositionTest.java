@@ -25,7 +25,8 @@ class SCurvePositionTest {
             new Config("asym_decel",      0, 50,  0, 0, 8,   2,   5,   12),
             new Config("negative_dir",    10, -40, 0, 0, 6,   3,   4,   8),
             new Config("nonzero_v0",      0, 100, 2, 0, 8,   4,   4,   10),
-            new Config("nonzero_a0_pos",  0, 80,  0, 2, 8,   4,   4,   10)
+            new Config("nonzero_a0_pos",  0, 80,  0, 2, 8,   4,   4,   10),
+            new Config("direction_reversal", 0, 50, -3, 0, 8, 2, 5, 12)
         );
     }
 
@@ -162,6 +163,42 @@ class SCurvePositionTest {
             double a    = s.getAcceleration(t);
             assertEquals(dvdt, a, 1e-3,
                     c.label() + " acceleration mismatch at t=" + t);
+        }
+    }
+
+    @Test
+    void brakingPrefix_respectsJerkLimit() {
+        // v0=-3 means wrong-way velocity; braking prefix must use jerk-limited decel
+        SCurvePosition s = new SCurvePosition(0, 50, -3, 0, 8, 2, 5, 12);
+        double jMax = s.jMax;
+        double tBrakeEnd = s.tPrefix + s.tBrake;
+        assertTrue(tBrakeEnd > 0, "expected non-trivial brake prefix");
+
+        double h = 1e-6;
+        int samples = 1000;
+        for (int i = 1; i < samples; i++) {
+            double t = tBrakeEnd * i / samples;
+            double dadt = (s.getAcceleration(t + h) - s.getAcceleration(t - h)) / (2 * h);
+            assertTrue(Math.abs(dadt) <= jMax + 1.0,
+                    "jerk |da/dt|=" + dadt + " exceeds jMax=" + jMax + " at t=" + t);
+        }
+    }
+
+    @Test
+    void reversalAcceleration_noDipToZero() {
+        SCurvePosition s = new SCurvePosition(0, 50, -3, 0, 8, 2, 5, 12);
+        double tBrakeEnd = s.tPrefix + s.tBrake;
+        assertTrue(tBrakeEnd > 0, "expected braking prefix");
+        // Acceleration at the brake→main handoff must be positive (no zero dip)
+        double aAtHandoff = s.getAcceleration(tBrakeEnd);
+        assertTrue(aAtHandoff > 1e-6,
+            "expected positive acceleration at handoff, got " + aAtHandoff);
+        // Acceleration must stay non-negative through the entire T1 ramp
+        double tPhase1End = tBrakeEnd + s.T1;
+        for (int i = 0; i <= 200; i++) {
+            double t = tBrakeEnd + (tPhase1End - tBrakeEnd) * i / 200.0;
+            assertTrue(s.getAcceleration(t) > -1e-6,
+                "acceleration dip at t=" + t);
         }
     }
 
