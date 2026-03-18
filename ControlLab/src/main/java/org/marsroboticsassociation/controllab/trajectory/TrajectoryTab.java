@@ -13,7 +13,6 @@ public class TrajectoryTab extends JPanel {
     private static final int    TIMER_MS       = 20;
     private static final int    BUFFER_POINTS  = 500;
     private static final double WINDOW_SECS    = 10.0;
-    private static final double CYCLE_S        = 0.020;
 
     private TrajectoryEngine engine;
     private final RollingBuffer buffer = new RollingBuffer(WINDOW_SECS, BUFFER_POINTS);
@@ -298,7 +297,7 @@ public class TrajectoryTab extends JPanel {
     private void onTick() {
         if (!engine.isMoving()) return;
         engine.tick();
-        elapsedSec += CYCLE_S;
+        elapsedSec += TrajectoryEngine.CYCLE_S;
         buffer.add(elapsedSec, engine.getPosition(), engine.getVelocity(), engine.getAcceleration());
         List<Double> times = buffer.getTimes();
         if (times.size() < 2) return;
@@ -330,5 +329,11 @@ public class TrajectoryTab extends JPanel {
         double min = (minObj != null) ? (double) minObj : -200.0;
         double max = (maxObj != null) ? (double) maxObj :  200.0;
         lbl.setText(String.format("Target %s: %.1f", name, s2l(sl.getValue(), min, max)));
+    }
+
+    /** Release native resources held by the engine. Call on application shutdown. */
+    public void disposeEngine() {
+        simTimer.stop();
+        engine.dispose();
     }
 }

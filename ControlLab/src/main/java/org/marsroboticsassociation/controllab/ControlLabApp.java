@@ -169,9 +169,18 @@ public class ControlLabApp {
         filterPanel.add(chartPanel,   BorderLayout.CENTER);
         filterPanel.add(right,        BorderLayout.SOUTH);
 
+        org.marsroboticsassociation.controllab.trajectory.TrajectoryTab trajectoryTab =
+                new org.marsroboticsassociation.controllab.trajectory.TrajectoryTab();
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Filter",     filterPanel);
-        tabs.addTab("Trajectory", new org.marsroboticsassociation.controllab.trajectory.TrajectoryTab());
+        tabs.addTab("Trajectory", trajectoryTab);
+
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                trajectoryTab.disposeEngine();
+            }
+        });
 
         frame.add(tabs, BorderLayout.CENTER);
 

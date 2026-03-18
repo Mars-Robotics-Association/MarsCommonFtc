@@ -14,7 +14,7 @@ import org.marsroboticsassociation.controllib.util.TelemetryAddData;
 public class TrajectoryEngine {
 
     private static final TelemetryAddData NO_OP = (c, f, v) -> {};
-    private static final double CYCLE_S  = 0.020; // 20 ms
+    static final double CYCLE_S  = 0.020; // 20 ms
     private static final long   CYCLE_NS = (long)(CYCLE_S * 1e9);
 
     // ------------------------------------------------------------------
@@ -165,12 +165,21 @@ public class TrajectoryEngine {
                 lastP = rOut.newPosition[0];
                 lastV = rOut.newVelocity[0];
                 lastA = rOut.newAcceleration[0];
-                if (result == org.marsroboticsassociation.controllib.motion.ruckig.RuckigResult.FINISHED) {
+                if (result != org.marsroboticsassociation.controllib.motion.ruckig.RuckigResult.WORKING) {
                     ruckigFinished = true;
                     moving = false;
                 }
                 break;
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Lifecycle
+    // ------------------------------------------------------------------
+
+    /** Release native resources. Call when the application is shutting down. */
+    public void dispose() {
+        tearDownPlanner();
     }
 
     // ------------------------------------------------------------------
