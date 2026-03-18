@@ -154,19 +154,19 @@ public class TrajectoryTab extends JPanel {
 
     private void buildPosSlidersIfNeeded() {
         if (slVMax != null) return;
-        slVMax   = new JSlider(0, 1000, l2s(10,  0.1,  50));  lbVMax   = new JLabel();
-        slAAccel = new JSlider(0, 1000, l2s(5,   0.1,  50));  lbAAccel = new JLabel();
-        slADecel = new JSlider(0, 1000, l2s(5,   0.1,  50));  lbADecel = new JLabel();
-        slJMax   = new JSlider(0, 1000, l2s(50,  1,   500));  lbJMax   = new JLabel();
+        slVMax   = new JSlider(0, 1000, l2s(10,  0.1,  500));  lbVMax   = new JLabel();
+        slAAccel = new JSlider(0, 1000, l2s(5,   0.1,  500));  lbAAccel = new JLabel();
+        slADecel = new JSlider(0, 1000, l2s(5,   0.1,  500));  lbADecel = new JLabel();
+        slJMax   = new JSlider(0, 1000, l2s(50,  1,   5000));  lbJMax   = new JLabel();
 
-        slVMax  .addChangeListener(e -> { updateLabel(lbVMax,   slVMax,   "vMax",   0.1,  50); stagePosParams(); });
-        slAAccel.addChangeListener(e -> { updateLabel(lbAAccel, slAAccel, "aAccel", 0.1,  50); stagePosParams(); });
-        slADecel.addChangeListener(e -> { updateLabel(lbADecel, slADecel, "aDecel", 0.1,  50); stagePosParams(); });
-        slJMax  .addChangeListener(e -> { updateLabel(lbJMax,   slJMax,   "jMax",   1,   500); stagePosParams(); });
-        updateLabel(lbVMax,   slVMax,   "vMax",   0.1,  50);
-        updateLabel(lbAAccel, slAAccel, "aAccel", 0.1,  50);
-        updateLabel(lbADecel, slADecel, "aDecel", 0.1,  50);
-        updateLabel(lbJMax,   slJMax,   "jMax",   1,   500);
+        slVMax  .addChangeListener(e -> { updateLabel(lbVMax,   slVMax,   "vMax",   0.1,  500); stagePosParams(); });
+        slAAccel.addChangeListener(e -> { updateLabel(lbAAccel, slAAccel, "aAccel", 0.1,  500); stagePosParams(); });
+        slADecel.addChangeListener(e -> { updateLabel(lbADecel, slADecel, "aDecel", 0.1,  500); stagePosParams(); });
+        slJMax  .addChangeListener(e -> { updateLabel(lbJMax,   slJMax,   "jMax",   1,   5000); stagePosParams(); });
+        updateLabel(lbVMax,   slVMax,   "vMax",   0.1,  500);
+        updateLabel(lbAAccel, slAAccel, "aAccel", 0.1,  500);
+        updateLabel(lbADecel, slADecel, "aDecel", 0.1,  500);
+        updateLabel(lbJMax,   slJMax,   "jMax",   1,   5000);
     }
 
     private void buildVelSlidersIfNeeded() {
@@ -185,24 +185,24 @@ public class TrajectoryTab extends JPanel {
 
     private void buildRuckigSlidersIfNeeded() {
         if (slRVMax != null) return;
-        slRVMax = new JSlider(0, 1000, l2s(10,  0.1,  50));  lbRVMax = new JLabel();
-        slRAMax = new JSlider(0, 1000, l2s(5,   0.1,  50));  lbRAMax = new JLabel();
-        slRJMax = new JSlider(0, 1000, l2s(50,  1,   500));  lbRJMax = new JLabel();
+        slRVMax = new JSlider(0, 1000, l2s(10,  0.1,  500));  lbRVMax = new JLabel();
+        slRAMax = new JSlider(0, 1000, l2s(5,   0.1,  500));  lbRAMax = new JLabel();
+        slRJMax = new JSlider(0, 1000, l2s(50,  1,   5000));  lbRJMax = new JLabel();
 
-        slRVMax.addChangeListener(e -> { updateLabel(lbRVMax, slRVMax, "vMax", 0.1,  50); stageRuckigParams(); });
-        slRAMax.addChangeListener(e -> { updateLabel(lbRAMax, slRAMax, "aMax", 0.1,  50); stageRuckigParams(); });
-        slRJMax.addChangeListener(e -> { updateLabel(lbRJMax, slRJMax, "jMax", 1,   500); stageRuckigParams(); });
-        updateLabel(lbRVMax, slRVMax, "vMax", 0.1,  50);
-        updateLabel(lbRAMax, slRAMax, "aMax", 0.1,  50);
-        updateLabel(lbRJMax, slRJMax, "jMax", 1,   500);
+        slRVMax.addChangeListener(e -> { updateLabel(lbRVMax, slRVMax, "vMax", 0.1,  500); stageRuckigParams(); });
+        slRAMax.addChangeListener(e -> { updateLabel(lbRAMax, slRAMax, "aMax", 0.1,  500); stageRuckigParams(); });
+        slRJMax.addChangeListener(e -> { updateLabel(lbRJMax, slRJMax, "jMax", 1,   5000); stageRuckigParams(); });
+        updateLabel(lbRVMax, slRVMax, "vMax", 0.1,  500);
+        updateLabel(lbRAMax, slRAMax, "aMax", 0.1,  500);
+        updateLabel(lbRJMax, slRJMax, "jMax", 1,   5000);
     }
 
     private void stagePosParams() {
         engine.setPositionParams(
-                s2l(slVMax.getValue(),   0.1,  50),
-                s2l(slAAccel.getValue(), 0.1,  50),
-                s2l(slADecel.getValue(), 0.1,  50),
-                s2l(slJMax.getValue(),   1,   500));
+                s2l(slVMax.getValue(),   0.1,  500),
+                s2l(slAAccel.getValue(), 0.1,  500),
+                s2l(slADecel.getValue(), 0.1,  500),
+                s2l(slJMax.getValue(),   1,   5000));
     }
 
     private void stageVelParams() {
@@ -214,9 +214,9 @@ public class TrajectoryTab extends JPanel {
 
     private void stageRuckigParams() {
         engine.setRuckigParams(
-                s2l(slRVMax.getValue(), 0.1,  50),
-                s2l(slRAMax.getValue(), 0.1,  50),
-                s2l(slRJMax.getValue(), 1,   500));
+                s2l(slRVMax.getValue(), 0.1,  500),
+                s2l(slRAMax.getValue(), 0.1,  500),
+                s2l(slRJMax.getValue(), 1,   5000));
     }
 
     private void onTypeChanged() {
