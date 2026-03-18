@@ -1,0 +1,64 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+java {
+    group = 'org.marsroboticsassociation.controllab'
+
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17) // or 21
+    }
+}
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':ControlLib')
+    implementation project(':WpiMath')
+
+    implementation 'com.univocity:univocity-parsers:2.9.1'
+    implementation 'org.knowm.xchart:xchart:3.8.7'
+}
+
+application {
+    mainClass = 'org.marsroboticsassociation.controllab.ControlLabApp'
+}
+
+// ---------------------------------------------------------------------------
+// Desktop build of libruckig_jni (shared library) via the system CMake.
+// The build is skipped gracefully if cmake is not on PATH.
+// On Windows the DLL lands in ruckigBuildDir/out/; on Linux/macOS libfoo.so
+// lands there too because of -DCMAKE_LIBRARY_OUTPUT_DIRECTORY.
+// ---------------------------------------------------------------------------
+def ruckigBuildDir = "${buildDir}/ruckig_native"
+
+def cmakeOnPath = { ->
+    try { ['cmake', '--version'].execute().waitFor() == 0 } catch (e) { false }
+}()
+
+task configureRuckigDesktop(type: Exec) {
+    onlyIf { cmakeOnPath }
+    ignoreExitValue false
+    commandLine 'cmake',
+            '-B', ruckigBuildDir,
+            '-S', "${rootDir}/RuckigNative",
+            "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${ruckigBuildDir}/out",
+            "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=${ruckigBuildDir}/out",
+            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=${ruckigBuildDir}/out",
+            '-DCMAKE_BUILD_TYPE=Release'
+}
+
+task buildRuckigDesktop(type: Exec) {
+    onlyIf { cmakeOnPath }
+    dependsOn configureRuckigDesktop
+    commandLine 'cmake', '--build', ruckigBuildDir,
+            '--config', 'Release',
+            '--target', 'ruckig_jni'
+}
+
+run {
+    dependsOn buildRuckigDesktop
+    systemProperty 'java.library.path', "${ruckigBuildDir}/out"
+}
+

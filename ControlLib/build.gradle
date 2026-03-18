@@ -1,0 +1,43 @@
+plugins {
+    id 'java-library'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+java {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':WpiMath')   // also brings in EJML transitively
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+shadowJar {
+    archiveClassifier.set('all')
+
+    // Relocate EJML to avoid conflicts
+    relocate 'org.ejml', 'controllib.shadow.org.ejml'
+
+    // Keep all WpiMath classes — TeamCode uses them directly and their transitive
+    // EJML references cover the entire EJML footprint, so no further excludes needed
+    // Keep all WpiMath classes — TeamCode uses them directly and their transitive
+    // EJML references cover the entire EJML footprint, so no further excludes needed
+    minimize {
+        exclude(project(':WpiMath'))
+    }
+}
+
+tasks.build {
+    dependsOn shadowJar
+}

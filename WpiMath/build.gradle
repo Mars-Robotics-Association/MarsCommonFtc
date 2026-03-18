@@ -1,0 +1,27 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Declared as 'api' so downstream modules (ControlLib) get EJML on their
+    // compile classpath without re-declaring it
+    api 'org.ejml:ejml-core:0.44.0'
+    api 'org.ejml:ejml-simple:0.44.0'
+    api 'org.ejml:ejml-ddense:0.44.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
