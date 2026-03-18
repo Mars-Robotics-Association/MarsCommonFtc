@@ -34,6 +34,15 @@ public class SCurvePosition implements PositionTrajectory {
     private final double tPrefix;   // duration (0 if a0 == 0)
     private final double jPrefix;   // world-frame jerk during prefix
 
+    // State at end of a0 prefix (start of braking prefix)
+    private final double pAfterA0Prefix;
+    private final double vAfterA0Prefix;
+
+    // Braking prefix: constant-decel phase to bring wrong-way velocity to 0
+    private final double tBrake;   // duration (0 if not needed)
+    private final double aBrake;   // world-frame constant acceleration during braking
+    private final double pBrake;   // position at end of braking
+
     // Phase table: 8 breakpoints for the 7-phase section.
     // phaseStartT[0] = tPrefix (7-phase section begins after prefix).
     private final double[] phaseStartT = new double[8];
@@ -62,6 +71,9 @@ public class SCurvePosition implements PositionTrajectory {
             vPeak = 0;
             tPrefix = 0;
             jPrefix = 0;
+            pAfterA0Prefix = p0;
+            vAfterA0Prefix = v0;
+            tBrake = 0; aBrake = 0; pBrake = p0;
             phaseStartP[0] = p0; phaseStartV[0] = v0; phaseStartA[0] = a0;
             for (int i = 1; i < 8; i++) {
                 phaseStartT[i] = 0;
@@ -98,12 +110,25 @@ public class SCurvePosition implements PositionTrajectory {
         }
         this.tPrefix = tPre;
         this.jPrefix = jPre;
+        this.pAfterA0Prefix = pStart;
+        this.vAfterA0Prefix = vStart;
 
-        // Remaining distance (in the positive frame) from pStart to pTarget
-        double distRemaining = Math.max(0, dir * (pTarget - pStart));
+        // Braking prefix: if vStart is in the wrong direction, brake to 0
+        double tBrk, aBrk, pBrk;
+        if (vStart * dir < -1e-9) {
+            // Constant deceleration opposing velocity
+            tBrk = Math.abs(vStart) / this.aMaxDecel;
+            aBrk = -Math.signum(vStart) * this.aMaxDecel;
+            pBrk = pStart + vStart * tBrk + 0.5 * aBrk * tBrk * tBrk;
+        } else {
+            tBrk = 0; aBrk = 0; pBrk = pStart;
+        }
+        this.tBrake = tBrk;
+        this.aBrake = aBrk;
+        this.pBrake = pBrk;
 
-        // Clamp v0adj to [0, vMax]: negative clamped to 0 (V1 best-effort for wrong-way v)
-        double v0adj = Math.min(Math.max(vStart * dir, 0.0), this.vMax);
+        double distRemaining = Math.max(0, dir * (pTarget - pBrk));
+        double v0adj = (tBrk > 0) ? 0.0 : Math.min(Math.max(vStart * dir, 0.0), this.vMax);
         double vStartWorld = v0adj * dir;
 
         // ---------------------------------------------------------------
@@ -196,8 +221,8 @@ public class SCurvePosition implements PositionTrajectory {
         phaseJerk[5] =  0;
         phaseJerk[6] =  dir * this.jMax;
 
-        phaseStartT[0] = tPre;
-        phaseStartP[0] = pStart;
+        phaseStartT[0] = tPre + tBrk;
+        phaseStartP[0] = pBrk;
         phaseStartV[0] = vStartWorld;
         phaseStartA[0] = 0.0;
 
@@ -272,6 +297,12 @@ public class SCurvePosition implements PositionTrajectory {
                    + (1.0 / 6.0) * jPrefix * t * t * t;
         }
 
+        double tBrakeEnd = tPrefix + tBrake;
+        if (tBrake > 0 && t < tBrakeEnd) {
+            double dt = t - tPrefix;
+            return pAfterA0Prefix + vAfterA0Prefix * dt + 0.5 * aBrake * dt * dt;
+        }
+
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         double j  = phaseJerk[ph];
@@ -291,6 +322,12 @@ public class SCurvePosition implements PositionTrajectory {
             return v0 + a0 * t + 0.5 * jPrefix * t * t;
         }
 
+        double tBrakeEnd = tPrefix + tBrake;
+        if (tBrake > 0 && t < tBrakeEnd) {
+            double dt = t - tPrefix;
+            return vAfterA0Prefix + aBrake * dt;
+        }
+
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         double j  = phaseJerk[ph];
@@ -308,6 +345,11 @@ public class SCurvePosition implements PositionTrajectory {
             return a0 + jPrefix * t;
         }
 
+        double tBrakeEnd = tPrefix + tBrake;
+        if (tBrake > 0 && t < tBrakeEnd) {
+            return aBrake;
+        }
+
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         return phaseStartA[ph] + phaseJerk[ph] * dt;
@@ -323,6 +365,8 @@ public class SCurvePosition implements PositionTrajectory {
         if (trivial) return true;
         if (t <= 0 || t >= getTotalTime()) return true;
         if (tPrefix > 0 && t < tPrefix) return false; // prefix has active jerk
+        double tBrakeEnd = tPrefix + tBrake;
+        if (tBrake > 0 && t < tBrakeEnd) return true; // constant accel, zero jerk
         return phaseJerk[findPhase(t)] == 0;
     }
 

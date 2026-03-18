@@ -21,18 +21,18 @@ struct RuckigHandle {
 
 extern "C" {
 
-// org.marsroboticsassociation.controllib.ruckig.RuckigController.nativeCreate
+// org.marsroboticsassociation.controllib.motion.ruckig.RuckigController.nativeCreate
 JNIEXPORT jlong JNICALL
-Java_org_marsroboticsassociation_controllib_ruckig_RuckigController_nativeCreate(
+Java_org_marsroboticsassociation_controllib_motion_ruckig_RuckigController_nativeCreate(
         JNIEnv* /*env*/, jobject /*thiz*/, jint dofs, jdouble cycleTime) {
     auto* handle = new RuckigHandle(static_cast<int>(dofs),
                                     static_cast<double>(cycleTime));
     return reinterpret_cast<jlong>(handle);
 }
 
-// org.marsroboticsassociation.controllib.ruckig.RuckigController.nativeUpdate
+// org.marsroboticsassociation.controllib.motion.ruckig.RuckigController.nativeUpdate
 JNIEXPORT jint JNICALL
-Java_org_marsroboticsassociation_controllib_ruckig_RuckigController_nativeUpdate(
+Java_org_marsroboticsassociation_controllib_motion_ruckig_RuckigController_nativeUpdate(
         JNIEnv* env, jobject /*thiz*/, jlong handlePtr,
         jdoubleArray currentPos, jdoubleArray currentVel, jdoubleArray currentAcc,
         jdoubleArray targetPos,  jdoubleArray targetVel,  jdoubleArray targetAcc,
@@ -76,9 +76,9 @@ Java_org_marsroboticsassociation_controllib_ruckig_RuckigController_nativeUpdate
     return static_cast<jint>(result);
 }
 
-// org.marsroboticsassociation.controllib.ruckig.RuckigController.nativeDestroy
+// org.marsroboticsassociation.controllib.motion.ruckig.RuckigController.nativeDestroy
 JNIEXPORT void JNICALL
-Java_org_marsroboticsassociation_controllib_ruckig_RuckigController_nativeDestroy(
+Java_org_marsroboticsassociation_controllib_motion_ruckig_RuckigController_nativeDestroy(
         JNIEnv* /*env*/, jobject /*thiz*/, jlong handlePtr) {
     delete reinterpret_cast<RuckigHandle*>(handlePtr);
 }

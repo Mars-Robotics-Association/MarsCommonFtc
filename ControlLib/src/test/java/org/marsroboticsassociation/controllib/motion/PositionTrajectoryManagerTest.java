@@ -109,6 +109,67 @@ class PositionTrajectoryManagerTest {
         assertEquals(100.0, m.getPosition(), 0.5, "should reach target with slow config");
     }
 
+    /**
+     * Sanity check: changing target in the same direction while moving should
+     * produce a continuous velocity at the next 20 ms tick.
+     * This test is expected to PASS today.
+     */
+    @Test
+    void midMove_sameDirection_velocityIsContinuous() {
+        AtomicLong clock = new AtomicLong(0);
+        // vMax=10, aMax=50, jMax=500 → reaches cruise (a=0, v=vMax) in ~0.3 s;
+        // at t=1 s we are in steady cruise with a0≈0 so tPrefix=0 on replan.
+        PositionTrajectoryManager m = makeManager(clock, 10, 50, 50, 500, 0.01);
+
+        m.setTarget(100.0);
+        clock.set((long) 1e9);
+        m.update();
+        double vBefore = m.getVelocity();
+
+        // Change target to +50 (same direction, still forward)
+        m.setTarget(50.0);
+        clock.set((long) (1e9 + 20_000_000L)); // +20 ms
+        m.update();
+        double vAfter = m.getVelocity();
+
+        assertEquals(vBefore, vAfter, 2.0,
+                String.format("same-direction replan should be continuous: vBefore=%.3f vAfter=%.3f diff=%.3f",
+                        vBefore, vAfter, Math.abs(vAfter - vBefore)));
+    }
+
+    /**
+     * Regression test for mid-move target reversal velocity discontinuity.
+     *
+     * <p>When the target reverses mid-move, the braking prefix in {@code SCurvePosition}
+     * ensures velocity continuity by decelerating to 0 before starting the 7-phase
+     * section toward the new target.
+     *
+     * <p>Parameters are chosen so the trajectory is in steady cruise (a≈0) at t=1s,
+     * ensuring tPrefix=0 on replan and the continuity is immediately verifiable.
+     */
+    @Test
+    void midMove_targetReversal_velocityIsContinuous() {
+        AtomicLong clock = new AtomicLong(0);
+        // Same fast-accel params: at t=1s we are cruising at v≈10, a≈0
+        PositionTrajectoryManager m = makeManager(clock, 10, 50, 50, 500, 0.01);
+
+        m.setTarget(100.0);
+        clock.set((long) 1e9);
+        m.update();
+        double vBefore = m.getVelocity();
+
+        // Reverse target mid-move (vBefore ≈ +10, new direction is negative)
+        m.setTarget(-100.0);
+        clock.set((long) (1e9 + 20_000_000L)); // +20 ms
+        m.update();
+        double vAfter = m.getVelocity();
+
+        // BUG: vAfter ≈ 0 instead of continuing from vBefore ≈ +10
+        assertEquals(vBefore, vAfter, 2.0,
+                String.format("reversal replan should be continuous: vBefore=%.3f vAfter=%.3f diff=%.3f",
+                        vBefore, vAfter, Math.abs(vAfter - vBefore)));
+    }
+
     @Test
     void getters_returnCachedValues_fromLastUpdate() {
         AtomicLong clock = new AtomicLong(0);
