@@ -19,10 +19,17 @@ dependencies {
 
     implementation 'com.univocity:univocity-parsers:2.9.1'
     implementation 'org.knowm.xchart:xchart:3.8.7'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 application {
     mainClass = 'org.marsroboticsassociation.controllab.ControlLabApp'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 // ---------------------------------------------------------------------------
