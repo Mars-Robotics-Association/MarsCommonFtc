@@ -143,8 +143,6 @@ public class ControlLabApp {
 
         abgContainer.setVisible(false);  // only show when ABG filter active
 
-        frame.add(abgContainer, BorderLayout.WEST);
-
         //------------------------------------
         // Right controls
         //------------------------------------
@@ -165,9 +163,17 @@ public class ControlLabApp {
         chart = new XYChartBuilder().width(1000).height(600).title("Control Lab").xAxisTitle("Time (s)").yAxisTitle("Value").build();
         chartPanel = new XChartPanel<>(chart);
 
-        frame.add(top, BorderLayout.NORTH);
-        frame.add(chartPanel, BorderLayout.CENTER);
-        frame.add(right, BorderLayout.SOUTH);
+        JPanel filterPanel = new JPanel(new BorderLayout());
+        filterPanel.add(abgContainer, BorderLayout.WEST);
+        filterPanel.add(top,          BorderLayout.NORTH);
+        filterPanel.add(chartPanel,   BorderLayout.CENTER);
+        filterPanel.add(right,        BorderLayout.SOUTH);
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Filter",     filterPanel);
+        tabs.addTab("Trajectory", new org.marsroboticsassociation.controllab.trajectory.TrajectoryTab());
+
+        frame.add(tabs, BorderLayout.CENTER);
 
         updateControlsForFilter();
 
