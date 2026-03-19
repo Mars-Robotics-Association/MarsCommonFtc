@@ -30,15 +30,6 @@ public abstract class VelocityMotorBase extends MotorBase {
         trajectory.updateConfig(aMax, jInc, jDec);
     }
 
-    public VelocityMotorBase(TelemetryAddData telemetry, double gearRatio, double motorPPR,
-                             double motorPowerChangeTolerance, IMotor motor, String name,
-                             double aMax, double jInc, double jDec, double vChangeTolerance) {
-        super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor, name);
-        tpsLpf = new BiquadLowPassVarDt(12, 1.0 / Math.sqrt(2.0));
-        trajectory = new VelocityTrajectoryManager(aMax, jInc, vChangeTolerance, telemetry);
-        trajectory.updateConfig(aMax, jInc, jDec);
-    }
-
     /** Package-private constructor for tests — injects a custom clock. */
     VelocityMotorBase(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                       double motorPowerChangeTolerance, IMotor motor,

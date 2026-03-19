@@ -34,7 +34,7 @@ import edu.wpi.first.math.system.plant.LinearSystemId;
  *
  * <p>Usage:
  * <pre>
- *   FlywheelStateSpace flywheel = new FlywheelStateSpace(motor, telemetry::addData, "shooter");
+ *   FlywheelStateSpace flywheel = new FlywheelStateSpace(motor, telemetry::addData);
  *   flywheel.setTps(2000);
  *   // each loop iteration:
  *   flywheel.update(dt);
@@ -99,13 +99,12 @@ public class FlywheelStateSpace {
     private final LowPassFilter accelLpf;
 
     /**
-     * @param motor       IMotor providing velocity, power, and hub voltage
-     * @param telemetry   typically {@code telemetry::addData}
-     * @param primaryName name used as telemetry prefix
+     * @param motor     IMotor providing velocity, power, and hub voltage
+     * @param telemetry typically {@code telemetry::addData}
      */
-    public FlywheelStateSpace(IMotor motor, TelemetryAddData telemetry, String primaryName) {
+    public FlywheelStateSpace(IMotor motor, TelemetryAddData telemetry) {
         this.motor       = motor;
-        this.primaryName = primaryName;
+        this.primaryName = motor.getName();
         this.telemetry   = telemetry;
 
         double startupVoltage = motor.getHubVoltage();

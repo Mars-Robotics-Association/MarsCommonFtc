@@ -162,15 +162,6 @@ public class VelocityMotorPF extends VelocityMotorBase {
         accelLpf = new BiquadLowPassVarDt(_config.accelLpfCutoffHz, 0.5);
     }
 
-    public VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
-                           double motorPowerChangeTolerance, VelocityMotorPFConfig config,
-                           IMotor motor, String name) {
-        super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor, name,
-                config.accelMax, config.jerkIncreasing, config.jerkDecreasing, 10.0);
-        _config = config;
-        accelLpf = new BiquadLowPassVarDt(_config.accelLpfCutoffHz, 0.5);
-    }
-
     /**
      * Package-private constructor for tests — injects a custom clock.
      */

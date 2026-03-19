@@ -69,22 +69,6 @@ public class VelocityMotorSdkPidf extends VelocityMotorBase {
         Kv = SetOnChange.ofDouble(config.Kv, (kv) -> updatePIDF.run());
     }
 
-    public VelocityMotorSdkPidf(TelemetryAddData telemetry, double gearRatio, double motorPPR,
-                                 MotorPIDFConfig config, IMotor motor, String name) {
-        super(telemetry, gearRatio, motorPPR, 0.05, motor, name,
-                config.maxAccel, config.jerkIncreasing, config.jerkDecreasing, 1.0);
-        this.config = config;
-        motorVelocitySetpoint = SetOnChange.ofDouble(0.0, 1.0, motor::setVelocity);
-        Runnable updatePIDF = () -> motor.setVelocityPIDFCoefficients(
-                config.Kp, config.Ki, config.Kd,
-                config.Kv * config.nominalVoltage / getVoltage());
-        voltageFactor = SetOnChange.ofDouble(config.nominalVoltage / getVoltage(), 0.025, (vf) -> updatePIDF.run());
-        Kp = SetOnChange.ofDouble(config.Kp, (kp) -> updatePIDF.run());
-        Ki = SetOnChange.ofDouble(config.Ki, (ki) -> updatePIDF.run());
-        Kd = SetOnChange.ofDouble(config.Kd, (kd) -> updatePIDF.run());
-        Kv = SetOnChange.ofDouble(config.Kv, (kv) -> updatePIDF.run());
-    }
-
     /** Package-private constructor for tests — injects a custom clock. */
     VelocityMotorSdkPidf(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                           MotorPIDFConfig config, IMotor motor, LongSupplier clock) {

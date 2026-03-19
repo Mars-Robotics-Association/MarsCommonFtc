@@ -31,6 +31,7 @@ class FlywheelTestFixture {
             this.sim = sim;
         }
 
+        @Override public String getName()              { return "sim"; }
         @Override public double getVelocity()          { return sim.getVelocityTps(); }
         @Override public void   setPower(double power) { lastPower = power; }
         @Override public double getHubVoltage()        { return HUB_VOLTAGE; }

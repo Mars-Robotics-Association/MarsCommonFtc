@@ -22,13 +22,8 @@ public abstract class MotorBase {
 
     public MotorBase(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                      double motorPowerChangeTolerance, IMotor motor) {
-        this(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor, "motor");
-    }
-
-    public MotorBase(TelemetryAddData telemetry, double gearRatio, double motorPPR,
-                     double motorPowerChangeTolerance, IMotor motor, String name) {
         this.motor = motor;
-        this.name = name;
+        this.name = motor.getName();
         this.gearRatio = gearRatio;
         this.motorPPR = motorPPR;
         this.telemetry = telemetry;

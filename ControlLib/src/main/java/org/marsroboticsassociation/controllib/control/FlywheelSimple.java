@@ -64,14 +64,13 @@ public class FlywheelSimple {
     private boolean powerTooLowForTarget = false;
 
     /**
-     * @param telemetry   typically telemetry::addData
-     * @param primaryName name of the motor, used as telemetry prefix
-     * @param motor       motor providing both encoder feedback and power output
+     * @param telemetry typically telemetry::addData
+     * @param motor     motor providing both encoder feedback and power output
      */
-    public FlywheelSimple(TelemetryAddData telemetry, String primaryName, IMotor motor) {
+    public FlywheelSimple(TelemetryAddData telemetry, IMotor motor) {
         this.motor       = motor;
         this.hubVoltage  = motor.getHubVoltage();
-        this.primaryName = primaryName;
+        this.primaryName = motor.getName();
         this.telemetry   = telemetry;
         this.clock       = System::nanoTime;
     }
@@ -84,11 +83,10 @@ public class FlywheelSimple {
     public double getProfiledVelocity() { return profiledVelocity; }
 
     /** For unit tests only — allows injecting a custom clock. */
-    FlywheelSimple(TelemetryAddData telemetry, String primaryName,
-                   LongSupplier clock, IMotor motor) {
+    FlywheelSimple(TelemetryAddData telemetry, LongSupplier clock, IMotor motor) {
         this.motor       = motor;
         this.hubVoltage  = motor.getHubVoltage();
-        this.primaryName = primaryName;
+        this.primaryName = motor.getName();
         this.telemetry   = telemetry;
         this.clock       = clock;
     }
