@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'MarsCommonFtc'
+
+include ':WpiMath'
+include ':ControlLib'
+include ':ControlLab'
+include ':RuckigNative'

@@ -49,7 +49,7 @@ task configureRuckigDesktop(type: Exec) {
     ignoreExitValue false
     commandLine 'cmake',
             '-B', ruckigBuildDir,
-            '-S', "${rootDir}/RuckigNative",
+            '-S', "${project(':RuckigNative').projectDir}",
             "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${ruckigBuildDir}/out",
             "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=${ruckigBuildDir}/out",
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=${ruckigBuildDir}/out",
