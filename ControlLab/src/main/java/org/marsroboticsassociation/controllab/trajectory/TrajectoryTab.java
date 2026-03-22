@@ -3,16 +3,17 @@ package org.marsroboticsassociation.controllab.trajectory;
 import org.knowm.xchart.*;
 import org.knowm.xchart.style.markers.SeriesMarkers;
 
-import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 
+import javax.swing.*;
+
 public class TrajectoryTab extends JPanel {
 
-    private static final int    SIDEBAR_WIDTH  = 260;
-    private static final int    TIMER_MS       = 20;
-    private static final int    BUFFER_POINTS  = 500;
-    private static final double WINDOW_SECS    = 10.0;
+    private static final int SIDEBAR_WIDTH = 260;
+    private static final int TIMER_MS = 20;
+    private static final int BUFFER_POINTS = 500;
+    private static final double WINDOW_SECS = 10.0;
 
     private TrajectoryEngine engine;
     private final RollingBuffer buffer = new RollingBuffer(WINDOW_SECS, BUFFER_POINTS);
@@ -26,20 +27,19 @@ public class TrajectoryTab extends JPanel {
 
     // SCurvePosition sliders
     private JSlider slVMax, slAAccel, slADecel, slJMax;
-    private JLabel  lbVMax, lbAAccel, lbADecel, lbJMax;
+    private JLabel lbVMax, lbAAccel, lbADecel, lbJMax;
 
     // SCurveVelocity sliders
     private JSlider slAMax, slJInc, slJDec;
-    private JLabel  lbAMax, lbJInc, lbJDec;
+    private JLabel lbAMax, lbJInc, lbJDec;
 
     // Ruckig sliders
     private JSlider slRVMax, slRAMax, slRJMax;
-    private JLabel  lbRVMax, lbRAMax, lbRJMax;
+    private JLabel lbRVMax, lbRAMax, lbRJMax;
 
     // Target sliders
     private JSlider slTargetA, slTargetB;
-    private JLabel  lbTargetA, lbTargetB;
-
+    private JLabel lbTargetA, lbTargetB;
     private JButton btnGoA, btnGoB;
     private Timer simTimer;
 
@@ -61,18 +61,22 @@ public class TrajectoryTab extends JPanel {
     }
 
     private void buildChart() {
-        chart = new XYChartBuilder()
-                .width(900).height(600)
-                .title("Trajectory")
-                .xAxisTitle("Time (s)")
-                .yAxisTitle("Value")
-                .build();
+        chart =
+                new XYChartBuilder()
+                        .width(900)
+                        .height(600)
+                        .title("Trajectory")
+                        .xAxisTitle("Time (s)")
+                        .yAxisTitle("Value")
+                        .build();
         chart.getStyler().setMarkerSize(0);
-        chart.getStyler().setLegendPosition(
-                org.knowm.xchart.style.Styler.LegendPosition.InsideNW);
-        chart.addSeries("Position (units)",      new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
-        chart.addSeries("Velocity (units/s)",    new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
-        chart.addSeries("Acceleration (units/s\u00b2)", new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
+        chart.getStyler().setLegendPosition(org.knowm.xchart.style.Styler.LegendPosition.InsideNW);
+        chart.addSeries("Position (units)", new double[] {0}, new double[] {0})
+                .setMarker(SeriesMarkers.NONE);
+        chart.addSeries("Velocity (units/s)", new double[] {0}, new double[] {0})
+                .setMarker(SeriesMarkers.NONE);
+        chart.addSeries("Acceleration (units/s\u00b2)", new double[] {0}, new double[] {0})
+                .setMarker(SeriesMarkers.NONE);
         chartPanel = new XChartPanel<>(chart);
         add(chartPanel, BorderLayout.CENTER);
     }
@@ -89,18 +93,28 @@ public class TrajectoryTab extends JPanel {
         sidebar.add(Box.createVerticalStrut(12));
 
         if (!TrajectoryEngine.isRuckigAvailable()) {
-            typeCombo.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(
-                        JList<?> list, Object value, int index, boolean sel, boolean focus) {
-                    JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, sel, focus);
-                    if (value == TrajectoryType.RUCKIG) {
-                        lbl.setEnabled(false);
-                        lbl.setToolTipText("Ruckig JNI library not built. Run: gradlew :ControlLab:buildRuckigDesktop");
-                    }
-                    return lbl;
-                }
-            });
+            typeCombo.setRenderer(
+                    new DefaultListCellRenderer() {
+                        @Override
+                        public Component getListCellRendererComponent(
+                                JList<?> list,
+                                Object value,
+                                int index,
+                                boolean sel,
+                                boolean focus) {
+                            JLabel lbl =
+                                    (JLabel)
+                                            super.getListCellRendererComponent(
+                                                    list, value, index, sel, focus);
+                            if (value == TrajectoryType.RUCKIG) {
+                                lbl.setEnabled(false);
+                                lbl.setToolTipText(
+                                        "Ruckig JNI library not built. Run: gradlew"
+                                            + " :ControlLab:buildRuckigDesktop");
+                            }
+                            return lbl;
+                        }
+                    });
         }
 
         sidebar.add(boldLabel("Limits"));
@@ -116,13 +130,13 @@ public class TrajectoryTab extends JPanel {
 
         slTargetA = new JSlider(0, 1000, l2s(-100, -200, 200));
         lbTargetA = new JLabel();
-        slTargetB = new JSlider(0, 1000, l2s(100,  -200, 200));
+        slTargetB = new JSlider(0, 1000, l2s(100, -200, 200));
         lbTargetB = new JLabel();
 
         slTargetA.putClientProperty("min", -200.0);
-        slTargetA.putClientProperty("max",  200.0);
+        slTargetA.putClientProperty("max", 200.0);
         slTargetB.putClientProperty("min", -200.0);
-        slTargetB.putClientProperty("max",  200.0);
+        slTargetB.putClientProperty("max", 200.0);
 
         slTargetA.addChangeListener(e -> updateTargetLabel(lbTargetA, slTargetA, "A"));
         slTargetB.addChangeListener(e -> updateTargetLabel(lbTargetB, slTargetB, "B"));
@@ -154,69 +168,119 @@ public class TrajectoryTab extends JPanel {
 
     private void buildPosSlidersIfNeeded() {
         if (slVMax != null) return;
-        slVMax   = new JSlider(0, 1000, l2s(10,  0.1,  500));  lbVMax   = new JLabel();
-        slAAccel = new JSlider(0, 1000, l2s(5,   0.1,  500));  lbAAccel = new JLabel();
-        slADecel = new JSlider(0, 1000, l2s(5,   0.1,  500));  lbADecel = new JLabel();
-        slJMax   = new JSlider(0, 1000, l2s(50,  1,   5000));  lbJMax   = new JLabel();
+        slVMax = new JSlider(0, 1000, l2s(10, 0.1, 500));
+        lbVMax = new JLabel();
+        slAAccel = new JSlider(0, 1000, l2s(5, 0.1, 500));
+        lbAAccel = new JLabel();
+        slADecel = new JSlider(0, 1000, l2s(5, 0.1, 500));
+        lbADecel = new JLabel();
+        slJMax = new JSlider(0, 1000, l2s(50, 1, 5000));
+        lbJMax = new JLabel();
 
-        slVMax  .addChangeListener(e -> { updateLabel(lbVMax,   slVMax,   "vMax",   0.1,  500); stagePosParams(); });
-        slAAccel.addChangeListener(e -> { updateLabel(lbAAccel, slAAccel, "aAccel", 0.1,  500); stagePosParams(); });
-        slADecel.addChangeListener(e -> { updateLabel(lbADecel, slADecel, "aDecel", 0.1,  500); stagePosParams(); });
-        slJMax  .addChangeListener(e -> { updateLabel(lbJMax,   slJMax,   "jMax",   1,   5000); stagePosParams(); });
-        updateLabel(lbVMax,   slVMax,   "vMax",   0.1,  500);
-        updateLabel(lbAAccel, slAAccel, "aAccel", 0.1,  500);
-        updateLabel(lbADecel, slADecel, "aDecel", 0.1,  500);
-        updateLabel(lbJMax,   slJMax,   "jMax",   1,   5000);
+        slVMax.addChangeListener(
+                e -> {
+                    updateLabel(lbVMax, slVMax, "vMax", 0.1, 500);
+                    stagePosParams();
+                });
+        slAAccel.addChangeListener(
+                e -> {
+                    updateLabel(lbAAccel, slAAccel, "aAccel", 0.1, 500);
+                    stagePosParams();
+                });
+        slADecel.addChangeListener(
+                e -> {
+                    updateLabel(lbADecel, slADecel, "aDecel", 0.1, 500);
+                    stagePosParams();
+                });
+        slJMax.addChangeListener(
+                e -> {
+                    updateLabel(lbJMax, slJMax, "jMax", 1, 5000);
+                    stagePosParams();
+                });
+        updateLabel(lbVMax, slVMax, "vMax", 0.1, 500);
+        updateLabel(lbAAccel, slAAccel, "aAccel", 0.1, 500);
+        updateLabel(lbADecel, slADecel, "aDecel", 0.1, 500);
+        updateLabel(lbJMax, slJMax, "jMax", 1, 5000);
     }
 
     private void buildVelSlidersIfNeeded() {
         if (slAMax != null) return;
-        slAMax = new JSlider(0, 1000, l2s(1197, 10,  5000));  lbAMax = new JLabel();
-        slJInc = new JSlider(0, 1000, l2s(2669, 10, 10000));  lbJInc = new JLabel();
-        slJDec = new JSlider(0, 1000, l2s(800,  10,  5000));  lbJDec = new JLabel();
+        slAMax = new JSlider(0, 1000, l2s(1197, 10, 5000));
+        lbAMax = new JLabel();
+        slJInc = new JSlider(0, 1000, l2s(2669, 10, 10000));
+        lbJInc = new JLabel();
+        slJDec = new JSlider(0, 1000, l2s(800, 10, 5000));
+        lbJDec = new JLabel();
 
-        slAMax.addChangeListener(e -> { updateLabel(lbAMax, slAMax, "aMax", 10,  5000); stageVelParams(); });
-        slJInc.addChangeListener(e -> { updateLabel(lbJInc, slJInc, "jInc", 10, 10000); stageVelParams(); });
-        slJDec.addChangeListener(e -> { updateLabel(lbJDec, slJDec, "jDec", 10,  5000); stageVelParams(); });
-        updateLabel(lbAMax, slAMax, "aMax", 10,  5000);
+        slAMax.addChangeListener(
+                e -> {
+                    updateLabel(lbAMax, slAMax, "aMax", 10, 5000);
+                    stageVelParams();
+                });
+        slJInc.addChangeListener(
+                e -> {
+                    updateLabel(lbJInc, slJInc, "jInc", 10, 10000);
+                    stageVelParams();
+                });
+        slJDec.addChangeListener(
+                e -> {
+                    updateLabel(lbJDec, slJDec, "jDec", 10, 5000);
+                    stageVelParams();
+                });
+        updateLabel(lbAMax, slAMax, "aMax", 10, 5000);
         updateLabel(lbJInc, slJInc, "jInc", 10, 10000);
-        updateLabel(lbJDec, slJDec, "jDec", 10,  5000);
+        updateLabel(lbJDec, slJDec, "jDec", 10, 5000);
     }
 
     private void buildRuckigSlidersIfNeeded() {
         if (slRVMax != null) return;
-        slRVMax = new JSlider(0, 1000, l2s(10,  0.1,  500));  lbRVMax = new JLabel();
-        slRAMax = new JSlider(0, 1000, l2s(5,   0.1,  500));  lbRAMax = new JLabel();
-        slRJMax = new JSlider(0, 1000, l2s(50,  1,   5000));  lbRJMax = new JLabel();
+        slRVMax = new JSlider(0, 1000, l2s(10, 0.1, 500));
+        lbRVMax = new JLabel();
+        slRAMax = new JSlider(0, 1000, l2s(5, 0.1, 500));
+        lbRAMax = new JLabel();
+        slRJMax = new JSlider(0, 1000, l2s(50, 1, 5000));
+        lbRJMax = new JLabel();
 
-        slRVMax.addChangeListener(e -> { updateLabel(lbRVMax, slRVMax, "vMax", 0.1,  500); stageRuckigParams(); });
-        slRAMax.addChangeListener(e -> { updateLabel(lbRAMax, slRAMax, "aMax", 0.1,  500); stageRuckigParams(); });
-        slRJMax.addChangeListener(e -> { updateLabel(lbRJMax, slRJMax, "jMax", 1,   5000); stageRuckigParams(); });
-        updateLabel(lbRVMax, slRVMax, "vMax", 0.1,  500);
-        updateLabel(lbRAMax, slRAMax, "aMax", 0.1,  500);
-        updateLabel(lbRJMax, slRJMax, "jMax", 1,   5000);
+        slRVMax.addChangeListener(
+                e -> {
+                    updateLabel(lbRVMax, slRVMax, "vMax", 0.1, 500);
+                    stageRuckigParams();
+                });
+        slRAMax.addChangeListener(
+                e -> {
+                    updateLabel(lbRAMax, slRAMax, "aMax", 0.1, 500);
+                    stageRuckigParams();
+                });
+        slRJMax.addChangeListener(
+                e -> {
+                    updateLabel(lbRJMax, slRJMax, "jMax", 1, 5000);
+                    stageRuckigParams();
+                });
+        updateLabel(lbRVMax, slRVMax, "vMax", 0.1, 500);
+        updateLabel(lbRAMax, slRAMax, "aMax", 0.1, 500);
+        updateLabel(lbRJMax, slRJMax, "jMax", 1, 5000);
     }
 
     private void stagePosParams() {
         engine.setPositionParams(
-                s2l(slVMax.getValue(),   0.1,  500),
-                s2l(slAAccel.getValue(), 0.1,  500),
-                s2l(slADecel.getValue(), 0.1,  500),
-                s2l(slJMax.getValue(),   1,   5000));
+                s2l(slVMax.getValue(), 0.1, 500),
+                s2l(slAAccel.getValue(), 0.1, 500),
+                s2l(slADecel.getValue(), 0.1, 500),
+                s2l(slJMax.getValue(), 1, 5000));
     }
 
     private void stageVelParams() {
         engine.setVelocityParams(
-                s2l(slAMax.getValue(), 10,  5000),
+                s2l(slAMax.getValue(), 10, 5000),
                 s2l(slJInc.getValue(), 10, 10000),
-                s2l(slJDec.getValue(), 10,  5000));
+                s2l(slJDec.getValue(), 10, 5000));
     }
 
     private void stageRuckigParams() {
         engine.setRuckigParams(
-                s2l(slRVMax.getValue(), 0.1,  500),
-                s2l(slRAMax.getValue(), 0.1,  500),
-                s2l(slRJMax.getValue(), 1,   5000));
+                s2l(slRVMax.getValue(), 0.1, 500),
+                s2l(slRAMax.getValue(), 0.1, 500),
+                s2l(slRJMax.getValue(), 1, 5000));
     }
 
     private void onTypeChanged() {
@@ -224,9 +288,11 @@ public class TrajectoryTab extends JPanel {
 
         if (sel == TrajectoryType.RUCKIG && !TrajectoryEngine.isRuckigAvailable()) {
             typeCombo.setSelectedItem(engine.getType());
-            JOptionPane.showMessageDialog(this,
+            JOptionPane.showMessageDialog(
+                    this,
                     "Ruckig JNI library not built.\nRun: gradlew :ControlLab:buildRuckigDesktop",
-                    "Ruckig Unavailable", JOptionPane.WARNING_MESSAGE);
+                    "Ruckig Unavailable",
+                    JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -237,11 +303,12 @@ public class TrajectoryTab extends JPanel {
         limitPanel.removeAll();
         switch (sel) {
             case SCURVE_POSITION:
+            case SIN_CURVE_POSITION:
                 buildPosSlidersIfNeeded();
-                addSliderRow(limitPanel, lbVMax,   slVMax);
+                addSliderRow(limitPanel, lbVMax, slVMax);
                 addSliderRow(limitPanel, lbAAccel, slAAccel);
                 addSliderRow(limitPanel, lbADecel, slADecel);
-                addSliderRow(limitPanel, lbJMax,   slJMax);
+                addSliderRow(limitPanel, lbJMax, slJMax);
                 updateTargetRange(-200, 200, -100, 100);
                 break;
             case SCURVE_VELOCITY:
@@ -281,7 +348,7 @@ public class TrajectoryTab extends JPanel {
         Object minObj = sl.getClientProperty("min");
         Object maxObj = sl.getClientProperty("max");
         double min = (minObj != null) ? (double) minObj : -200.0;
-        double max = (maxObj != null) ? (double) maxObj :  200.0;
+        double max = (maxObj != null) ? (double) maxObj : 200.0;
         return s2l(sl.getValue(), min, max);
     }
 
@@ -298,12 +365,14 @@ public class TrajectoryTab extends JPanel {
         if (!engine.isMoving()) return;
         engine.tick();
         elapsedSec += TrajectoryEngine.CYCLE_S;
-        buffer.add(elapsedSec, engine.getPosition(), engine.getVelocity(), engine.getAcceleration());
+        buffer.add(
+                elapsedSec, engine.getPosition(), engine.getVelocity(), engine.getAcceleration());
         List<Double> times = buffer.getTimes();
         if (times.size() < 2) return;
-        chart.updateXYSeries("Position (units)",        times, buffer.getPositions(),     null);
-        chart.updateXYSeries("Velocity (units/s)",      times, buffer.getVelocities(),    null);
-        chart.updateXYSeries("Acceleration (units/s\u00b2)", times, buffer.getAccelerations(), null);
+        chart.updateXYSeries("Position (units)", times, buffer.getPositions(), null);
+        chart.updateXYSeries("Velocity (units/s)", times, buffer.getVelocities(), null);
+        chart.updateXYSeries(
+                "Acceleration (units/s\u00b2)", times, buffer.getAccelerations(), null);
         chartPanel.repaint();
     }
 
@@ -327,7 +396,7 @@ public class TrajectoryTab extends JPanel {
         Object minObj = sl.getClientProperty("min");
         Object maxObj = sl.getClientProperty("max");
         double min = (minObj != null) ? (double) minObj : -200.0;
-        double max = (maxObj != null) ? (double) maxObj :  200.0;
+        double max = (maxObj != null) ? (double) maxObj : 200.0;
         lbl.setText(String.format("Target %s: %.1f", name, s2l(sl.getValue(), min, max)));
     }
 

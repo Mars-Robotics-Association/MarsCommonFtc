@@ -1,9 +1,9 @@
 package org.marsroboticsassociation.controllab.trajectory;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Assumptions;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
 
 class TrajectoryEngineTest {
 
@@ -11,8 +11,8 @@ class TrajectoryEngineTest {
     void scurvePosition_initialState_atZeroAtRest() {
         TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SCURVE_POSITION);
         engine.setPositionParams(10, 5, 5, 50);
-        assertEquals(0.0, engine.getPosition(),     1e-9);
-        assertEquals(0.0, engine.getVelocity(),     1e-9);
+        assertEquals(0.0, engine.getPosition(), 1e-9);
+        assertEquals(0.0, engine.getVelocity(), 1e-9);
         assertEquals(0.0, engine.getAcceleration(), 1e-9);
         assertFalse(engine.isMoving());
         assertTrue(engine.hasPosition());
@@ -30,7 +30,7 @@ class TrajectoryEngineTest {
 
         assertFalse(engine.isMoving(), "should have stopped");
         assertEquals(100.0, engine.getPosition(), 0.1);
-        assertEquals(0.0,   engine.getVelocity(), 0.1);
+        assertEquals(0.0, engine.getVelocity(), 0.1);
     }
 
     @Test
@@ -75,6 +75,32 @@ class TrajectoryEngineTest {
     }
 
     @Test
+    void sinCurvePosition_initialState_atZeroAtRest() {
+        TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION);
+        engine.setPositionParams(10, 5, 5, 50);
+        assertEquals(0.0, engine.getPosition(), 1e-9);
+        assertEquals(0.0, engine.getVelocity(), 1e-9);
+        assertEquals(0.0, engine.getAcceleration(), 1e-9);
+        assertFalse(engine.isMoving());
+        assertTrue(engine.hasPosition());
+    }
+
+    @Test
+    void sinCurvePosition_goTo_eventuallyReachesTarget() {
+        TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION);
+        engine.setPositionParams(10, 5, 5, 50);
+        engine.applyParamsAndGoTo(100.0);
+        assertTrue(engine.isMoving());
+
+        // Step 30 seconds worth of 20 ms ticks
+        for (int i = 0; i < 1500; i++) engine.tick();
+
+        assertFalse(engine.isMoving(), "should have stopped");
+        assertEquals(100.0, engine.getPosition(), 0.1);
+        assertEquals(0.0, engine.getVelocity(), 0.1);
+    }
+
+    @Test
     void scurveVelocity_hasNoPosition() {
         TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SCURVE_VELOCITY);
         engine.setVelocityParams(1197, 2669, 800);
@@ -105,6 +131,6 @@ class TrajectoryEngineTest {
         for (int i = 0; i < 1500; i++) engine.tick();
         assertFalse(engine.isMoving());
         assertEquals(100.0, engine.getPosition(), 0.5);
-        assertEquals(0.0,   engine.getVelocity(), 0.1);
+        assertEquals(0.0, engine.getVelocity(), 0.1);
     }
 }

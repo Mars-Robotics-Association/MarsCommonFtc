@@ -1,31 +1,35 @@
 package org.marsroboticsassociation.controllab.trajectory;
 
 import org.marsroboticsassociation.controllib.motion.PositionTrajectoryManager;
+import org.marsroboticsassociation.controllib.motion.SinCurvePosition;
 import org.marsroboticsassociation.controllib.motion.VelocityTrajectoryManager;
 import org.marsroboticsassociation.controllib.util.TelemetryAddData;
 
 /**
- * Simulation engine that drives one trajectory planner at 20 ms per tick.
- * Designed to be called from the Swing EDT by a javax.swing.Timer.
+ * Simulation engine that drives one trajectory planner at 20 ms per tick. Designed to be called
+ * from the Swing EDT by a javax.swing.Timer.
  *
- * Params are staged via setXxxParams() and applied to the underlying
- * planner only when applyParamsAndGoTo() is called (button press).
+ * <p>Params are staged via setXxxParams() and applied to the underlying planner only when
+ * applyParamsAndGoTo() is called (button press).
  */
 public class TrajectoryEngine {
 
     private static final TelemetryAddData NO_OP = (c, f, v) -> {};
-    static final double CYCLE_S  = 0.020; // 20 ms
-    private static final long   CYCLE_NS = (long)(CYCLE_S * 1e9);
+    static final double CYCLE_S = 0.020; // 20 ms
+    private static final long CYCLE_NS = (long) (CYCLE_S * 1e9);
 
     // ------------------------------------------------------------------
     // Ruckig availability check (done once at class load)
     // ------------------------------------------------------------------
     private static final boolean RUCKIG_AVAILABLE;
+
     static {
         boolean ok = false;
         try {
             Class.forName("org.marsroboticsassociation.controllib.motion.ruckig.RuckigController");
-            try (var r = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigController(1, CYCLE_S)) {
+            try (var r =
+                    new org.marsroboticsassociation.controllib.motion.ruckig.RuckigController(
+                            1, CYCLE_S)) {
                 ok = true;
             }
         } catch (UnsatisfiedLinkError | Exception e) {
@@ -53,9 +57,9 @@ public class TrajectoryEngine {
 
     // --- Ruckig ---
     private org.marsroboticsassociation.controllib.motion.ruckig.RuckigController ruckig;
-    private org.marsroboticsassociation.controllib.motion.ruckig.RuckigInput  rIn;
+    private org.marsroboticsassociation.controllib.motion.ruckig.RuckigInput rIn;
     private org.marsroboticsassociation.controllib.motion.ruckig.RuckigOutput rOut;
-    private double  pendingRuckigVMax = 10, pendingRuckigAMax = 5, pendingRuckigJMax = 50;
+    private double pendingRuckigVMax = 10, pendingRuckigAMax = 5, pendingRuckigJMax = 50;
     private boolean ruckigFinished = true;
 
     // --- Simulated wall clock (nanoseconds) ---
@@ -76,10 +80,10 @@ public class TrajectoryEngine {
     // ------------------------------------------------------------------
 
     public void setPositionParams(double vMax, double aAccel, double aDecel, double jMax) {
-        this.pendingVMax   = vMax;
+        this.pendingVMax = vMax;
         this.pendingAAccel = aAccel;
         this.pendingADecel = aDecel;
-        this.pendingJMax   = jMax;
+        this.pendingJMax = jMax;
     }
 
     public void setVelocityParams(double aMax, double jInc, double jDec) {
@@ -103,6 +107,7 @@ public class TrajectoryEngine {
         this.moving = true;
         switch (type) {
             case SCURVE_POSITION:
+            case SIN_CURVE_POSITION:
                 posManager.updateConfig(pendingVMax, pendingAAccel, pendingADecel, pendingJMax);
                 posManager.setTarget(target);
                 break;
@@ -112,11 +117,11 @@ public class TrajectoryEngine {
                 break;
             case RUCKIG:
                 if (rIn != null) {
-                    rIn.maxVelocity[0]        = pendingRuckigVMax;
-                    rIn.maxAcceleration[0]    = pendingRuckigAMax;
-                    rIn.maxJerk[0]            = pendingRuckigJMax;
-                    rIn.targetPosition[0]     = target;
-                    rIn.targetVelocity[0]     = 0;
+                    rIn.maxVelocity[0] = pendingRuckigVMax;
+                    rIn.maxAcceleration[0] = pendingRuckigAMax;
+                    rIn.maxJerk[0] = pendingRuckigJMax;
+                    rIn.targetPosition[0] = target;
+                    rIn.targetVelocity[0] = 0;
                     rIn.targetAcceleration[0] = 0;
                     ruckigFinished = false;
                 }
@@ -134,6 +139,7 @@ public class TrajectoryEngine {
 
         switch (type) {
             case SCURVE_POSITION:
+            case SIN_CURVE_POSITION:
                 posManager.update();
                 lastP = posManager.getPosition();
                 lastV = posManager.getVelocity();
@@ -159,13 +165,15 @@ public class TrajectoryEngine {
                     return;
                 }
                 var result = ruckig.update(rIn, rOut);
-                rIn.currentPosition[0]     = rOut.newPosition[0];
-                rIn.currentVelocity[0]     = rOut.newVelocity[0];
+                rIn.currentPosition[0] = rOut.newPosition[0];
+                rIn.currentVelocity[0] = rOut.newVelocity[0];
                 rIn.currentAcceleration[0] = rOut.newAcceleration[0];
                 lastP = rOut.newPosition[0];
                 lastV = rOut.newVelocity[0];
                 lastA = rOut.newAcceleration[0];
-                if (result != org.marsroboticsassociation.controllib.motion.ruckig.RuckigResult.WORKING) {
+                if (result
+                        != org.marsroboticsassociation.controllib.motion.ruckig.RuckigResult
+                                .WORKING) {
                     ruckigFinished = true;
                     moving = false;
                 }
@@ -186,12 +194,29 @@ public class TrajectoryEngine {
     // Accessors
     // ------------------------------------------------------------------
 
-    public double getPosition()     { return lastP; }
-    public double getVelocity()     { return lastV; }
-    public double getAcceleration() { return lastA; }
-    public boolean isMoving()       { return moving; }
-    public boolean hasPosition()    { return type != TrajectoryType.SCURVE_VELOCITY; }
-    public TrajectoryType getType() { return type; }
+    public double getPosition() {
+        return lastP;
+    }
+
+    public double getVelocity() {
+        return lastV;
+    }
+
+    public double getAcceleration() {
+        return lastA;
+    }
+
+    public boolean isMoving() {
+        return moving;
+    }
+
+    public boolean hasPosition() {
+        return type != TrajectoryType.SCURVE_VELOCITY;
+    }
+
+    public TrajectoryType getType() {
+        return type;
+    }
 
     // ------------------------------------------------------------------
     // Type switch: tear down old planner, build new one
@@ -200,10 +225,12 @@ public class TrajectoryEngine {
     public void switchType(TrajectoryType newType) {
         if (this.type == newType) return;
         tearDownPlanner();
-        this.type      = newType;
-        this.moving    = false;
-        this.lastP = 0; this.lastV = 0; this.lastA = 0;
-        this.clockNs   = 0;
+        this.type = newType;
+        this.moving = false;
+        this.lastP = 0;
+        this.lastV = 0;
+        this.lastA = 0;
+        this.clockNs = 0;
         buildPlanner();
     }
 
@@ -214,23 +241,44 @@ public class TrajectoryEngine {
     private void buildPlanner() {
         switch (type) {
             case SCURVE_POSITION:
-                posManager = new PositionTrajectoryManager(
-                        pendingVMax, pendingAAccel, pendingADecel, pendingJMax,
-                        0.001, NO_OP, () -> clockNs);
+                posManager =
+                        new PositionTrajectoryManager(
+                                pendingVMax,
+                                pendingAAccel,
+                                pendingADecel,
+                                pendingJMax,
+                                0.001,
+                                NO_OP,
+                                () -> clockNs);
+                break;
+            case SIN_CURVE_POSITION:
+                posManager =
+                        new PositionTrajectoryManager(
+                                pendingVMax,
+                                pendingAAccel,
+                                pendingADecel,
+                                pendingJMax,
+                                0.001,
+                                NO_OP,
+                                () -> clockNs,
+                                SinCurvePosition::new);
                 break;
             case SCURVE_VELOCITY:
-                velManager = new VelocityTrajectoryManager(
-                        pendingAMax, pendingJInc, 1.0, NO_OP, () -> clockNs);
+                velManager =
+                        new VelocityTrajectoryManager(
+                                pendingAMax, pendingJInc, 1.0, NO_OP, () -> clockNs);
                 velManager.updateConfig(pendingAMax, pendingJInc, pendingJDec);
                 break;
             case RUCKIG:
                 if (RUCKIG_AVAILABLE) {
-                    ruckig = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigController(1, CYCLE_S);
-                    rIn    = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigInput(1);
-                    rOut   = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigOutput(1);
-                    rIn.maxVelocity[0]     = pendingRuckigVMax;
+                    ruckig =
+                            new org.marsroboticsassociation.controllib.motion.ruckig
+                                    .RuckigController(1, CYCLE_S);
+                    rIn = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigInput(1);
+                    rOut = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigOutput(1);
+                    rIn.maxVelocity[0] = pendingRuckigVMax;
                     rIn.maxAcceleration[0] = pendingRuckigAMax;
-                    rIn.maxJerk[0]         = pendingRuckigJMax;
+                    rIn.maxJerk[0] = pendingRuckigJMax;
                     ruckigFinished = true;
                 }
                 break;
