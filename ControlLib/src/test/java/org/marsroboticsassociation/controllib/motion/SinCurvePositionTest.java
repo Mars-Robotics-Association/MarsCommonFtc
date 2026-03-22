@@ -214,6 +214,19 @@ class SinCurvePositionTest {
     // ---------------------------------------------------------------
 
     @Test
+    void caseB_handoff_endConditionsContinuous() {
+        // direction_reversal (v0=-3) triggers Case B: braking and main accel are in the same
+        // direction, so the handoff arc replaces braking-offset + T1-onset.
+        SinCurvePosition s = new SinCurvePosition(0, 50, -3, 0, 8, 2, 5, 12);
+        assertTrue(s.handoffCombined, "expected Case B handoff for direction_reversal");
+        double tf = s.getTotalTime();
+        // Verify velocity and position reach their endpoints CONTINUOUSLY (not via endpoint clamp).
+        // With the T2 bug, velocity near the end was ~0.7 instead of 0.
+        assertEquals(0.0, s.getVelocity(tf - 1e-6), 1e-3, "v should continuously reach 0");
+        assertEquals(50.0, s.getPosition(tf - 1e-6), 1e-3, "p should continuously reach pTarget");
+    }
+
+    @Test
     void brakingPrefix_smoothDeceleration() {
         // v0=-3: wrong-way velocity, braking prefix fires
         SinCurvePosition s = new SinCurvePosition(0, 50, -3, 0, 8, 2, 5, 12);

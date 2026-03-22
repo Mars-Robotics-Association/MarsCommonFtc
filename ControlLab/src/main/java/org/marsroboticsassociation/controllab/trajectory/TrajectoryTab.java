@@ -77,6 +77,16 @@ public class TrajectoryTab extends JPanel {
                 .setMarker(SeriesMarkers.NONE);
         chart.addSeries("Acceleration (units/s\u00b2)", new double[] {0}, new double[] {0})
                 .setMarker(SeriesMarkers.NONE);
+        chart.addSeries("Target", new double[] {0}, new double[] {0})
+                .setMarker(SeriesMarkers.NONE)
+                .setLineStyle(
+                        new java.awt.BasicStroke(
+                                1.5f,
+                                java.awt.BasicStroke.CAP_BUTT,
+                                java.awt.BasicStroke.JOIN_MITER,
+                                10.0f,
+                                new float[] {6.0f, 4.0f},
+                                0.0f));
         chartPanel = new XChartPanel<>(chart);
         add(chartPanel, BorderLayout.CENTER);
     }
@@ -110,7 +120,7 @@ public class TrajectoryTab extends JPanel {
                                 lbl.setEnabled(false);
                                 lbl.setToolTipText(
                                         "Ruckig JNI library not built. Run: gradlew"
-                                            + " :ControlLab:buildRuckigDesktop");
+                                                + " :ControlLab:buildRuckigDesktop");
                             }
                             return lbl;
                         }
@@ -366,13 +376,18 @@ public class TrajectoryTab extends JPanel {
         engine.tick();
         elapsedSec += TrajectoryEngine.CYCLE_S;
         buffer.add(
-                elapsedSec, engine.getPosition(), engine.getVelocity(), engine.getAcceleration());
+                elapsedSec,
+                engine.getPosition(),
+                engine.getVelocity(),
+                engine.getAcceleration(),
+                engine.getTarget());
         List<Double> times = buffer.getTimes();
         if (times.size() < 2) return;
         chart.updateXYSeries("Position (units)", times, buffer.getPositions(), null);
         chart.updateXYSeries("Velocity (units/s)", times, buffer.getVelocities(), null);
         chart.updateXYSeries(
                 "Acceleration (units/s\u00b2)", times, buffer.getAccelerations(), null);
+        chart.updateXYSeries("Target", times, buffer.getTargets(), null);
         chartPanel.repaint();
     }
 

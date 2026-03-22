@@ -210,6 +210,10 @@ public class TrajectoryEngine {
         return moving;
     }
 
+    public double getTarget() {
+        return currentTarget;
+    }
+
     public boolean hasPosition() {
         return type != TrajectoryType.SCURVE_VELOCITY;
     }

@@ -465,6 +465,19 @@ public class SinCurvePosition implements PositionTrajectory {
 
         // When Case B is active, T1 is absorbed into the handoff arc.
         this.T1 = (doHandoff) ? 0 : Math.max(0, t1);
+        if (doHandoff && aPkAccel > 1e-9) {
+            // T2 must be recomputed: T1=0 so velocity entering T2 is vHEnd (end of handoff arc),
+            // not v0adj. Standard formula (dvAccel - vAccelMin)/aPkAccel assumes onset starts at
+            // v=0; here the handoff arc already gained vHEnd = T_H*(brkA+aPkAccel)/2.
+            double brkA = Math.abs(brakeSubAmpl[0]);
+            double T_H = Math.abs(aPkAccel - brkA) / this.jMax;
+            double vHEnd_calc = T_H * (brkA + aPkAccel) / 2.0;
+            t2 =
+                    Math.max(
+                            0.0,
+                            (vPeakSolved - vHEnd_calc - aPkAccel * aPkAccel / (2.0 * this.jMax))
+                                    / aPkAccel);
+        }
         this.T2 = Math.max(0, t2);
         this.T3 = Math.max(0, t3);
         this.T5 = Math.max(0, t5);
