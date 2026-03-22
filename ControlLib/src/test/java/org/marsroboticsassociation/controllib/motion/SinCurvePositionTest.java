@@ -235,11 +235,17 @@ class SinCurvePositionTest {
         SinCurvePosition s = new SinCurvePosition(0, 50, -3, 0, 8, 2, 5, 12);
         double tBrakeEnd = s.tPrefix + s.tBrake;
         assertTrue(tBrakeEnd > 0, "expected braking prefix");
-        // At end of braking, velocity should be ~0
+        // At end of braking, velocity should always be ~0
         assertEquals(0.0, s.getVelocity(tBrakeEnd), 1e-6, "velocity at brake end should be 0");
-        // Acceleration at brake end should be ~0 (symmetric brake fully ramps down)
-        assertEquals(
-                0.0, s.getAcceleration(tBrakeEnd), 1e-6, "acceleration at brake end should be 0");
+        // When Case B (handoff) is active, braking ends at a = brkAmpl (the handoff start value),
+        // not 0. Only assert a=0 when no handoff is present.
+        if (!s.handoffCombined) {
+            assertEquals(
+                    0.0,
+                    s.getAcceleration(tBrakeEnd),
+                    1e-6,
+                    "acceleration at brake end should be 0");
+        }
     }
 
     @Test

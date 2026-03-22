@@ -65,6 +65,24 @@ public class SinCurvePosition implements PositionTrajectory {
     public final double tBrake; // total duration (0 if not needed)
     private final double pBrake; // position at end of braking
 
+    // True when a0 != 0 and braking is active: the a0 prefix and braking onset are merged
+    // into a single general arc (a0 → brkAmpl). In this case tPrefix stores the arc duration,
+    // brakeSubDur[0] = 0 (onset skipped), and the braking constant/offset are recalculated.
+    private final boolean prefixMergedWithBrake;
+
+    // Case B: braking offset + main T1 onset replaced by a single "handoff" arc
+    // (brkAmpl→aPkAccel·dir).
+    // Braking ends at v=0, a=brkAmpl (no offset phase). The handoff then transitions smoothly
+    // to the main acceleration peak without returning to zero.
+    public final boolean handoffCombined;
+    public final double tHandoffStart; // absolute time at start of handoff
+    public final double tHandoffEnd; // absolute time at end of handoff
+    public final double aHandoffStart; // = brkAmpl (world frame)
+    public final double aHandoffEnd; // = aPkAccel * dir (world frame)
+    public final double pHandoffStart; // position at start of handoff (= pBrake)
+    public final double pHandoffEnd; // position at end of handoff (= phaseStartP[0])
+    public final double vHandoffEnd; // velocity at end of handoff (= phaseStartV[0])
+
     // Brake sub-phase table (3 sub-phases: onset, constant, offset)
     // brakeSubT[0..3] = absolute start times (4 boundaries for 3 sub-phases)
     private final double[] brakeSubT = new double[4];
@@ -111,6 +129,15 @@ public class SinCurvePosition implements PositionTrajectory {
             vAfterPrefix = v0;
             tBrake = 0;
             pBrake = p0;
+            prefixMergedWithBrake = false;
+            handoffCombined = false;
+            tHandoffStart = 0;
+            tHandoffEnd = 0;
+            aHandoffStart = 0;
+            aHandoffEnd = 0;
+            pHandoffStart = p0;
+            pHandoffEnd = p0;
+            vHandoffEnd = 0;
             phaseStartP[0] = p0;
             phaseStartV[0] = v0;
             for (int i = 1; i < 8; i++) {
@@ -124,9 +151,7 @@ public class SinCurvePosition implements PositionTrajectory {
 
         // ---------------------------------------------------------------
         // a0 prefix: quarter-cosine from a0 to 0
-        //   a(t) = a0 * cos(pi*t / (2*tPre))
-        //   v(t) = v0 + a0 * (2*tPre/pi) * sin(pi*t / (2*tPre))
-        //   p(t) = p0 + v0*t + a0 * (4*tPre^2/pi^2) * (1 - cos(pi*t / (2*tPre)))
+        // (replaced by a general arc when Case A applies; see below)
         // ---------------------------------------------------------------
         double tPre, pPre, vPre;
         if (Math.abs(a0) < 1e-9) {
@@ -135,18 +160,50 @@ public class SinCurvePosition implements PositionTrajectory {
             vPre = v0;
         } else {
             tPre = Math.abs(a0) / this.jMax;
-            // sin(pi/2) = 1, (1 - cos(pi/2)) = 1
             vPre = v0 + a0 * (2.0 * tPre / Math.PI);
             pPre = p0 + v0 * tPre + a0 * (4.0 * tPre * tPre / (Math.PI * Math.PI));
         }
+
+        // Determine whether braking is needed (after the a0 prefix)
+        final boolean brakingNeeded = (vPre * dir < -1e-9);
+
+        // ---------------------------------------------------------------
+        // Case A: if a0 != 0 and braking is needed, merge the a0 prefix
+        // and braking onset into a single general arc (a0 → brkAmpl).
+        // ---------------------------------------------------------------
+        boolean mergedPrefix = false;
+        double brkAmplForCaseA = 0;
+
+        if (Math.abs(a0) > 1e-9 && brakingNeeded) {
+            // Determine brkAmpl (sign: opposite to vPre)
+            double aBrake = Math.max(this.aMaxAccel, this.aMaxDecel);
+            brkAmplForCaseA = -Math.signum(vPre) * aBrake; // signed world-frame amplitude
+
+            // Combined arc: a0 → brkAmpl
+            double T_A = Math.abs(brkAmplForCaseA - a0) / this.jMax;
+            double delta_A = brkAmplForCaseA - a0;
+            double vEnd_A = evalVgen(v0, a0, delta_A, T_A, T_A);
+            double pEnd_A = evalPgen(p0, v0, a0, delta_A, T_A, T_A);
+
+            // Only merge when the combined arc leaves velocity still in the wrong direction.
+            // If the arc over-brakes (small initial speed), fall back to normal prefix.
+            if (vEnd_A * dir < -1e-9) {
+                tPre = T_A;
+                vPre = vEnd_A;
+                pPre = pEnd_A;
+                mergedPrefix = true;
+            }
+        }
+
         this.tPrefix = tPre;
         this.pAfterPrefix = pPre;
         this.vAfterPrefix = vPre;
+        this.prefixMergedWithBrake = mergedPrefix;
 
         // ---------------------------------------------------------------
         // Braking prefix: symmetric sinusoidal 3-sub-phase decel if vPre is wrong-way.
-        // Sub-phases: onset (0 -> aBrake), constant (aBrake), offset (aBrake -> 0).
-        // Ends at v=0, a=0. Main phases start cleanly from rest.
+        // When Case A is active, the onset sub-phase (brakeSubDur[0]) is set to 0
+        // (already absorbed into the prefix arc). tB2 is recalculated from vPre.
         // ---------------------------------------------------------------
         double tBrk, pBrk;
         if (vPre * dir < -1e-9) {
@@ -154,33 +211,63 @@ public class SinCurvePosition implements PositionTrajectory {
             double aBrake = Math.max(this.aMaxAccel, this.aMaxDecel);
             double vBrakeMin = aBrake * aBrake / this.jMax;
             double tB1, tB2, tB3, aBrkPeak;
-            if (speed >= vBrakeMin) {
-                // Trapezoidal: ramp up to aBrake, hold, ramp back down to 0
-                tB1 = aBrake / this.jMax;
-                tB2 = (speed - vBrakeMin) / aBrake;
-                tB3 = tB1;
-                aBrkPeak = aBrake;
-            } else {
-                // Triangular: ramp up to aPeak (< aBrake), ramp back down
-                aBrkPeak = Math.sqrt(speed * this.jMax);
-                tB1 = aBrkPeak / this.jMax;
-                tB2 = 0;
-                tB3 = tB1;
-            }
-            tBrk = tB1 + tB2 + tB3;
-            // Braking accelerates opposite to vPre to kill it
-            double brkAmpl = -Math.signum(vPre) * aBrkPeak;
-            brakeSubDur[0] = tB1;
-            brakeSubAmpl[0] = brkAmpl;
-            brakeSubSign[0] = -1; // onset
-            brakeSubDur[1] = tB2;
-            brakeSubAmpl[1] = brkAmpl;
-            brakeSubSign[1] = 0; // constant
-            brakeSubDur[2] = tB3;
-            brakeSubAmpl[2] = brkAmpl;
-            brakeSubSign[2] = +1; // offset
 
-            // Forward-chain brake sub-phases from (pPre, vPre) at absolute time tPrefix
+            if (mergedPrefix) {
+                // Case A: onset already handled; only need constant + offset to kill vPre.
+                // brkAmplForCaseA is signed; aBrkPeak is the magnitude.
+                aBrkPeak = Math.abs(brkAmplForCaseA);
+                tB1 = 0; // onset absorbed into prefix
+                tB3 = aBrkPeak / this.jMax;
+                // Solve for tB2: vPre + brkAmpl * tB2 + brkAmpl/2 * tB3 = 0
+                // => tB2 = -(vPre + brkAmpl/2 * tB3) / brkAmpl
+                double brkAmplSigned = brkAmplForCaseA;
+                double tB2_candidate = -(vPre + brkAmplSigned / 2.0 * tB3) / brkAmplSigned;
+                if (tB2_candidate >= 0) {
+                    tB2 = tB2_candidate;
+                } else {
+                    // Triangular: reduce brkAmpl so tB2=0 is sufficient
+                    // Simplified: aBrkPeak_tri = sqrt(|vPre| * jMax)
+                    aBrkPeak = Math.sqrt(speed * this.jMax);
+                    tB3 = aBrkPeak / this.jMax;
+                    tB2 = 0;
+                    brkAmplSigned = -Math.signum(vPre) * aBrkPeak;
+                    brkAmplForCaseA = brkAmplSigned; // update for brakeSubAmpl[0]
+                }
+                brakeSubDur[0] = tB1; // = 0
+                brakeSubAmpl[0] = brkAmplSigned;
+                brakeSubSign[0] = -1; // onset (zero duration, harmless)
+                brakeSubDur[1] = tB2;
+                brakeSubAmpl[1] = brkAmplSigned;
+                brakeSubSign[1] = 0;
+                brakeSubDur[2] = tB3;
+                brakeSubAmpl[2] = brkAmplSigned;
+                brakeSubSign[2] = +1;
+            } else {
+                // Normal braking (no Case A)
+                if (speed >= vBrakeMin) {
+                    tB1 = aBrake / this.jMax;
+                    tB2 = (speed - vBrakeMin) / aBrake;
+                    tB3 = tB1;
+                    aBrkPeak = aBrake;
+                } else {
+                    aBrkPeak = Math.sqrt(speed * this.jMax);
+                    tB1 = aBrkPeak / this.jMax;
+                    tB2 = 0;
+                    tB3 = tB1;
+                }
+                double brkAmpl = -Math.signum(vPre) * aBrkPeak;
+                brakeSubDur[0] = tB1;
+                brakeSubAmpl[0] = brkAmpl;
+                brakeSubSign[0] = -1;
+                brakeSubDur[1] = tB2;
+                brakeSubAmpl[1] = brkAmpl;
+                brakeSubSign[1] = 0;
+                brakeSubDur[2] = tB3;
+                brakeSubAmpl[2] = brkAmpl;
+                brakeSubSign[2] = +1;
+            }
+
+            tBrk = brakeSubDur[0] + brakeSubDur[1] + brakeSubDur[2];
             brakeSubT[0] = tPre;
             brakeSubP[0] = pPre;
             brakeSubV[0] = vPre;
@@ -201,45 +288,141 @@ public class SinCurvePosition implements PositionTrajectory {
             tBrk = 0;
             pBrk = pPre;
         }
-        this.tBrake = tBrk;
-        this.pBrake = pBrk;
-
         // ---------------------------------------------------------------
-        // Main 7-phase setup
+        // Main 7-phase setup — Pass 1 (original braking structure with offset)
         // ---------------------------------------------------------------
         double distRemaining = Math.max(0.0, dir * (pTarget - pBrk));
         double v0adj = (tBrk > 0) ? 0.0 : Math.min(Math.max(vPre * dir, 0.0), this.vMax);
 
-        // Bisect for vPeak
-        double dAtVMax =
-                sinHalfDist(v0adj, this.vMax, this.aMaxAccel, this.jMax)
-                        + sinHalfDist(0, this.vMax, this.aMaxDecel, this.jMax);
         double vPeakSolved, T4solved;
-        if (distRemaining >= dAtVMax) {
-            vPeakSolved = this.vMax;
-            T4solved = (this.vMax > 1e-9) ? (distRemaining - dAtVMax) / this.vMax : 0;
-        } else {
-            T4solved = 0;
-            double dAtV0adj = sinHalfDist(0, v0adj, this.aMaxDecel, this.jMax);
-            if (distRemaining <= dAtV0adj) {
-                vPeakSolved = v0adj;
+        {
+            double dAtVMax =
+                    sinHalfDist(v0adj, this.vMax, this.aMaxAccel, this.jMax)
+                            + sinHalfDist(0, this.vMax, this.aMaxDecel, this.jMax);
+            if (distRemaining >= dAtVMax) {
+                vPeakSolved = this.vMax;
+                T4solved = (this.vMax > 1e-9) ? (distRemaining - dAtVMax) / this.vMax : 0;
             } else {
-                double lo = v0adj, hi = this.vMax;
-                for (int i = 0; i < 64; i++) {
-                    double mid = (lo + hi) * 0.5;
-                    double d =
-                            sinHalfDist(v0adj, mid, this.aMaxAccel, this.jMax)
-                                    + sinHalfDist(0, mid, this.aMaxDecel, this.jMax);
-                    if (d < distRemaining) lo = mid;
-                    else hi = mid;
+                T4solved = 0;
+                double dAtV0adj = sinHalfDist(0, v0adj, this.aMaxDecel, this.jMax);
+                if (distRemaining <= dAtV0adj) {
+                    vPeakSolved = v0adj;
+                } else {
+                    double lo = v0adj, hi = this.vMax;
+                    for (int i = 0; i < 64; i++) {
+                        double mid = (lo + hi) * 0.5;
+                        double d =
+                                sinHalfDist(v0adj, mid, this.aMaxAccel, this.jMax)
+                                        + sinHalfDist(0, mid, this.aMaxDecel, this.jMax);
+                        if (d < distRemaining) lo = mid;
+                        else hi = mid;
+                    }
+                    vPeakSolved = (lo + hi) * 0.5;
                 }
-                vPeakSolved = (lo + hi) * 0.5;
             }
         }
+
+        // ---------------------------------------------------------------
+        // Case B: check and optional pass 2 with handoff arc
+        //
+        // When braking is active and the main acceleration is in the same direction as
+        // the braking force, replace braking-offset + main-T1-onset with a single smooth
+        // "handoff" arc (brkAmpl → aPkAccel·dir). Braking is modified to end at v=0,
+        // a=brkAmpl (offset removed; tB2 is adjusted instead).
+        // ---------------------------------------------------------------
+        boolean doHandoff = false;
+
+        if (tBrk > 0 && vPeakSolved > 0) {
+            double dvAccel_0 = vPeakSolved - v0adj;
+            double aPkAccel_0 = 0;
+            if (dvAccel_0 > 0) {
+                double vAccelMin_0 = this.aMaxAccel * this.aMaxAccel / this.jMax;
+                aPkAccel_0 =
+                        (dvAccel_0 >= vAccelMin_0)
+                                ? this.aMaxAccel
+                                : Math.sqrt(dvAccel_0 * this.jMax);
+            }
+            double brkAmplSigned = brakeSubAmpl[0]; // e.g. negative for rightward braking
+            double brkA = Math.abs(brkAmplSigned);
+            double vMinHandoff = brkA * brkA / (2.0 * this.jMax);
+
+            // Case B applies when brkAmpl and aPkAccel·dir have the same sign (both point
+            // toward the new target direction), and vPeak is large enough for the handoff.
+            if (aPkAccel_0 > 1e-9
+                    && brkAmplSigned * aPkAccel_0 * dir > 0
+                    && vPeakSolved >= vMinHandoff) {
+
+                // Modify braking: remove offset, adjust tB2 so braking ends at v=0, a=brkAmpl.
+                // v_after_onset = brakeSubV[1] (velocity after onset sub-phase)
+                // tB2_new = -v_after_onset / brkAmplSigned  (always >= 0 since they have opposite
+                // signs)
+                double v_after_onset = brakeSubV[1];
+                double tB2_new = Math.max(0.0, -v_after_onset / brkAmplSigned);
+                brakeSubDur[1] = tB2_new;
+                brakeSubDur[2] = 0; // offset removed
+
+                // Re-forward-chain to get new pBrk
+                brakeSubT[0] = tPre;
+                brakeSubP[0] = pPre;
+                brakeSubV[0] = vPre;
+                for (int i = 0; i < 3; i++) {
+                    double[] end =
+                            evalPhaseEnd(
+                                    brakeSubP[i],
+                                    brakeSubV[i],
+                                    brakeSubAmpl[i],
+                                    brakeSubSign[i],
+                                    brakeSubDur[i]);
+                    brakeSubT[i + 1] = brakeSubT[i] + brakeSubDur[i];
+                    brakeSubP[i + 1] = end[0];
+                    brakeSubV[i + 1] = end[1];
+                }
+                tBrk = brakeSubDur[0] + brakeSubDur[1] + brakeSubDur[2];
+                pBrk = brakeSubP[3];
+
+                // Pass 2 bisect using sinHalfDistCombined
+                double distRemaining2 = Math.max(0.0, dir * (pTarget - pBrk));
+                double dAtVMaxCombined =
+                        sinHalfDistCombined(v0adj, this.vMax, this.aMaxAccel, this.jMax, brkA)
+                                + sinHalfDist(0, this.vMax, this.aMaxDecel, this.jMax);
+                if (distRemaining2 >= dAtVMaxCombined) {
+                    vPeakSolved = this.vMax;
+                    T4solved =
+                            (this.vMax > 1e-9) ? (distRemaining2 - dAtVMaxCombined) / this.vMax : 0;
+                } else {
+                    T4solved = 0;
+                    double dAtV0adjCombined = sinHalfDist(0, v0adj, this.aMaxDecel, this.jMax);
+                    if (distRemaining2 <= dAtV0adjCombined) {
+                        vPeakSolved = v0adj;
+                    } else {
+                        double lo = v0adj, hi = this.vMax;
+                        for (int i = 0; i < 64; i++) {
+                            double mid = (lo + hi) * 0.5;
+                            double d =
+                                    sinHalfDistCombined(v0adj, mid, this.aMaxAccel, this.jMax, brkA)
+                                            + sinHalfDist(0, mid, this.aMaxDecel, this.jMax);
+                            if (d < distRemaining2) lo = mid;
+                            else hi = mid;
+                        }
+                        vPeakSolved = (lo + hi) * 0.5;
+                    }
+                }
+
+                // Confirm handoff is still worthwhile with updated vPeak
+                if (vPeakSolved - v0adj > 1e-9) {
+                    doHandoff = true;
+                }
+            }
+        }
+
+        this.tBrake = tBrk;
+        this.pBrake = pBrk;
         this.vPeak = vPeakSolved;
         this.T4 = Math.max(0.0, T4solved);
 
+        // ---------------------------------------------------------------
         // Accel phase durations
+        // ---------------------------------------------------------------
         double dvAccel = vPeakSolved - v0adj;
         double vAccelMin = this.aMaxAccel * this.aMaxAccel / this.jMax;
         double t1, t2, t3, aPkAccel;
@@ -280,7 +463,8 @@ public class SinCurvePosition implements PositionTrajectory {
             t7 = t5;
         }
 
-        this.T1 = Math.max(0, t1);
+        // When Case B is active, T1 is absorbed into the handoff arc.
+        this.T1 = (doHandoff) ? 0 : Math.max(0, t1);
         this.T2 = Math.max(0, t2);
         this.T3 = Math.max(0, t3);
         this.T5 = Math.max(0, t5);
@@ -288,10 +472,37 @@ public class SinCurvePosition implements PositionTrajectory {
         this.T7 = Math.max(0, t7);
 
         // ---------------------------------------------------------------
-        // Build phase table by forward-chaining from (pBrk, v0adj*dir)
+        // Case B handoff arc: compute endpoint state
+        // ---------------------------------------------------------------
+        double tHStart = 0, tHEnd = 0, aHStart = 0, aHEnd = 0;
+        double pHStart = pBrk, pHEnd = pBrk, vHEnd = 0;
+
+        if (doHandoff) {
+            aHStart = brakeSubAmpl[0]; // brkAmpl (world frame, e.g. negative)
+            aHEnd = aPkAccel * dir; // aPkAccel·dir (world frame)
+            tHStart = tPre + tBrk;
+            double T_h = Math.abs(aHEnd - aHStart) / this.jMax;
+            tHEnd = tHStart + T_h;
+            pHStart = pBrk;
+            double[] handoffEnd = evalPhaseEndGen(pBrk, 0.0, aHStart, aHEnd, T_h);
+            pHEnd = handoffEnd[0];
+            vHEnd = handoffEnd[1];
+        }
+
+        this.handoffCombined = doHandoff;
+        this.tHandoffStart = tHStart;
+        this.tHandoffEnd = tHEnd;
+        this.aHandoffStart = aHStart;
+        this.aHandoffEnd = aHEnd;
+        this.pHandoffStart = pHStart;
+        this.pHandoffEnd = pHEnd;
+        this.vHandoffEnd = vHEnd;
+
+        // ---------------------------------------------------------------
+        // Build phase table
         //
         // Phase signs and amplitudes in world frame:
-        //   0 (T1): onset,    ampl = +aPkAccel*dir  (a: 0 -> aPkAccel*dir)
+        //   0 (T1): onset,    ampl = +aPkAccel*dir  (a: 0 -> aPkAccel*dir)  [T1=0 when Case B]
         //   1 (T2): constant, ampl = +aPkAccel*dir  (a = aPkAccel*dir)
         //   2 (T3): offset,   ampl = +aPkAccel*dir  (a: aPkAccel*dir -> 0)
         //   3 (T4): constant, ampl = 0              (cruise)
@@ -317,10 +528,10 @@ public class SinCurvePosition implements PositionTrajectory {
         phaseSign[6] = +1;
         phaseAmpl[6] = decelAmpl;
 
-        double[] durations = {T1, T2, T3, T4, T5, T6, T7};
-        phaseStartT[0] = tPre + tBrk;
-        phaseStartP[0] = pBrk;
-        phaseStartV[0] = v0adj * dir;
+        double[] durations = {this.T1, this.T2, this.T3, this.T4, this.T5, this.T6, this.T7};
+        phaseStartT[0] = tPre + tBrk + (doHandoff ? (tHEnd - tHStart) : 0);
+        phaseStartP[0] = doHandoff ? pHEnd : pBrk;
+        phaseStartV[0] = doHandoff ? vHEnd : (v0adj * dir);
 
         for (int i = 0; i < 7; i++) {
             double[] end =
@@ -348,6 +559,10 @@ public class SinCurvePosition implements PositionTrajectory {
         if (t >= tf) return pTarget;
 
         if (tPrefix > 0 && t < tPrefix) {
+            if (prefixMergedWithBrake) {
+                double delta = brakeSubAmpl[0] - a0;
+                return evalPgen(p0, v0, a0, delta, t, tPrefix);
+            }
             // p(t) = p0 + v0*t + a0*(4*tPrefix^2/pi^2)*(1 - cos(pi*t/(2*tPrefix)))
             return p0
                     + v0 * t
@@ -369,6 +584,13 @@ public class SinCurvePosition implements PositionTrajectory {
                     brakeSubDur[bph]);
         }
 
+        if (handoffCombined && t < tHandoffEnd) {
+            double dt = t - tHandoffStart;
+            double T_h = tHandoffEnd - tHandoffStart;
+            return evalPgen(
+                    pHandoffStart, 0.0, aHandoffStart, aHandoffEnd - aHandoffStart, dt, T_h);
+        }
+
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         double T = phaseStartT[ph + 1] - phaseStartT[ph];
@@ -383,6 +605,10 @@ public class SinCurvePosition implements PositionTrajectory {
         if (t >= tf) return 0;
 
         if (tPrefix > 0 && t < tPrefix) {
+            if (prefixMergedWithBrake) {
+                double delta = brakeSubAmpl[0] - a0;
+                return evalVgen(v0, a0, delta, t, tPrefix);
+            }
             // v(t) = v0 + a0*(2*tPrefix/pi)*sin(pi*t/(2*tPrefix))
             return v0 + a0 * (2.0 * tPrefix / Math.PI) * Math.sin(Math.PI * t / (2.0 * tPrefix));
         }
@@ -393,6 +619,12 @@ public class SinCurvePosition implements PositionTrajectory {
             double dt = t - brakeSubT[bph];
             return evalV(
                     brakeSubV[bph], brakeSubAmpl[bph], brakeSubSign[bph], dt, brakeSubDur[bph]);
+        }
+
+        if (handoffCombined && t < tHandoffEnd) {
+            double dt = t - tHandoffStart;
+            double T_h = tHandoffEnd - tHandoffStart;
+            return evalVgen(0.0, aHandoffStart, aHandoffEnd - aHandoffStart, dt, T_h);
         }
 
         int ph = findPhase(t);
@@ -409,6 +641,11 @@ public class SinCurvePosition implements PositionTrajectory {
         if (t >= tf) return 0;
 
         if (tPrefix > 0 && t < tPrefix) {
+            if (prefixMergedWithBrake) {
+                double aStart = a0;
+                double delta = brakeSubAmpl[0] - a0;
+                return evalAgen(aStart, delta, t, tPrefix);
+            }
             // a(t) = a0 * cos(pi*t / (2*tPrefix))
             return a0 * Math.cos(Math.PI * t / (2.0 * tPrefix));
         }
@@ -418,6 +655,12 @@ public class SinCurvePosition implements PositionTrajectory {
             int bph = findBrakePhase(t);
             double dt = t - brakeSubT[bph];
             return evalA(brakeSubAmpl[bph], brakeSubSign[bph], dt, brakeSubDur[bph]);
+        }
+
+        if (handoffCombined && t < tHandoffEnd) {
+            double dt = t - tHandoffStart;
+            double T_h = tHandoffEnd - tHandoffStart;
+            return evalAgen(aHandoffStart, aHandoffEnd - aHandoffStart, dt, T_h);
         }
 
         int ph = findPhase(t);
@@ -440,6 +683,7 @@ public class SinCurvePosition implements PositionTrajectory {
         if (tBrake > 0 && t < tBrakeEnd) {
             return brakeSubSign[findBrakePhase(t)] == 0;
         }
+        if (handoffCombined && t < tHandoffEnd) return false; // active handoff arc
         return phaseSign[findPhase(t)] == 0;
     }
 
@@ -488,6 +732,40 @@ public class SinCurvePosition implements PositionTrajectory {
         return new double[] {evalP(pStar, vStar, ampl, sign, T, T), evalV(vStar, ampl, sign, T, T)};
     }
 
+    /**
+     * General sinusoidal arc: a goes from aStart to (aStart+delta) over duration T. Reduces to
+     * evalA when aStart=0 (onset, sign=-1) or delta=-aStart (offset, sign=+1).
+     */
+    private static double evalAgen(double aStart, double delta, double dt, double T) {
+        double cosVal = (T > 1e-15) ? Math.cos(Math.PI * dt / T) : 1.0;
+        return aStart + (delta / 2.0) * (1.0 - cosVal);
+    }
+
+    private static double evalVgen(double vStar, double aStart, double delta, double dt, double T) {
+        double sinVal = (T > 1e-15) ? Math.sin(Math.PI * dt / T) : 0.0;
+        return vStar + aStart * dt + (delta / 2.0) * (dt - T * sinVal / Math.PI);
+    }
+
+    private static double evalPgen(
+            double pStar, double vStar, double aStart, double delta, double dt, double T) {
+        double cosVal = (T > 1e-15) ? Math.cos(Math.PI * dt / T) : 1.0;
+        // p(t') = pStar + vStar*t' + (aStart + delta/2)*t'^2/2 - delta/2*T^2*(1-cos(pi*t'/T))/pi^2
+        // Derived by integrating v(t') = vStar + aStart*t' + delta/2*(t' - T*sin(pi*t'/T)/pi)
+        return pStar
+                + vStar * dt
+                + (aStart + delta / 2.0) * dt * dt / 2.0
+                - (delta / 2.0) * T * T * (1.0 - cosVal) / (Math.PI * Math.PI);
+    }
+
+    /** Returns [p, v] at the end of a general arc. */
+    private static double[] evalPhaseEndGen(
+            double pStar, double vStar, double aStart, double aEnd, double T) {
+        double delta = aEnd - aStart;
+        return new double[] {
+            evalPgen(pStar, vStar, aStart, delta, T, T), evalVgen(vStar, aStart, delta, T, T)
+        };
+    }
+
     // ---------------------------------------------------------------
     // Sinusoidal distance helper
     // ---------------------------------------------------------------
@@ -522,6 +800,56 @@ public class SinCurvePosition implements PositionTrajectory {
             double d3 = v1 * T3 + aPk * T3 * T3 * C_OFFSET;
             return d1 + d3;
         }
+    }
+
+    /**
+     * Like {@link #sinHalfDist} but for the acceleration half when Case B (braking handoff) is
+     * active. Replaces the normal onset (0 → aPkAccel) with a combined arc (brkA → aPkAccel),
+     * starting from v = 0 (braking already brought velocity to zero).
+     *
+     * @param v0adj unused (always 0 when Case B applies; kept for call-site symmetry)
+     * @param vPeak target peak velocity
+     * @param aMaxAccel maximum acceleration magnitude
+     * @param jMax jerk limit
+     * @param brkA braking amplitude magnitude (|brkAmpl|)
+     */
+    static double sinHalfDistCombined(
+            double v0adj, double vPeak, double aMaxAccel, double jMax, double brkA) {
+        if (vPeak <= 0) return 0;
+        double vMin = aMaxAccel * aMaxAccel / jMax;
+        double vMinHandoff = brkA * brkA / (2.0 * jMax);
+
+        // Triangular case: aPkAccel < aMaxAccel AND aMaxAccel >= brkA (ascending handoff)
+        // Threshold: vPeak <= vMin - vMinHandoff  (derived from aPkAccel reaching aMaxAccel at that
+        // vPeak)
+        double aPkAccel, T_H, T2;
+        if (aMaxAccel >= brkA && vPeak <= vMin - vMinHandoff) {
+            // Triangular: aPkAccel = sqrt(jMax * vPeak + brkA²/2)
+            aPkAccel = Math.sqrt(jMax * vPeak + brkA * brkA / 2.0);
+            T_H = (aPkAccel - brkA) / jMax; // ascending arc, aPkAccel >= brkA
+            T2 = 0;
+        } else {
+            // Trapezoidal: aPkAccel = aMaxAccel (ascending or descending handoff)
+            aPkAccel = aMaxAccel;
+            T_H = Math.abs(aPkAccel - brkA) / jMax;
+            double v_after_H = T_H * (brkA + aPkAccel) / 2.0;
+            T2 = Math.max(0.0, (vPeak - v_after_H - aPkAccel * aPkAccel / (2.0 * jMax)) / aPkAccel);
+        }
+        double T3 = aPkAccel / jMax;
+        double v_after_H = T_H * (brkA + aPkAccel) / 2.0;
+
+        // Distance during handoff arc (a: brkA → aPkAccel), starting from v=0, p=0
+        double delta_H = aPkAccel - brkA;
+        double d_H = evalPgen(0, 0, brkA, delta_H, T_H, T_H);
+
+        // Distance during constant phase (a = aPkAccel)
+        double d_T2 = v_after_H * T2 + 0.5 * aPkAccel * T2 * T2;
+
+        // Distance during offset phase (a: aPkAccel → 0)
+        double v_start_T3 = v_after_H + aPkAccel * T2;
+        double d_T3 = v_start_T3 * T3 + aPkAccel * T3 * T3 * C_OFFSET;
+
+        return d_H + d_T2 + d_T3;
     }
 
     // ---------------------------------------------------------------
