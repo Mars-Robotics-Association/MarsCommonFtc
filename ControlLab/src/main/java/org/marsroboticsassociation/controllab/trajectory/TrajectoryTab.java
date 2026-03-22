@@ -178,13 +178,13 @@ public class TrajectoryTab extends JPanel {
 
     private void buildPosSlidersIfNeeded() {
         if (slVMax != null) return;
-        slVMax = new JSlider(0, 1000, l2s(10, 0.1, 500));
+        slVMax = new JSlider(0, 1000, l2s(72, 0.1, 500));
         lbVMax = new JLabel();
-        slAAccel = new JSlider(0, 1000, l2s(5, 0.1, 500));
+        slAAccel = new JSlider(0, 1000, l2s(52, 0.1, 500));
         lbAAccel = new JLabel();
-        slADecel = new JSlider(0, 1000, l2s(5, 0.1, 500));
+        slADecel = new JSlider(0, 1000, l2s(52, 0.1, 500));
         lbADecel = new JLabel();
-        slJMax = new JSlider(0, 1000, l2s(50, 1, 5000));
+        slJMax = new JSlider(0, 1000, l2s(100, 1, 5000));
         lbJMax = new JLabel();
 
         slVMax.addChangeListener(
@@ -211,6 +211,7 @@ public class TrajectoryTab extends JPanel {
         updateLabel(lbAAccel, slAAccel, "aAccel", 0.1, 500);
         updateLabel(lbADecel, slADecel, "aDecel", 0.1, 500);
         updateLabel(lbJMax, slJMax, "jMax", 1, 5000);
+        stagePosParams();
     }
 
     private void buildVelSlidersIfNeeded() {
@@ -240,6 +241,7 @@ public class TrajectoryTab extends JPanel {
         updateLabel(lbAMax, slAMax, "aMax", 10, 5000);
         updateLabel(lbJInc, slJInc, "jInc", 10, 10000);
         updateLabel(lbJDec, slJDec, "jDec", 10, 5000);
+        stageVelParams();
     }
 
     private void buildRuckigSlidersIfNeeded() {
@@ -269,6 +271,7 @@ public class TrajectoryTab extends JPanel {
         updateLabel(lbRVMax, slRVMax, "vMax", 0.1, 500);
         updateLabel(lbRAMax, slRAMax, "aMax", 0.1, 500);
         updateLabel(lbRJMax, slRJMax, "jMax", 1, 5000);
+        stageRuckigParams();
     }
 
     private void stagePosParams() {
