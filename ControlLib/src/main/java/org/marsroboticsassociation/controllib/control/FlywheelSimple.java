@@ -82,8 +82,11 @@ public class FlywheelSimple {
      */
     public double getProfiledVelocity() { return profiledVelocity; }
 
-    /** For unit tests only — allows injecting a custom clock. */
-    FlywheelSimple(TelemetryAddData telemetry, LongSupplier clock, IMotor motor) {
+    /** Returns the low-pass filtered measured velocity in ticks per second. */
+    public double getFilteredVelocity() { return smoothVelocity; }
+
+    /** For unit tests and simulations — allows injecting a custom clock. */
+    public FlywheelSimple(TelemetryAddData telemetry, LongSupplier clock, IMotor motor) {
         this.motor       = motor;
         this.hubVoltage  = motor.getHubVoltage();
         this.primaryName = motor.getName();

@@ -163,9 +163,9 @@ public class VelocityMotorPF extends VelocityMotorBase {
     }
 
     /**
-     * Package-private constructor for tests — injects a custom clock.
+     * Public constructor for simulations — injects a custom clock.
      */
-    VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
+    public VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                     double motorPowerChangeTolerance, VelocityMotorPFConfig config,
                     IMotor motor, LongSupplier clock) {
         super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor,
@@ -175,7 +175,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
     }
 
     @Override
-    protected void setTPS(double tps) {
+    public void setTPS(double tps) {
         if (tps != lastTpsSet) {
             voltage = getVoltage();
             double vmax = getMaxVelocity();
