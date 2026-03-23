@@ -225,6 +225,25 @@ class PositionTrajectoryManagerTest {
     }
 
     @Test
+    void sinCurve_lateRetargetWhileAlreadyBraking_doesNotAddOvershoot() {
+        AtomicLong clock = new AtomicLong(0);
+        PositionTrajectoryManager m =
+                makeManager(clock, 10, 5, 5, 50, 0.01, SinCurvePosition::new);
+
+        m.resetFromMeasurement(-95.0, -5.0, 5.0);
+        m.setTarget(100.0);
+
+        for (int i = 1; i <= 50; i++) {
+            clock.set(i * 20_000_000L);
+            m.update();
+        }
+
+        assertEquals(-97.5, m.getPosition(), 1e-2, "should stop with minimum overshoot");
+        assertEquals(0.0, m.getVelocity(), 1e-2, "should be stopped after 1 second");
+        assertEquals(5.0, m.getAcceleration(), 1e-2, "should keep helpful braking acceleration");
+    }
+
+    @Test
     void getters_returnCachedValues_fromLastUpdate() {
         AtomicLong clock = new AtomicLong(0);
         PositionTrajectoryManager m = makeManager(clock, 5, 3, 3, 10, 0.01);

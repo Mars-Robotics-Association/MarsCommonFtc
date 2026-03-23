@@ -102,7 +102,9 @@ public class SCurvePosition implements PositionTrajectory {
         double tPre, jPre;
         double pStart, vStart;
 
-        if (Math.abs(a0pos) < 1e-9) {
+        boolean preserveHelpfulBrakeAccel =
+                v0 * dir < -1e-9 && a0pos > 1e-9 && a0pos <= this.aMaxAccel + 1e-9;
+        if (preserveHelpfulBrakeAccel || Math.abs(a0pos) < 1e-9) {
             tPre   = 0;
             jPre   = 0;
             pStart = p0;
@@ -128,20 +130,30 @@ public class SCurvePosition implements PositionTrajectory {
             double speed = Math.abs(vStart);
             aBrakeVal = Math.max(this.aMaxAccel, this.aMaxDecel);
             double aHandoff = this.aMaxAccel; // asymmetric: handoff at aMaxAccel, not aBrakeVal
-            double triThresh = aHandoff * aHandoff / (2.0 * this.jMax); // one-sided triangle threshold
+            double aBrakeStart = preserveHelpfulBrakeAccel ? a0pos : 0.0;
+            double triThresh =
+                    Math.max(
+                            0.0,
+                            (aHandoff * aHandoff - aBrakeStart * aBrakeStart)
+                                    / (2.0 * this.jMax));
             double tBrk1, tBrk2, tBrk3;
             if (speed > triThresh) {
                 // Trapezoidal: ramp 0→aHandoff, hold until v=0, no ramp-down
-                tBrk1 = aHandoff / this.jMax;
+                tBrk1 = (aHandoff - aBrakeStart) / this.jMax;
                 tBrk2 = (speed - triThresh) / aHandoff;
                 tBrk3 = 0;
                 aHandoffActual = aHandoff; // = aMaxAccel
             } else {
                 // Triangular: single ramp-up until v=0
-                tBrk1 = Math.sqrt(2.0 * speed / this.jMax);
+                tBrk1 =
+                        (Math.sqrt(
+                                                aBrakeStart * aBrakeStart
+                                                        + 2.0 * this.jMax * speed)
+                                        - aBrakeStart)
+                                / this.jMax;
                 tBrk2 = 0;
                 tBrk3 = 0;
-                aHandoffActual = this.jMax * tBrk1; // = sqrt(2*speed*jMax) <= aMaxAccel
+                aHandoffActual = aBrakeStart + this.jMax * tBrk1;
             }
             tBrk = tBrk1 + tBrk2 + tBrk3;
             // Jerk in world frame: braking opposes vStart direction
@@ -153,7 +165,7 @@ public class SCurvePosition implements PositionTrajectory {
             brakeSubT[0] = tPrefix;
             brakeSubP[0] = pStart;
             brakeSubV[0] = vStart;
-            brakeSubA[0] = 0.0;
+            brakeSubA[0] = aBrakeStart * dir;
             double[] brkDurs = { tBrk1, tBrk2, tBrk3 };
             for (int i = 0; i < 3; i++) {
                 double dt = brkDurs[i];
