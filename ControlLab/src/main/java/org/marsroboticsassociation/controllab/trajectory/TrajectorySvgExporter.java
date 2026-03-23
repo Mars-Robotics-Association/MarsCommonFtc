@@ -1,6 +1,7 @@
 package org.marsroboticsassociation.controllab.trajectory;
 
 import org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment;
+import org.marsroboticsassociation.controllib.motion.TrajectoryCurveSegment;
 
 import java.awt.Color;
 import java.awt.BasicStroke;
@@ -22,6 +23,8 @@ final class TrajectorySvgExporter {
     private static final int TOP = 40;
     private static final int BOTTOM = 54;
     private static final double LEGEND_WIDTH = 170.0;
+    private static final double APPROXIMATION_TOLERANCE_PX = 0.25;
+    private static final int MAX_APPROXIMATION_DEPTH = 12;
     private static final DecimalFormat DECIMAL =
             new DecimalFormat("0.###", DecimalFormatSymbols.getInstance(Locale.US));
 
@@ -32,7 +35,7 @@ final class TrajectorySvgExporter {
         Files.writeString(path, svg, StandardCharsets.UTF_8);
     }
 
-    private static String buildSvg(TrajectorySvgModel model) {
+    static String buildSvg(TrajectorySvgModel model) {
         double xMin = model.xMin();
         double xMax = model.xMax();
         double xRange = Math.max(xMax - xMin, 1e-9);
@@ -252,7 +255,7 @@ final class TrajectorySvgExporter {
             double plotHeight) {
         double score = 0.0;
         for (TrajectorySvgSeries series : model.series()) {
-            for (PolynomialCurveSegment segment : series.segments()) {
+            for (TrajectoryCurveSegment segment : series.segments()) {
                 double duration = segment.duration();
                 if (duration <= 0) continue;
                 int samples = Math.max(6, (int) Math.ceil(duration * 12.0));
@@ -277,6 +280,59 @@ final class TrajectorySvgExporter {
     }
 
     private static void appendSeriesPath(
+            StringBuilder out,
+            List<TrajectoryCurveSegment> segments,
+            double xMin,
+            double xRange,
+            double minY,
+            double maxY,
+            double plotWidth,
+            double plotHeight) {
+        if (allPolynomialSegments(segments)) {
+            appendPolynomialSeriesPath(
+                    out,
+                    segments.stream().map(PolynomialCurveSegment.class::cast).toList(),
+                    xMin,
+                    xRange,
+                    minY,
+                    maxY,
+                    plotWidth,
+                    plotHeight);
+            return;
+        }
+
+        boolean moved = false;
+        double prevEndTime = Double.NaN;
+        double prevEndValue = Double.NaN;
+        for (TrajectoryCurveSegment segment : segments) {
+            if (segment.duration() <= 0) continue;
+            double startValue = segment.valueAt(segment.startTime());
+            double x0 = mapX(segment.startTime(), xMin, xRange, plotWidth);
+            double y0 = mapY(startValue, minY, maxY, plotHeight);
+            boolean contiguous = moved && Math.abs(segment.startTime() - prevEndTime) < 1e-9;
+            boolean sameValue = contiguous && Math.abs(startValue - prevEndValue) < 1e-9;
+            if (!moved || !contiguous) {
+                out.append("M ")
+                        .append(DECIMAL.format(x0))
+                        .append(' ')
+                        .append(DECIMAL.format(y0))
+                        .append(' ');
+                moved = true;
+            } else if (!sameValue) {
+                out.append("L ")
+                        .append(DECIMAL.format(x0))
+                        .append(' ')
+                        .append(DECIMAL.format(y0))
+                        .append(' ');
+            }
+            appendApproximatedSegment(
+                    out, segment, xMin, xRange, minY, maxY, plotWidth, plotHeight, 0);
+            prevEndTime = segment.endTime();
+            prevEndValue = segment.valueAt(segment.endTime());
+        }
+    }
+
+    private static void appendPolynomialSeriesPath(
             StringBuilder out,
             List<PolynomialCurveSegment> segments,
             double xMin,
@@ -335,6 +391,116 @@ final class TrajectorySvgExporter {
             prevEndTime = segment.endTime();
             prevEndValue = endValue;
         }
+    }
+
+    private static boolean allPolynomialSegments(List<TrajectoryCurveSegment> segments) {
+        for (TrajectoryCurveSegment segment : segments) {
+            if (!(segment instanceof PolynomialCurveSegment)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void appendApproximatedSegment(
+            StringBuilder out,
+            TrajectoryCurveSegment segment,
+            double xMin,
+            double xRange,
+            double minY,
+            double maxY,
+            double plotWidth,
+            double plotHeight,
+            int depth) {
+        Cubic cubic =
+                cubicForSegment(segment, segment.startTime(), segment.endTime(), xMin, xRange, minY, maxY, plotWidth, plotHeight);
+        if (depth < MAX_APPROXIMATION_DEPTH
+                && exceedsApproximationTolerance(
+                        cubic, segment, minY, maxY, plotHeight, APPROXIMATION_TOLERANCE_PX)) {
+            double mid = (segment.startTime() + segment.endTime()) * 0.5;
+            if (mid > segment.startTime() + 1e-12 && mid < segment.endTime() - 1e-12) {
+                appendApproximatedSegment(
+                        out,
+                        segment.clippedTo(segment.startTime(), mid),
+                        xMin,
+                        xRange,
+                        minY,
+                        maxY,
+                        plotWidth,
+                        plotHeight,
+                        depth + 1);
+                appendApproximatedSegment(
+                        out,
+                        segment.clippedTo(mid, segment.endTime()),
+                        xMin,
+                        xRange,
+                        minY,
+                        maxY,
+                        plotWidth,
+                        plotHeight,
+                        depth + 1);
+                return;
+            }
+        }
+
+        out.append("C ")
+                .append(DECIMAL.format(cubic.x1))
+                .append(' ')
+                .append(DECIMAL.format(cubic.y1))
+                .append(' ')
+                .append(DECIMAL.format(cubic.x2))
+                .append(' ')
+                .append(DECIMAL.format(cubic.y2))
+                .append(' ')
+                .append(DECIMAL.format(cubic.x3))
+                .append(' ')
+                .append(DECIMAL.format(cubic.y3))
+                .append(' ');
+    }
+
+    private static Cubic cubicForSegment(
+            TrajectoryCurveSegment segment,
+            double startTime,
+            double endTime,
+            double xMin,
+            double xRange,
+            double minY,
+            double maxY,
+            double plotWidth,
+            double plotHeight) {
+        double startValue = segment.valueAt(startTime);
+        double endValue = segment.valueAt(endTime);
+        double x0 = mapX(startTime, xMin, xRange, plotWidth);
+        double y0 = mapY(startValue, minY, maxY, plotHeight);
+        double x3 = mapX(endTime, xMin, xRange, plotWidth);
+        double y3 = mapY(endValue, minY, maxY, plotHeight);
+        double m0 = segment.slopeAt(startTime);
+        double m1 = segment.slopeAt(endTime);
+        double dx = x3 - x0;
+        double x1 = x0 + dx / 3.0;
+        double x2 = x3 - dx / 3.0;
+        double y1 = y0 - scaleSlope(m0, xRange, minY, maxY, plotWidth, plotHeight) * dx / 3.0;
+        double y2 = y3 + scaleSlope(m1, xRange, minY, maxY, plotWidth, plotHeight) * dx / 3.0;
+        return new Cubic(x0, y0, x1, y1, x2, y2, x3, y3, startTime, endTime);
+    }
+
+    private static boolean exceedsApproximationTolerance(
+            Cubic cubic,
+            TrajectoryCurveSegment segment,
+            double minY,
+            double maxY,
+            double plotHeight,
+            double tolerancePx) {
+        double[] samples = {0.25, 0.5, 0.75};
+        for (double u : samples) {
+            double time = cubic.startTime + (cubic.endTime - cubic.startTime) * u;
+            double actualY = mapY(segment.valueAt(time), minY, maxY, plotHeight);
+            double cubicY = cubic.yAt(u);
+            if (Math.abs(actualY - cubicY) > tolerancePx) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static double mapX(double t, double xMin, double xRange, double plotWidth) {
@@ -397,6 +563,26 @@ final class TrajectorySvgExporter {
             if (py < y) return y - py;
             if (py > y + height) return py - (y + height);
             return 0.0;
+        }
+    }
+
+    private record Cubic(
+            double x0,
+            double y0,
+            double x1,
+            double y1,
+            double x2,
+            double y2,
+            double x3,
+            double y3,
+            double startTime,
+            double endTime) {
+        double yAt(double u) {
+            double inv = 1.0 - u;
+            return inv * inv * inv * y0
+                    + 3.0 * inv * inv * u * y1
+                    + 3.0 * inv * u * u * y2
+                    + u * u * u * y3;
         }
     }
 }

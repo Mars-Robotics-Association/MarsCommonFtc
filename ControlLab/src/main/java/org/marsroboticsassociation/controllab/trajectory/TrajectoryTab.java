@@ -3,6 +3,7 @@ package org.marsroboticsassociation.controllab.trajectory;
 import org.knowm.xchart.*;
 import org.knowm.xchart.internal.series.AxesChartSeries;
 import org.knowm.xchart.style.markers.SeriesMarkers;
+import org.marsroboticsassociation.controllib.motion.TrajectoryCurveSegment;
 
 import java.awt.*;
 import java.io.File;
@@ -29,8 +30,8 @@ public class TrajectoryTab extends JPanel {
     private TrajectoryEngine engine;
     private final RollingBuffer buffer = new RollingBuffer(WINDOW_SECS, BUFFER_POINTS);
     private double elapsedSec = 0.0;
-    private final Map<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>>
-            exactHistorySegments = new LinkedHashMap<>();
+    private final Map<String, List<TrajectoryCurveSegment>> exactHistorySegments =
+            new LinkedHashMap<>();
     private TrajectorySvgModel activeExactPlan;
     private double activeExactPlanStartSec = Double.NaN;
 
@@ -571,9 +572,8 @@ public class TrajectoryTab extends JPanel {
     private TrajectorySvgModel visibleExactSvgModel() {
         if (!engine.supportsExactSvgExport()) return null;
 
-        Map<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> combined =
-                new LinkedHashMap<>();
-        for (Map.Entry<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> entry :
+        Map<String, List<TrajectoryCurveSegment>> combined = new LinkedHashMap<>();
+        for (Map.Entry<String, List<TrajectoryCurveSegment>> entry :
                 exactHistorySegments.entrySet()) {
             combined.put(entry.getKey(), new ArrayList<>(entry.getValue()));
         }
@@ -593,12 +593,11 @@ public class TrajectoryTab extends JPanel {
         if (xMax <= xMin) xMax = xMin + 1e-9;
 
         List<TrajectorySvgSeries> series = new ArrayList<>();
-        for (Map.Entry<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> entry :
+        for (Map.Entry<String, List<TrajectoryCurveSegment>> entry :
                 combined.entrySet()) {
-            List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment> clipped = new ArrayList<>();
-            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment : entry.getValue()) {
-                org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment clippedSegment =
-                        segment.clippedTo(xMin, xMax);
+            List<TrajectoryCurveSegment> clipped = new ArrayList<>();
+            for (TrajectoryCurveSegment segment : entry.getValue()) {
+                TrajectoryCurveSegment clippedSegment = segment.clippedTo(xMin, xMax);
                 if (clippedSegment != null) {
                     clipped.add(clippedSegment);
                 }
@@ -613,18 +612,17 @@ public class TrajectoryTab extends JPanel {
     }
 
     private static void appendPlanSegments(
-            Map<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> target,
+            Map<String, List<TrajectoryCurveSegment>> target,
             TrajectorySvgModel plan,
             double absoluteStartSec,
             double relativeStartSec,
             double relativeEndSec) {
         if (relativeEndSec <= relativeStartSec) return;
         for (TrajectorySvgSeries series : plan.series()) {
-            List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment> dst =
+            List<TrajectoryCurveSegment> dst =
                     target.computeIfAbsent(series.label(), key -> new ArrayList<>());
-            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment : series.segments()) {
-                org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment clipped =
-                        segment.clippedTo(relativeStartSec, relativeEndSec);
+            for (TrajectoryCurveSegment segment : series.segments()) {
+                TrajectoryCurveSegment clipped = segment.clippedTo(relativeStartSec, relativeEndSec);
                 if (clipped != null) {
                     dst.add(clipped.shiftedBy(absoluteStartSec));
                 }
@@ -635,8 +633,7 @@ public class TrajectoryTab extends JPanel {
     private static double minY(List<TrajectorySvgSeries> seriesList) {
         double min = Double.POSITIVE_INFINITY;
         for (TrajectorySvgSeries series : seriesList) {
-            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment :
-                    series.segments()) {
+            for (TrajectoryCurveSegment segment : series.segments()) {
                 min = Math.min(min, segment.minValue());
             }
         }
@@ -646,8 +643,7 @@ public class TrajectoryTab extends JPanel {
     private static double maxY(List<TrajectorySvgSeries> seriesList) {
         double max = Double.NEGATIVE_INFINITY;
         for (TrajectorySvgSeries series : seriesList) {
-            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment :
-                    series.segments()) {
+            for (TrajectoryCurveSegment segment : series.segments()) {
                 max = Math.max(max, segment.maxValue());
             }
         }

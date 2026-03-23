@@ -5,6 +5,7 @@ import org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment;
 import org.marsroboticsassociation.controllib.motion.SCurvePosition;
 import org.marsroboticsassociation.controllib.motion.SCurveVelocity;
 import org.marsroboticsassociation.controllib.motion.SinCurvePosition;
+import org.marsroboticsassociation.controllib.motion.TrajectoryCurveSegment;
 import org.marsroboticsassociation.controllib.motion.VelocityTrajectoryManager;
 import org.marsroboticsassociation.controllib.util.TelemetryAddData;
 
@@ -240,7 +241,9 @@ public class TrajectoryEngine {
     }
 
     public boolean supportsExactSvgExport() {
-        return type == TrajectoryType.SCURVE_POSITION || type == TrajectoryType.SCURVE_VELOCITY;
+        return type == TrajectoryType.SCURVE_POSITION
+                || type == TrajectoryType.SCURVE_VELOCITY
+                || type == TrajectoryType.SIN_CURVE_POSITION;
     }
 
     public TrajectorySvgModel buildExactSvgModel() {
@@ -248,6 +251,7 @@ public class TrajectoryEngine {
 
         return switch (type) {
             case SCURVE_POSITION -> buildPositionSvgModel();
+            case SIN_CURVE_POSITION -> buildSinPositionSvgModel();
             case SCURVE_VELOCITY -> buildVelocitySvgModel();
             default -> null;
         };
@@ -335,6 +339,79 @@ public class TrajectoryEngine {
         series.add(
                 new TrajectorySvgSeries(
                         "Position (units)",
+                        asCurveSegments(profile.positionSegments()),
+                        chartColor(0),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Velocity (units/s)",
+                        asCurveSegments(profile.velocitySegments()),
+                        chartColor(1),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Acceleration (units/s\u00b2)",
+                        asCurveSegments(profile.accelerationSegments()),
+                        chartColor(2),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Target",
+                        horizontalSegments(profile.getTotalTime(), currentTarget),
+                        chartColor(3),
+                        1.5f,
+                        new java.awt.BasicStroke(
+                                1.5f,
+                                java.awt.BasicStroke.CAP_BUTT,
+                                java.awt.BasicStroke.JOIN_MITER,
+                                10.0f,
+                                new float[] {6.0f, 4.0f},
+                                0.0f)));
+        return new TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series);
+    }
+
+    private TrajectorySvgModel buildVelocitySvgModel() {
+        if (!(velManager.getCurrentTrajectory() instanceof SCurveVelocity profile)) return null;
+        List<TrajectorySvgSeries> series = new ArrayList<>();
+        series.add(
+                new TrajectorySvgSeries(
+                        "Velocity (units/s)",
+                        asCurveSegments(profile.velocitySegments()),
+                        chartColor(1),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Acceleration (units/s\u00b2)",
+                        asCurveSegments(profile.accelerationSegments()),
+                        chartColor(2),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Target",
+                        horizontalSegments(profile.getTotalTime(), currentTarget),
+                        chartColor(3),
+                        1.5f,
+                        new java.awt.BasicStroke(
+                                1.5f,
+                                java.awt.BasicStroke.CAP_BUTT,
+                                java.awt.BasicStroke.JOIN_MITER,
+                                10.0f,
+                                new float[] {6.0f, 4.0f},
+                                0.0f)));
+        return new TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series);
+    }
+
+    private TrajectorySvgModel buildSinPositionSvgModel() {
+        if (!(posManager.getCurrentTrajectory() instanceof SinCurvePosition profile)) return null;
+        List<TrajectorySvgSeries> series = new ArrayList<>();
+        series.add(
+                new TrajectorySvgSeries(
+                        "Position (units)",
                         profile.positionSegments(),
                         chartColor(0),
                         2.0f,
@@ -369,48 +446,20 @@ public class TrajectoryEngine {
         return new TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series);
     }
 
-    private TrajectorySvgModel buildVelocitySvgModel() {
-        if (!(velManager.getCurrentTrajectory() instanceof SCurveVelocity profile)) return null;
-        List<TrajectorySvgSeries> series = new ArrayList<>();
-        series.add(
-                new TrajectorySvgSeries(
-                        "Velocity (units/s)",
-                        profile.velocitySegments(),
-                        chartColor(1),
-                        2.0f,
-                        null));
-        series.add(
-                new TrajectorySvgSeries(
-                        "Acceleration (units/s\u00b2)",
-                        profile.accelerationSegments(),
-                        chartColor(2),
-                        2.0f,
-                        null));
-        series.add(
-                new TrajectorySvgSeries(
-                        "Target",
-                        horizontalSegments(profile.getTotalTime(), currentTarget),
-                        chartColor(3),
-                        1.5f,
-                        new java.awt.BasicStroke(
-                                1.5f,
-                                java.awt.BasicStroke.CAP_BUTT,
-                                java.awt.BasicStroke.JOIN_MITER,
-                                10.0f,
-                                new float[] {6.0f, 4.0f},
-                                0.0f)));
-        return new TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series);
-    }
-
-    private static List<PolynomialCurveSegment> horizontalSegments(double totalTime, double value) {
+    private static List<TrajectoryCurveSegment> horizontalSegments(double totalTime, double value) {
         if (totalTime <= 0) return List.of();
         return List.of(new PolynomialCurveSegment(0.0, totalTime, value, 0.0, 0.0, 0.0));
+    }
+
+    private static List<TrajectoryCurveSegment> asCurveSegments(
+            List<? extends TrajectoryCurveSegment> segments) {
+        return new ArrayList<>(segments);
     }
 
     private static double minY(List<TrajectorySvgSeries> seriesList) {
         double min = Double.POSITIVE_INFINITY;
         for (TrajectorySvgSeries series : seriesList) {
-            for (PolynomialCurveSegment segment : series.segments()) {
+            for (TrajectoryCurveSegment segment : series.segments()) {
                 min = Math.min(min, segment.minValue());
             }
         }
@@ -420,7 +469,7 @@ public class TrajectoryEngine {
     private static double maxY(List<TrajectorySvgSeries> seriesList) {
         double max = Double.NEGATIVE_INFINITY;
         for (TrajectorySvgSeries series : seriesList) {
-            for (PolynomialCurveSegment segment : series.segments()) {
+            for (TrajectoryCurveSegment segment : series.segments()) {
                 max = Math.max(max, segment.maxValue());
             }
         }
