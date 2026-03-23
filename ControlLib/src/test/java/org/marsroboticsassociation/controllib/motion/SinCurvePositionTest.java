@@ -295,6 +295,22 @@ class SinCurvePositionTest {
         assertEquals(0.75, s.getPosition(s.getTotalTime() - 1e-6), 1e-3, "position should end continuously");
     }
 
+    @Test
+    void reversalWithHelpfulBrakingAcceleration_doesNotAddExtraOvershoot() {
+        SinCurvePosition s = new SinCurvePosition(-95, 100, -5, 5, 10, 5, 5, 50);
+
+        for (double t : new double[] {0.1, 0.3, 0.5, 0.7, 0.9}) {
+            assertEquals(
+                    5.0,
+                    s.getAcceleration(t),
+                    1e-6,
+                    "should keep max helpful braking acceleration at t=" + t);
+        }
+
+        assertEquals(-97.5, s.getPosition(1.0), 1e-3, "should stop with minimum overshoot");
+        assertEquals(0.0, s.getVelocity(1.0), 1e-3, "should be stopped after 1 second");
+    }
+
     // ---------------------------------------------------------------
     // sinHalfDist helper tests
     // ---------------------------------------------------------------
