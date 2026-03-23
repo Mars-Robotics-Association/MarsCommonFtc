@@ -2,6 +2,7 @@ package org.marsroboticsassociation.controllab.trajectory;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -120,10 +121,10 @@ class TrajectoryEngineTest {
     }
 
     @Test
-    void exactSvgExport_supportedOnlyForPolynomialTrajectoryTypes() {
+    void svgExport_supportedForPositionTrajectoryTypes() {
         assertTrue(new TrajectoryEngine(TrajectoryType.SCURVE_POSITION).supportsExactSvgExport());
         assertTrue(new TrajectoryEngine(TrajectoryType.SCURVE_VELOCITY).supportsExactSvgExport());
-        assertFalse(new TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION).supportsExactSvgExport());
+        assertTrue(new TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION).supportsExactSvgExport());
     }
 
     @Test
@@ -152,6 +153,36 @@ class TrajectoryEngineTest {
         assertEquals(3, model.series().size());
         assertTrue(model.xMax() > model.xMin());
         assertFalse(model.series().get(0).segments().isEmpty());
+    }
+
+    @Test
+    void sinCurvePosition_svgModel_containsExpectedSeries() {
+        TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION);
+        engine.setPositionParams(10, 5, 5, 50);
+        engine.applyParamsAndGoTo(100.0);
+
+        TrajectorySvgModel model = engine.buildExactSvgModel();
+
+        assertNotNull(model);
+        assertEquals(4, model.series().size());
+        assertTrue(model.xMax() > model.xMin());
+        assertFalse(model.series().get(0).segments().isEmpty());
+        assertFalse(model.series().get(0).segments().get(0) instanceof PolynomialCurveSegment);
+    }
+
+    @Test
+    void scurvePosition_svgModel_retainsPolynomialSegments() {
+        TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SCURVE_POSITION);
+        engine.setPositionParams(10, 5, 5, 50);
+        engine.applyParamsAndGoTo(100.0);
+
+        TrajectorySvgModel model = engine.buildExactSvgModel();
+
+        assertNotNull(model);
+        assertTrue(
+                model.series().stream()
+                        .flatMap(series -> series.segments().stream())
+                        .allMatch(PolynomialCurveSegment.class::isInstance));
     }
 
     @Test

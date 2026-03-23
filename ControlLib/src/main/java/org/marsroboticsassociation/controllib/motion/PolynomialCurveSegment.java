@@ -10,7 +10,8 @@ package org.marsroboticsassociation.controllib.motion;
  * </pre>
  */
 public record PolynomialCurveSegment(
-        double startTime, double endTime, double c0, double c1, double c2, double c3) {
+        double startTime, double endTime, double c0, double c1, double c2, double c3)
+        implements TrajectoryCurveSegment {
 
     public double duration() {
         return endTime - startTime;

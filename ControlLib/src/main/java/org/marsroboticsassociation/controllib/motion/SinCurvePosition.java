@@ -1,5 +1,9 @@
 package org.marsroboticsassociation.controllib.motion;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.DoubleUnaryOperator;
+
 /**
  * Seven-segment sinusoidal (raised-cosine) position trajectory from p0 to pTarget, ending at rest.
  * Supports asymmetric acceleration limits: aMaxAccel for speeding up, aMaxDecel for braking.
@@ -755,6 +759,80 @@ public class SinCurvePosition implements PositionTrajectory {
         return phaseSign[findPhase(t)] == 0;
     }
 
+    public double getJerk(double t) {
+        if (trivial) return 0;
+        if (t <= 0 || t >= getTotalTime()) return 0;
+
+        if (tPrefix > 0 && t < tPrefix) {
+            if (prefixMergedWithBrake) {
+                return evalJgen(brakeSubAmpl[0] - a0, t, tPrefix);
+            }
+            return -a0 * Math.PI * Math.sin(Math.PI * t / (2.0 * tPrefix)) / (2.0 * tPrefix);
+        }
+
+        double tBrakeEnd = tPrefix + tBrake;
+        if (tBrake > 0 && t < tBrakeEnd) {
+            int bph = findBrakePhase(t);
+            return evalJ(
+                    brakeSubAmpl[bph], brakeSubSign[bph], t - brakeSubT[bph], brakeSubDur[bph]);
+        }
+
+        if (handoffCombined && t < tHandoffEnd) {
+            double T_h = tHandoffEnd - tHandoffStart;
+            return evalJgen(aHandoffEnd - aHandoffStart, t - tHandoffStart, T_h);
+        }
+
+        int ph = findPhase(t);
+        double dt = t - phaseStartT[ph];
+        double T = phaseStartT[ph + 1] - phaseStartT[ph];
+        if (midpointCombined && ph == 2) {
+            return evalJgen(aMidEnd - aMidStart, dt, T);
+        }
+        return evalJ(phaseAmpl[ph], phaseSign[ph], dt, T);
+    }
+
+    public List<TrajectoryCurveSegment> positionSegments() {
+        return buildCurveSegments(this::getPosition, this::getVelocity);
+    }
+
+    public List<TrajectoryCurveSegment> velocitySegments() {
+        return buildCurveSegments(this::getVelocity, this::getAcceleration);
+    }
+
+    public List<TrajectoryCurveSegment> accelerationSegments() {
+        return buildCurveSegments(this::getAcceleration, this::getJerk);
+    }
+
+    private List<TrajectoryCurveSegment> buildCurveSegments(
+            DoubleUnaryOperator valueFunction, DoubleUnaryOperator slopeFunction) {
+        List<TrajectoryCurveSegment> segments = new ArrayList<>();
+        if (trivial) return segments;
+
+        addCurveSegment(segments, 0.0, tPrefix, valueFunction, slopeFunction);
+        for (int i = 0; i < 3; i++) {
+            addCurveSegment(
+                    segments, brakeSubT[i], brakeSubT[i + 1], valueFunction, slopeFunction);
+        }
+        if (handoffCombined) {
+            addCurveSegment(segments, tHandoffStart, tHandoffEnd, valueFunction, slopeFunction);
+        }
+        for (int i = 0; i < 7; i++) {
+            addCurveSegment(
+                    segments, phaseStartT[i], phaseStartT[i + 1], valueFunction, slopeFunction);
+        }
+        return segments;
+    }
+
+    private static void addCurveSegment(
+            List<TrajectoryCurveSegment> segments,
+            double startTime,
+            double endTime,
+            DoubleUnaryOperator valueFunction,
+            DoubleUnaryOperator slopeFunction) {
+        if (endTime <= startTime) return;
+        segments.add(new FunctionalCurveSegment(startTime, endTime, valueFunction, slopeFunction));
+    }
+
     // ---------------------------------------------------------------
     // Unified sinusoidal phase evaluation helpers
     //
@@ -794,6 +872,13 @@ public class SinCurvePosition implements PositionTrajectory {
         return (ampl / 2.0) * (1.0 + sign * cosVal);
     }
 
+    private static double evalJ(double ampl, int sign, double dt, double T) {
+        if (sign == 0 || T <= 1e-15) {
+            return 0.0;
+        }
+        return -(ampl * sign * Math.PI / (2.0 * T)) * Math.sin(Math.PI * dt / T);
+    }
+
     /** Returns [p, v] at the end of a phase. Used for forward-chaining the phase table. */
     private static double[] evalPhaseEnd(
             double pStar, double vStar, double ampl, int sign, double T) {
@@ -807,6 +892,13 @@ public class SinCurvePosition implements PositionTrajectory {
     private static double evalAgen(double aStart, double delta, double dt, double T) {
         double cosVal = (T > 1e-15) ? Math.cos(Math.PI * dt / T) : 1.0;
         return aStart + (delta / 2.0) * (1.0 - cosVal);
+    }
+
+    private static double evalJgen(double delta, double dt, double T) {
+        if (T <= 1e-15) {
+            return 0.0;
+        }
+        return (delta * Math.PI / (2.0 * T)) * Math.sin(Math.PI * dt / T);
     }
 
     private static double evalVgen(double vStar, double aStart, double delta, double dt, double T) {
