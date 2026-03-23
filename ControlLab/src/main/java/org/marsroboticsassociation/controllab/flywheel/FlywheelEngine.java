@@ -23,12 +23,16 @@ public class FlywheelEngine implements IMotor {
     private VelocityMotorPF pf;
     private FlywheelStateSpace ss;
 
-    // Params
+    // Controller Params
     private double kV = 12.5 / 2632.1;
     private double kA = 12.5 / 2087.9;
     private double kS = 0.8931;
     private double kP = 0.010;
     private double velLpfCutoffHz = 4.0;
+
+    // Physical Plant Params (the "Real Robot")
+    private double plantKV = 12.5 / 2632.1;
+    private double plantKA = 12.5 / 2087.9;
 
     private double targetTps = 0;
     private double currentPower = 0;
@@ -59,18 +63,28 @@ public class FlywheelEngine implements IMotor {
             FlywheelSimple.PARAMS.velLpfCutoffHz = velLpfCutoffHz;
         }
         if (pf != null) {
-            // VelocityMotorPF uses a config object
-            rebuildController(); // simpler to rebuild for simulation
+            pf.config.kV = kV;
+            pf.config.kA = kA;
+            pf.config.kS = kS;
+            pf.config.kP = kP;
+            pf.config.measurementLpfCutoffHz = velLpfCutoffHz;
         }
         if (ss != null) {
             FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * Math.PI); // Convert to rad/s
-            FlywheelStateSpace.PARAMS.kA = kA * 28 / (2 * Math.PI);
-            rebuildController();
+            FlywheelStateSpace.PARAMS.kA = Math.max(kA, 1e-6) * 28 / (2 * Math.PI);
+            rebuildController(); // StateSpace plant is defined at construction, so we rebuild.
         }
-
-        // Also update sim plant
-        this.sim = new FlywheelMotorSim(kV, kA);
     }
+
+    public void setPlantParams(double plantKV, double plantKA) {
+        this.plantKV = plantKV;
+        this.plantKA = plantKA;
+        // Update the physical simulation plant
+        this.sim = new FlywheelMotorSim(plantKV, Math.max(plantKA, 1e-6), sim.getPositionTicks(), sim.getTrueVelocityTps());
+    }
+
+    public double getPlantKV() { return plantKV; }
+    public double getPlantKA() { return plantKA; }
 
     private void rebuildController() {
         switch (type) {
@@ -97,7 +111,7 @@ public class FlywheelEngine implements IMotor {
                 break;
             case FLYWHEEL_STATE_SPACE:
                 FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * Math.PI);
-                FlywheelStateSpace.PARAMS.kA = kA * 28 / (2 * Math.PI);
+                FlywheelStateSpace.PARAMS.kA = Math.max(kA, 1e-6) * 28 / (2 * Math.PI);
                 // Note: kS and kP aren't directly used by SS in the same way, but let's assume kV/kA represent the plant.
                 ss = new FlywheelStateSpace(this, noOp);
                 simple = null;

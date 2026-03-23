@@ -147,7 +147,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
         public boolean ffFromTrajectory = true;
     }
 
-    private final VelocityMotorPFConfig _config;
+    public VelocityMotorPFConfig config;
     private final LowPassFilter accelLpf;
     private double lastTpsSet = 0;
     private double voltage = 12.0;
@@ -158,8 +158,8 @@ public class VelocityMotorPF extends VelocityMotorBase {
                            IMotor motor) {
         super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor,
                 config.accelMax, config.jerkIncreasing, config.jerkDecreasing, 10.0);
-        _config = config;
-        accelLpf = new BiquadLowPassVarDt(_config.accelLpfCutoffHz, 0.5);
+        this.config = config;
+        accelLpf = new BiquadLowPassVarDt(config.accelLpfCutoffHz, 0.5);
     }
 
     /**
@@ -170,8 +170,8 @@ public class VelocityMotorPF extends VelocityMotorBase {
                     IMotor motor, LongSupplier clock) {
         super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor,
                 config.accelMax, config.jerkIncreasing, config.jerkDecreasing, 10.0, clock);
-        _config = config;
-        accelLpf = new BiquadLowPassVarDt(_config.accelLpfCutoffHz, 0.5);
+        this.config = config;
+        accelLpf = new BiquadLowPassVarDt(config.accelLpfCutoffHz, 0.5);
     }
 
     @Override
@@ -193,17 +193,17 @@ public class VelocityMotorPF extends VelocityMotorBase {
      * Derived from feedforward model: {@code (1 - headroomAllowance) * (voltage - kS) / kV}.
      */
     public double getMaxVelocity() {
-        return (1.0 - _config.headroomAllowance) * (voltage - _config.kS) / _config.kV;
+        return (1.0 - config.headroomAllowance) * (voltage - config.kS) / config.kV;
     }
 
     @Override
     protected void updateInternal(double dt) {
-        super.setFilterCutoff(_config.measurementLpfCutoffHz);
+        super.setFilterCutoff(config.measurementLpfCutoffHz);
         super.updateInternal(dt);
 
-        accelLpf.setCutoffHz(_config.accelLpfCutoffHz);
+        accelLpf.setCutoffHz(config.accelLpfCutoffHz);
 
-        trajectory.updateConfig(_config.accelMax, _config.jerkIncreasing, _config.jerkDecreasing);
+        trajectory.updateConfig(config.accelMax, config.jerkIncreasing, config.jerkDecreasing);
         trajectory.update();
 
         if (trajectory.getAcceleration() == 0) {
@@ -211,9 +211,9 @@ public class VelocityMotorPF extends VelocityMotorBase {
         }
 
         double v = trajectory.getVelocity();
-        double t = _config.ffFromTrajectory ? v : trajectory.getTarget();
+        double t = config.ffFromTrajectory ? v : trajectory.getTarget();
         double a = trajectory.getAcceleration();
-        double ff = _config.kS * Math.signum(t) + _config.kV * t + _config.kA * a;
+        double ff = config.kS * Math.signum(t) + config.kV * t + config.kA * a;
         ff /= voltage;
         double tpsFiltered = getTpsFiltered();
         if (dt > 1e-6) {
@@ -224,7 +224,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
         }
         lastFilteredTps = tpsFiltered;
         double ve = v - tpsFiltered;
-        double kPEffective = _config.kP * Math.max(0, 1.0 - Math.abs(a) / _config.accelMax);
+        double kPEffective = config.kP * Math.max(0, 1.0 - Math.abs(a) / config.accelMax);
         double power = ff + kPEffective * ve;
 
         if (Math.abs(trajectory.getTarget()) < 1e-6) {
@@ -238,8 +238,8 @@ public class VelocityMotorPF extends VelocityMotorBase {
     public boolean isAtTargetSpeed() {
         return Math.abs(trajectory.getTarget()) > 200 &&
                 trajectory.getAcceleration() == 0 &&
-                Math.abs(trajectory.getTarget() - getTpsFiltered()) < _config.targetSpeedTolerance &&
-                Math.abs(accelLpf.getValue()) < _config.accelerationTolerance;
+                Math.abs(trajectory.getTarget() - getTpsFiltered()) < config.targetSpeedTolerance &&
+                Math.abs(accelLpf.getValue()) < config.accelerationTolerance;
     }
 
     @Override

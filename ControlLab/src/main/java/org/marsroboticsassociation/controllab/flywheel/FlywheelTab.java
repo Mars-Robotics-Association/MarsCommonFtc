@@ -22,16 +22,17 @@ public class FlywheelTab extends JPanel {
     private XChartPanel<XYChart> chartPanel;
 
     private JComboBox<FlywheelControllerType> typeCombo;
-    private JPanel paramPanel;
+    private JPanel paramPanel, plantPanel;
 
     // Editable fields
     private EditableParamField efKS, efKV, efKA, efKP, efCutoff;
+    private EditableParamField efPlantKV, efPlantKA;
     private EditableParamField efTargetA, efTargetB;
 
     private double targetA = 1000;
     private double targetB = 2000;
 
-    private JButton btnGoA, btnGoB;
+    private JButton btnGoA, btnGoB, btnCoast;
     private Timer simTimer;
 
     public FlywheelTab() {
@@ -86,11 +87,11 @@ public class FlywheelTab extends JPanel {
         paramPanel = new JPanel();
         paramPanel.setLayout(new BoxLayout(paramPanel, BoxLayout.Y_AXIS));
         
-        efKS = new EditableParamField("kS", engine.getKS(), "%.3f", v -> updateParams());
-        efKV = new EditableParamField("kV", engine.getKV(), "%.6f", v -> updateParams());
-        efKA = new EditableParamField("kA", engine.getKA(), "%.6f", v -> updateParams());
-        efKP = new EditableParamField("kP", engine.getKP(), "%.4f", v -> updateParams());
-        efCutoff = new EditableParamField("Cutoff (Hz)", engine.getVelLpfCutoffHz(), "%.1f", v -> updateParams());
+        efKS = new EditableParamField("kS", engine.getKS(), "%.3f", 0, Double.POSITIVE_INFINITY, v -> updateParams());
+        efKV = new EditableParamField("kV", engine.getKV(), "%.6f", 0, Double.POSITIVE_INFINITY, v -> updateParams());
+        efKA = new EditableParamField("kA", engine.getKA(), "%.6f", 0, Double.POSITIVE_INFINITY, v -> updateParams());
+        efKP = new EditableParamField("kP", engine.getKP(), "%.4f", 0, Double.POSITIVE_INFINITY, v -> updateParams());
+        efCutoff = new EditableParamField("Cutoff (Hz)", engine.getVelLpfCutoffHz(), "%.1f", 0.1, 100.0, v -> updateParams());
 
         paramPanel.add(efKS);
         paramPanel.add(efKV);
@@ -101,11 +102,36 @@ public class FlywheelTab extends JPanel {
         sidebar.add(paramPanel);
         sidebar.add(Box.createVerticalStrut(12));
 
+        JButton btnRevealPlant = new JButton("Show Simulator Plant");
+        btnRevealPlant.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+        sidebar.add(btnRevealPlant);
+        sidebar.add(Box.createVerticalStrut(4));
+
+        plantPanel = new JPanel();
+        plantPanel.setLayout(new BoxLayout(plantPanel, BoxLayout.Y_AXIS));
+        plantPanel.setVisible(false);
+
+        efPlantKV = new EditableParamField("Plant kV", engine.getPlantKV(), "%.6f", 0, 1.0, v -> updatePlantParams());
+        efPlantKA = new EditableParamField("Plant kA", engine.getPlantKA(), "%.6f", 1e-9, 1.0, v -> updatePlantParams());
+        plantPanel.add(efPlantKV);
+        plantPanel.add(efPlantKA);
+        
+        sidebar.add(plantPanel);
+
+        btnRevealPlant.addActionListener(e -> {
+            boolean visible = !plantPanel.isVisible();
+            plantPanel.setVisible(visible);
+            btnRevealPlant.setText(visible ? "Hide Simulator Plant" : "Show Simulator Plant");
+            sidebar.revalidate();
+        });
+
+        sidebar.add(Box.createVerticalStrut(12));
+
         sidebar.add(boldLabel("Targets"));
         sidebar.add(Box.createVerticalStrut(4));
 
-        efTargetA = new EditableParamField("Target A", targetA, "%.0f", v -> targetA = v);
-        efTargetB = new EditableParamField("Target B", targetB, "%.0f", v -> targetB = v);
+        efTargetA = new EditableParamField("Target A", targetA, "%.0f", 0, 5000, v -> targetA = v);
+        efTargetB = new EditableParamField("Target B", targetB, "%.0f", 0, 5000, v -> targetB = v);
 
         sidebar.add(efTargetA);
         sidebar.add(efTargetB);
@@ -113,28 +139,38 @@ public class FlywheelTab extends JPanel {
 
         btnGoA = new JButton("\u2192 Go to A");
         btnGoB = new JButton("\u2192 Go to B");
+        btnCoast = new JButton("\u2741 Coast");
         btnGoA.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
         btnGoB.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        btnCoast.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
 
         btnGoA.addActionListener(e -> engine.setTarget(targetA));
         btnGoB.addActionListener(e -> engine.setTarget(targetB));
+        btnCoast.addActionListener(e -> engine.setTarget(0));
 
         sidebar.add(btnGoA);
         sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(btnGoB);
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(btnCoast);
 
         add(sidebar, BorderLayout.WEST);
     }
 
     private void updateParams() {
-        // We don't have direct access to the values from EditableParamField without adding a getter
-        // or passing them in the consumer. Let's add getters to EditableParamField.
         engine.setParams(
                 efKV.getValue(),
                 efKA.getValue(),
                 efKS.getValue(),
                 efKP.getValue(),
                 efCutoff.getValue()
+        );
+    }
+
+    private void updatePlantParams() {
+        engine.setPlantParams(
+                efPlantKV.getValue(),
+                efPlantKA.getValue()
         );
     }
 

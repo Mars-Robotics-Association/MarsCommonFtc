@@ -48,11 +48,24 @@ public class FlywheelMotorSim {
      * @param kA feedforward acceleration constant (same units as {@code FlywheelSimple.PARAMS.kA})
      */
     public FlywheelMotorSim(double kV, double kA) {
+        this(kV, kA, 0, 0.0);
+    }
+
+    /**
+     * Construct a flywheel plant simulation with existing state.
+     *
+     * @param kV           feedforward velocity constant
+     * @param kA           feedforward acceleration constant
+     * @param positionTicks current encoder position
+     * @param velocityTps  current true velocity
+     */
+    public FlywheelMotorSim(double kV, double kA, int positionTicks, double velocityTps) {
         LinearSystem<N1, N1, N1> plant = LinearSystemId.identifyVelocitySystem(kV, kA);
         this.a = plant.getA(0, 0);   // −kV/kA
         this.b = plant.getB(0, 0);   //  1/kA
         this.encoder = new EncoderSim();
-        this.trueVelocityTps = 0.0;
+        this.encoder.setState(positionTicks, positionTicks); // Use pos as initial fractionalTicks
+        this.trueVelocityTps = velocityTps;
     }
 
     /**

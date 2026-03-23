@@ -17,12 +17,20 @@ public class EditableParamField extends JPanel {
     private final String originalLabel;
     private String committedValue;
     private final Consumer<Double> onCommit;
+    private final double min;
+    private final double max;
 
     public EditableParamField(String labelText, double initialValue, String format, Consumer<Double> onCommit) {
+        this(labelText, initialValue, format, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, onCommit);
+    }
+
+    public EditableParamField(String labelText, double initialValue, String format, double min, double max, Consumer<Double> onCommit) {
         setLayout(new FlowLayout(FlowLayout.LEFT, 5, 0));
         this.originalLabel = labelText;
         this.committedValue = String.format(format, initialValue);
         this.onCommit = onCommit;
+        this.min = min;
+        this.max = max;
 
         this.label = new JLabel(labelText + ": ");
         this.textField = new JTextField(committedValue, 8);
@@ -47,15 +55,31 @@ public class EditableParamField extends JPanel {
     private void updateDirtyState() {
         boolean dirty = !textField.getText().equals(committedValue);
         label.setText(originalLabel + (dirty ? "*: " : ": "));
+        
+        // Visual cue for invalid value
+        try {
+            double val = Double.parseDouble(textField.getText());
+            if (val < min || val > max) {
+                textField.setForeground(Color.RED);
+            } else {
+                textField.setForeground(UIManager.getColor("TextField.foreground"));
+            }
+        } catch (NumberFormatException e) {
+            textField.setForeground(Color.RED);
+        }
     }
 
     private void commit() {
         try {
             double val = Double.parseDouble(textField.getText());
-            committedValue = textField.getText();
-            updateDirtyState();
-            onCommit.accept(val);
-            textField.transferFocus(); // Remove focus after commit
+            if (val >= min && val <= max) {
+                committedValue = textField.getText();
+                updateDirtyState();
+                onCommit.accept(val);
+                textField.transferFocus(); // Remove focus after commit
+            } else {
+                revert(); // Out of bounds
+            }
         } catch (NumberFormatException e) {
             revert(); // Revert on invalid input
         }
@@ -75,7 +99,8 @@ public class EditableParamField extends JPanel {
 
     public double getValue() {
         try {
-            return Double.parseDouble(textField.getText());
+            double val = Double.parseDouble(textField.getText());
+            return Math.max(min, Math.min(max, val));
         } catch (NumberFormatException e) {
             return Double.parseDouble(committedValue);
         }
