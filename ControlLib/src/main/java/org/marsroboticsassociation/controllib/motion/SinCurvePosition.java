@@ -205,13 +205,30 @@ public class SinCurvePosition implements PositionTrajectory {
             double vEnd_A = evalVgen(v0, a0, delta_A, T_A, T_A);
             double pEnd_A = evalPgen(p0, v0, a0, delta_A, T_A, T_A);
 
-            // Only merge when the combined arc leaves velocity still in the wrong direction.
-            // If the arc over-brakes (small initial speed), fall back to normal prefix.
+            // Prefer preserving already-helpful braking acceleration on replans.
+            // If a full-strength merged arc would over-brake, reduce the peak and keep the merged
+            // solution instead of bleeding acceleration back to zero and starting braking again.
             if (vEnd_A * dir < -1e-9) {
                 tPre = T_A;
                 vPre = vEnd_A;
                 pPre = pEnd_A;
                 mergedPrefix = true;
+            } else {
+                double a0Helpful = Math.abs(a0);
+                double aPeakTri =
+                        Math.sqrt(
+                                (2.0 * Math.abs(v0) * this.jMax + a0Helpful * a0Helpful) / 2.0);
+                if (aPeakTri >= a0Helpful + 1e-9) {
+                    brkAmplForCaseA = Math.copySign(aPeakTri, brkAmplForCaseA);
+                    T_A = Math.abs(brkAmplForCaseA - a0) / this.jMax;
+                    delta_A = brkAmplForCaseA - a0;
+                    vEnd_A = evalVgen(v0, a0, delta_A, T_A, T_A);
+                    pEnd_A = evalPgen(p0, v0, a0, delta_A, T_A, T_A);
+                    tPre = T_A;
+                    vPre = vEnd_A;
+                    pPre = pEnd_A;
+                    mergedPrefix = true;
+                }
             }
         }
 
