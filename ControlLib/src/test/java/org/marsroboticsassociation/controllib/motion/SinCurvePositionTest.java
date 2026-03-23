@@ -311,6 +311,24 @@ class SinCurvePositionTest {
         assertEquals(0.0, s.getVelocity(1.0), 1e-3, "should be stopped after 1 second");
     }
 
+    @Test
+    void smallWrongWaySpeed_withHelpfulAcceleration_keepsBrakingInsteadOfBleedingToZero() {
+        SinCurvePosition s = new SinCurvePosition(0, 50, -0.6, 1.0, 8, 4, 4, 10);
+
+        assertTrue(s.tBrake > 0, "expected braking prefix");
+        assertTrue(
+                s.getAcceleration(0.02) > 1.0,
+                "helpful braking acceleration should keep building early in the replan");
+        assertTrue(
+                s.getAcceleration(s.tPrefix + 1e-6) > 1.0,
+                "merged braking onset should not dip back to zero before stopping");
+        assertEquals(
+                0.0,
+                s.getVelocity(s.tPrefix + s.tBrake),
+                1e-6,
+                "wrong-way velocity should still be cancelled exactly");
+    }
+
     // ---------------------------------------------------------------
     // sinHalfDist helper tests
     // ---------------------------------------------------------------
