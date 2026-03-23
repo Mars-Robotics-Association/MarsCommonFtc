@@ -223,4 +223,8 @@ public class PositionTrajectoryManager {
     public double getAcceleration() {
         return lastA;
     }
+
+    public PositionTrajectory getCurrentTrajectory() {
+        return currentTrajectory;
+    }
 }

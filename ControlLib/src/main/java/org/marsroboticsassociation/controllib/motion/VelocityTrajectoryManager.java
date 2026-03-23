@@ -134,4 +134,8 @@ public class VelocityTrajectoryManager {
     public double getAcceleration() {
         return lastA;
     }
+
+    public VelocityTrajectory getCurrentTrajectory() {
+        return currentTrajectory;
+    }
 }

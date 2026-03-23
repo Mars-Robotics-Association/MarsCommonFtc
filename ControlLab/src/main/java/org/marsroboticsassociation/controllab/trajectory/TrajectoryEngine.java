@@ -1,9 +1,15 @@
 package org.marsroboticsassociation.controllab.trajectory;
 
 import org.marsroboticsassociation.controllib.motion.PositionTrajectoryManager;
+import org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment;
+import org.marsroboticsassociation.controllib.motion.SCurvePosition;
+import org.marsroboticsassociation.controllib.motion.SCurveVelocity;
 import org.marsroboticsassociation.controllib.motion.SinCurvePosition;
 import org.marsroboticsassociation.controllib.motion.VelocityTrajectoryManager;
 import org.marsroboticsassociation.controllib.util.TelemetryAddData;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Simulation engine that drives one trajectory planner at 20 ms per tick. Designed to be called
@@ -233,6 +239,20 @@ public class TrajectoryEngine {
         return type;
     }
 
+    public boolean supportsExactSvgExport() {
+        return type == TrajectoryType.SCURVE_POSITION || type == TrajectoryType.SCURVE_VELOCITY;
+    }
+
+    public TrajectorySvgModel buildExactSvgModel() {
+        if (!supportsExactSvgExport()) return null;
+
+        return switch (type) {
+            case SCURVE_POSITION -> buildPositionSvgModel();
+            case SCURVE_VELOCITY -> buildVelocitySvgModel();
+            default -> null;
+        };
+    }
+
     // ------------------------------------------------------------------
     // Type switch: tear down old planner, build new one
     // ------------------------------------------------------------------
@@ -307,5 +327,113 @@ public class TrajectoryEngine {
         }
         posManager = null;
         velManager = null;
+    }
+
+    private TrajectorySvgModel buildPositionSvgModel() {
+        if (!(posManager.getCurrentTrajectory() instanceof SCurvePosition profile)) return null;
+        List<TrajectorySvgSeries> series = new ArrayList<>();
+        series.add(
+                new TrajectorySvgSeries(
+                        "Position (units)",
+                        profile.positionSegments(),
+                        chartColor(0),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Velocity (units/s)",
+                        profile.velocitySegments(),
+                        chartColor(1),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Acceleration (units/s\u00b2)",
+                        profile.accelerationSegments(),
+                        chartColor(2),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Target",
+                        horizontalSegments(profile.getTotalTime(), currentTarget),
+                        chartColor(3),
+                        1.5f,
+                        new java.awt.BasicStroke(
+                                1.5f,
+                                java.awt.BasicStroke.CAP_BUTT,
+                                java.awt.BasicStroke.JOIN_MITER,
+                                10.0f,
+                                new float[] {6.0f, 4.0f},
+                                0.0f)));
+        return new TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series);
+    }
+
+    private TrajectorySvgModel buildVelocitySvgModel() {
+        if (!(velManager.getCurrentTrajectory() instanceof SCurveVelocity profile)) return null;
+        List<TrajectorySvgSeries> series = new ArrayList<>();
+        series.add(
+                new TrajectorySvgSeries(
+                        "Velocity (units/s)",
+                        profile.velocitySegments(),
+                        chartColor(1),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Acceleration (units/s\u00b2)",
+                        profile.accelerationSegments(),
+                        chartColor(2),
+                        2.0f,
+                        null));
+        series.add(
+                new TrajectorySvgSeries(
+                        "Target",
+                        horizontalSegments(profile.getTotalTime(), currentTarget),
+                        chartColor(3),
+                        1.5f,
+                        new java.awt.BasicStroke(
+                                1.5f,
+                                java.awt.BasicStroke.CAP_BUTT,
+                                java.awt.BasicStroke.JOIN_MITER,
+                                10.0f,
+                                new float[] {6.0f, 4.0f},
+                                0.0f)));
+        return new TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series);
+    }
+
+    private static List<PolynomialCurveSegment> horizontalSegments(double totalTime, double value) {
+        if (totalTime <= 0) return List.of();
+        return List.of(new PolynomialCurveSegment(0.0, totalTime, value, 0.0, 0.0, 0.0));
+    }
+
+    private static double minY(List<TrajectorySvgSeries> seriesList) {
+        double min = Double.POSITIVE_INFINITY;
+        for (TrajectorySvgSeries series : seriesList) {
+            for (PolynomialCurveSegment segment : series.segments()) {
+                min = Math.min(min, segment.minValue());
+            }
+        }
+        return Double.isFinite(min) ? min : -1.0;
+    }
+
+    private static double maxY(List<TrajectorySvgSeries> seriesList) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (TrajectorySvgSeries series : seriesList) {
+            for (PolynomialCurveSegment segment : series.segments()) {
+                max = Math.max(max, segment.maxValue());
+            }
+        }
+        return Double.isFinite(max) ? max : 1.0;
+    }
+
+    private static java.awt.Color chartColor(int index) {
+        java.awt.Color[] colors = {
+            new java.awt.Color(0x2E, 0x86, 0xDE),
+            new java.awt.Color(0xE6, 0x7E, 0x22),
+            new java.awt.Color(0x27, 0xAE, 0x60),
+            new java.awt.Color(0x95, 0xA5, 0xA6)
+        };
+        return colors[Math.floorMod(index, colors.length)];
     }
 }

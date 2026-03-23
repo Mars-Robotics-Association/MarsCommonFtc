@@ -1,12 +1,21 @@
 package org.marsroboticsassociation.controllab.trajectory;
 
 import org.knowm.xchart.*;
+import org.knowm.xchart.internal.series.AxesChartSeries;
 import org.knowm.xchart.style.markers.SeriesMarkers;
 
 import java.awt.*;
+import java.io.File;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 public class TrajectoryTab extends JPanel {
 
@@ -14,10 +23,16 @@ public class TrajectoryTab extends JPanel {
     private static final int TIMER_MS = 20;
     private static final int BUFFER_POINTS = 500;
     private static final double WINDOW_SECS = 10.0;
+    private static final DateTimeFormatter EXPORT_TIMESTAMP =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     private TrajectoryEngine engine;
     private final RollingBuffer buffer = new RollingBuffer(WINDOW_SECS, BUFFER_POINTS);
     private double elapsedSec = 0.0;
+    private final Map<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>>
+            exactHistorySegments = new LinkedHashMap<>();
+    private TrajectorySvgModel activeExactPlan;
+    private double activeExactPlanStartSec = Double.NaN;
 
     private XYChart chart;
     private XChartPanel<XYChart> chartPanel;
@@ -41,6 +56,7 @@ public class TrajectoryTab extends JPanel {
     private JSlider slTargetA, slTargetB;
     private JLabel lbTargetA, lbTargetB;
     private JButton btnGoA, btnGoB;
+    private JButton btnExportSvg;
     private Timer simTimer;
 
     static double s2l(int v, double min, double max) {
@@ -162,16 +178,21 @@ public class TrajectoryTab extends JPanel {
 
         btnGoA = new JButton("\u2192 Go to A");
         btnGoB = new JButton("\u2192 Go to B");
+        btnExportSvg = new JButton("Export SVG");
         btnGoA.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
         btnGoB.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        btnExportSvg.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
 
         sidebar.add(btnGoA);
         sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(btnGoB);
+        sidebar.add(Box.createVerticalStrut(12));
+        sidebar.add(btnExportSvg);
 
         typeCombo.addActionListener(e -> onTypeChanged());
         btnGoA.addActionListener(e -> onGoTo(slTargetA));
         btnGoB.addActionListener(e -> onGoTo(slTargetB));
+        btnExportSvg.addActionListener(e -> onExportSvg());
 
         add(sidebar, BorderLayout.WEST);
     }
@@ -312,6 +333,7 @@ public class TrajectoryTab extends JPanel {
         engine.switchType(sel);
         buffer.clear();
         elapsedSec = 0.0;
+        resetExactExportHistory();
 
         limitPanel.removeAll();
         switch (sel) {
@@ -343,6 +365,7 @@ public class TrajectoryTab extends JPanel {
         limitPanel.repaint();
 
         chart.getSeriesMap().get("Position (units)").setEnabled(engine.hasPosition());
+        refreshExportButtonState();
         chartPanel.repaint();
     }
 
@@ -366,8 +389,11 @@ public class TrajectoryTab extends JPanel {
     }
 
     private void onGoTo(JSlider targetSlider) {
+        commitActiveExactPlanThrough(elapsedSec);
         engine.applyParamsAndGoTo(targetSliderValue(targetSlider));
+        startActiveExactPlan();
         recordCurrentSample();
+        refreshExportButtonState();
     }
 
     private void buildTimer() {
@@ -379,7 +405,11 @@ public class TrajectoryTab extends JPanel {
         if (!engine.isMoving()) return;
         engine.tick();
         elapsedSec += TrajectoryEngine.CYCLE_S;
+        if (!engine.isMoving()) {
+            commitActiveExactPlanThrough(elapsedSec);
+        }
         recordCurrentSample();
+        refreshExportButtonState();
     }
 
     private void recordCurrentSample() {
@@ -397,6 +427,244 @@ public class TrajectoryTab extends JPanel {
                 "Acceleration (units/s\u00b2)", times, buffer.getAccelerations(), null);
         chart.updateXYSeries("Target", times, buffer.getTargets(), null);
         chartPanel.repaint();
+    }
+
+    private void refreshExportButtonState() {
+        boolean visible = engine.supportsExactSvgExport();
+        btnExportSvg.setVisible(visible);
+        btnExportSvg.setEnabled(visible && !engine.isMoving());
+        btnExportSvg.setToolTipText(
+                visible
+                        ? (engine.isMoving()
+                                ? "Export becomes available once the graph settles"
+                                : "Export an exact SVG of the current trajectory")
+                        : null);
+        revalidate();
+        repaint();
+    }
+
+    private void onExportSvg() {
+        if (engine.isMoving()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Wait for the trajectory to settle before exporting.",
+                    "Trajectory Still Running",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        TrajectorySvgModel model = styledSvgModel();
+        if (model == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "SVG export is only available for SCurvePosition and SCurveVelocity.",
+                    "Export Unavailable",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser chooser = new JFileChooser(defaultDownloadsDir());
+        chooser.setDialogTitle("Save trajectory SVG");
+        chooser.setFileFilter(new FileNameExtensionFilter("SVG Files (*.svg)", "svg"));
+        chooser.setSelectedFile(new File(defaultDownloadsDir(), defaultSvgFilename()));
+        int ret = chooser.showSaveDialog(this);
+        if (ret != JFileChooser.APPROVE_OPTION) return;
+
+        File out = chooser.getSelectedFile();
+        if (!out.getName().toLowerCase().endsWith(".svg")) {
+            out = new File(out.getParentFile(), out.getName() + ".svg");
+        }
+        if (out.exists()) {
+            int choice =
+                    JOptionPane.showConfirmDialog(
+                            this,
+                            "Replace existing file?\n" + out.getAbsolutePath(),
+                            "Confirm Replace",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE);
+            if (choice != JOptionPane.YES_OPTION) return;
+        }
+
+        try {
+            TrajectorySvgExporter.export(Path.of(out.getAbsolutePath()), model);
+            JOptionPane.showMessageDialog(this, "Exported to: " + out.getAbsolutePath());
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Export failed: " + ex.getMessage(),
+                    "Export Failed",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private TrajectorySvgModel styledSvgModel() {
+        TrajectorySvgModel base = visibleExactSvgModel();
+        if (base == null) return null;
+
+        java.awt.Color[] palette = chart.getStyler().getSeriesColors();
+
+        List<TrajectorySvgSeries> styledSeries =
+                java.util.stream.IntStream.range(0, base.series().size())
+                        .mapToObj(
+                                index -> {
+                                    TrajectorySvgSeries series = base.series().get(index);
+                                    AxesChartSeries chartSeries =
+                                            (AxesChartSeries) chart.getSeriesMap().get(series.label());
+                                    if (chartSeries == null) return series;
+                                    java.awt.BasicStroke stroke =
+                                            chartSeries.getLineStyle() != null
+                                                    ? chartSeries.getLineStyle()
+                                                    : series.stroke();
+                                    float strokeWidth =
+                                            chartSeries.getLineWidth() > 0
+                                                    ? chartSeries.getLineWidth()
+                                                    : series.strokeWidth();
+                                    java.awt.Color color =
+                                            chartSeries.getLineColor() != null
+                                                    ? chartSeries.getLineColor()
+                                                    : paletteColor(palette, index, series.color());
+                                    return new TrajectorySvgSeries(
+                                            series.label(),
+                                            series.segments(),
+                                            color,
+                                            strokeWidth,
+                                            stroke);
+                                })
+                        .toList();
+
+        return new TrajectorySvgModel(base.xMin(), base.xMax(), base.minY(), base.maxY(), styledSeries);
+    }
+
+    private static java.awt.Color paletteColor(
+            java.awt.Color[] palette, int index, java.awt.Color fallback) {
+        if (palette == null || palette.length == 0) return fallback;
+        java.awt.Color color = palette[Math.floorMod(index, palette.length)];
+        return color != null ? color : fallback;
+    }
+
+    private void resetExactExportHistory() {
+        exactHistorySegments.clear();
+        activeExactPlan = null;
+        activeExactPlanStartSec = Double.NaN;
+    }
+
+    private void startActiveExactPlan() {
+        if (!engine.supportsExactSvgExport()) {
+            activeExactPlan = null;
+            activeExactPlanStartSec = Double.NaN;
+            return;
+        }
+        activeExactPlan = engine.buildExactSvgModel();
+        activeExactPlanStartSec = elapsedSec;
+    }
+
+    private void commitActiveExactPlanThrough(double absoluteEndSec) {
+        if (activeExactPlan == null || Double.isNaN(activeExactPlanStartSec)) return;
+        double duration = Math.min(activeExactPlan.xMax() - activeExactPlan.xMin(), absoluteEndSec - activeExactPlanStartSec);
+        if (duration > 0) {
+            appendPlanSegments(exactHistorySegments, activeExactPlan, activeExactPlanStartSec, 0.0, duration);
+        }
+        activeExactPlan = null;
+        activeExactPlanStartSec = Double.NaN;
+    }
+
+    private TrajectorySvgModel visibleExactSvgModel() {
+        if (!engine.supportsExactSvgExport()) return null;
+
+        Map<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> combined =
+                new LinkedHashMap<>();
+        for (Map.Entry<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> entry :
+                exactHistorySegments.entrySet()) {
+            combined.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        }
+
+        if (activeExactPlan != null && !Double.isNaN(activeExactPlanStartSec)) {
+            double duration =
+                    Math.min(
+                            activeExactPlan.xMax() - activeExactPlan.xMin(),
+                            Math.max(0.0, elapsedSec - activeExactPlanStartSec));
+            appendPlanSegments(combined, activeExactPlan, activeExactPlanStartSec, 0.0, duration);
+        }
+
+        List<Double> times = buffer.getTimes();
+        if (times.isEmpty()) return null;
+        double xMin = times.get(0);
+        double xMax = times.get(times.size() - 1);
+        if (xMax <= xMin) xMax = xMin + 1e-9;
+
+        List<TrajectorySvgSeries> series = new ArrayList<>();
+        for (Map.Entry<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> entry :
+                combined.entrySet()) {
+            List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment> clipped = new ArrayList<>();
+            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment : entry.getValue()) {
+                org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment clippedSegment =
+                        segment.clippedTo(xMin, xMax);
+                if (clippedSegment != null) {
+                    clipped.add(clippedSegment);
+                }
+            }
+            if (!clipped.isEmpty()) {
+                series.add(new TrajectorySvgSeries(entry.getKey(), clipped, Color.BLACK, 2.0f, null));
+            }
+        }
+
+        if (series.isEmpty()) return null;
+        return new TrajectorySvgModel(xMin, xMax, minY(series), maxY(series), series);
+    }
+
+    private static void appendPlanSegments(
+            Map<String, List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment>> target,
+            TrajectorySvgModel plan,
+            double absoluteStartSec,
+            double relativeStartSec,
+            double relativeEndSec) {
+        if (relativeEndSec <= relativeStartSec) return;
+        for (TrajectorySvgSeries series : plan.series()) {
+            List<org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment> dst =
+                    target.computeIfAbsent(series.label(), key -> new ArrayList<>());
+            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment : series.segments()) {
+                org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment clipped =
+                        segment.clippedTo(relativeStartSec, relativeEndSec);
+                if (clipped != null) {
+                    dst.add(clipped.shiftedBy(absoluteStartSec));
+                }
+            }
+        }
+    }
+
+    private static double minY(List<TrajectorySvgSeries> seriesList) {
+        double min = Double.POSITIVE_INFINITY;
+        for (TrajectorySvgSeries series : seriesList) {
+            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment :
+                    series.segments()) {
+                min = Math.min(min, segment.minValue());
+            }
+        }
+        return Double.isFinite(min) ? min : -1.0;
+    }
+
+    private static double maxY(List<TrajectorySvgSeries> seriesList) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (TrajectorySvgSeries series : seriesList) {
+            for (org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment segment :
+                    series.segments()) {
+                max = Math.max(max, segment.maxValue());
+            }
+        }
+        return Double.isFinite(max) ? max : 1.0;
+    }
+
+    private String defaultSvgFilename() {
+        String timestamp = LocalDateTime.now().format(EXPORT_TIMESTAMP);
+        return switch (engine.getType()) {
+            case SCURVE_POSITION -> "scurve-position-trajectory-" + timestamp + ".svg";
+            case SCURVE_VELOCITY -> "scurve-velocity-trajectory-" + timestamp + ".svg";
+            default -> "trajectory-" + timestamp + ".svg";
+        };
+    }
+
+    private static File defaultDownloadsDir() {
+        return new File(System.getProperty("user.home"), "Downloads");
     }
 
     private static void addSliderRow(JPanel panel, JLabel label, JSlider slider) {

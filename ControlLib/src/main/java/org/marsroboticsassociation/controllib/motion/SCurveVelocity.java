@@ -1,5 +1,8 @@
 package org.marsroboticsassociation.controllib.motion;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Generates a jerk-limited (S-curve) velocity trajectory between two velocities,
  * with support for asymmetric jerk (different magnitudes when increasing vs decreasing acceleration).
@@ -236,5 +239,115 @@ public class SCurveVelocity implements VelocityTrajectory {
     public boolean isZeroJerk(double t) {
         return trivial || singlePhase ||
                 t <= 0 || (t >= t1 && t < t1 + t2) || t > tf;
+    }
+
+    public List<PolynomialCurveSegment> velocitySegments() {
+        List<PolynomialCurveSegment> segments = new ArrayList<>();
+        if (trivial || tf <= 0) return segments;
+
+        double a0Signed = dir * Math.abs(a0);
+
+        if (singlePhase) {
+            segments.add(
+                    new PolynomialCurveSegment(
+                            0.0,
+                            tf,
+                            v0,
+                            a0Signed,
+                            -0.5 * dir * jDec,
+                            0.0));
+            return segments;
+        }
+
+        double tStart = 0.0;
+        double vStart = v0;
+        double aStart = a0Signed;
+
+        if (t1 > 0) {
+            double jerk1 = firstPhaseJerkSigned();
+            segments.add(
+                    new PolynomialCurveSegment(
+                            tStart,
+                            tStart + t1,
+                            vStart,
+                            aStart,
+                            0.5 * jerk1,
+                            0.0));
+            vStart = getVelocity(tStart + t1);
+            aStart = getAcceleration(tStart + t1);
+            tStart += t1;
+        }
+
+        if (t2 > 0) {
+            segments.add(
+                    new PolynomialCurveSegment(
+                            tStart,
+                            tStart + t2,
+                            vStart,
+                            aStart,
+                            0.0,
+                            0.0));
+            vStart = getVelocity(tStart + t2);
+            aStart = getAcceleration(tStart + t2);
+            tStart += t2;
+        }
+
+        if (t3 > 0) {
+            double jerk3 = -dir * jDec;
+            segments.add(
+                    new PolynomialCurveSegment(
+                            tStart,
+                            tStart + t3,
+                            vStart,
+                            aStart,
+                            0.5 * jerk3,
+                            0.0));
+        }
+        return segments;
+    }
+
+    public List<PolynomialCurveSegment> accelerationSegments() {
+        List<PolynomialCurveSegment> segments = new ArrayList<>();
+        if (trivial || tf <= 0) return segments;
+
+        double a0Signed = dir * Math.abs(a0);
+
+        if (singlePhase) {
+            segments.add(
+                    new PolynomialCurveSegment(
+                            0.0,
+                            tf,
+                            a0Signed,
+                            -dir * jDec,
+                            0.0,
+                            0.0));
+            return segments;
+        }
+
+        double tStart = 0.0;
+        double aStart = a0Signed;
+
+        if (t1 > 0) {
+            double jerk1 = firstPhaseJerkSigned();
+            segments.add(new PolynomialCurveSegment(tStart, tStart + t1, aStart, jerk1, 0.0, 0.0));
+            aStart = getAcceleration(tStart + t1);
+            tStart += t1;
+        }
+
+        if (t2 > 0) {
+            segments.add(new PolynomialCurveSegment(tStart, tStart + t2, aStart, 0.0, 0.0, 0.0));
+            tStart += t2;
+        }
+
+        if (t3 > 0) {
+            double jerk3 = -dir * jDec;
+            segments.add(new PolynomialCurveSegment(tStart, tStart + t3, aStart, jerk3, 0.0, 0.0));
+        }
+
+        return segments;
+    }
+
+    private double firstPhaseJerkSigned() {
+        return (aPeak >= Math.abs(a0) ? dir * jInc : -dir * jDec);
     }
 }

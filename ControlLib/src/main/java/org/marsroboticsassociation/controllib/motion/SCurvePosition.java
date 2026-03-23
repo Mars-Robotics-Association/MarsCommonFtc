@@ -1,5 +1,8 @@
 package org.marsroboticsassociation.controllib.motion;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Jerk-limited (S-curve) position trajectory from p0 to pTarget, ending at rest.
  * Supports asymmetric acceleration limits: aMaxAccel for speeding up, aMaxDecel for braking.
@@ -99,11 +102,11 @@ public class SCurvePosition implements PositionTrajectory {
         // For a0pos < 0 (decelerating / wrong direction): jerk = +jMax in pos frame
         // ---------------------------------------------------------------
         double a0pos = a0 * dir;
+        boolean preserveHelpfulBrakeAccel =
+                v0 * dir < -1e-9 && a0pos > 1e-9 && a0pos <= this.aMaxAccel + 1e-9;
         double tPre, jPre;
         double pStart, vStart;
 
-        boolean preserveHelpfulBrakeAccel =
-                v0 * dir < -1e-9 && a0pos > 1e-9 && a0pos <= this.aMaxAccel + 1e-9;
         if (preserveHelpfulBrakeAccel || Math.abs(a0pos) < 1e-9) {
             tPre   = 0;
             jPre   = 0;
@@ -464,5 +467,123 @@ public class SCurvePosition implements PositionTrajectory {
             if (t >= phaseStartT[i]) return i;
         }
         return 0;
+    }
+
+    public List<PolynomialCurveSegment> positionSegments() {
+        List<PolynomialCurveSegment> segments = new ArrayList<>();
+        if (trivial) return segments;
+
+        if (tPrefix > 0) {
+            segments.add(new PolynomialCurveSegment(tPrefix == 0 ? 0.0 : 0.0, tPrefix, p0, v0, 0.5 * a0, jPrefix / 6.0));
+        }
+
+        addBrakePositionSegments(segments);
+
+        for (int i = 0; i < 7; i++) {
+            double start = phaseStartT[i];
+            double end = phaseStartT[i + 1];
+            if (end <= start) continue;
+            segments.add(
+                    new PolynomialCurveSegment(
+                            start,
+                            end,
+                            phaseStartP[i],
+                            phaseStartV[i],
+                            0.5 * phaseStartA[i],
+                            phaseJerk[i] / 6.0));
+        }
+
+        return segments;
+    }
+
+    public List<PolynomialCurveSegment> velocitySegments() {
+        List<PolynomialCurveSegment> segments = new ArrayList<>();
+        if (trivial) return segments;
+
+        if (tPrefix > 0) {
+            segments.add(new PolynomialCurveSegment(0.0, tPrefix, v0, a0, 0.5 * jPrefix, 0.0));
+        }
+
+        addBrakeVelocitySegments(segments);
+
+        for (int i = 0; i < 7; i++) {
+            double start = phaseStartT[i];
+            double end = phaseStartT[i + 1];
+            if (end <= start) continue;
+            segments.add(
+                    new PolynomialCurveSegment(
+                            start,
+                            end,
+                            phaseStartV[i],
+                            phaseStartA[i],
+                            0.5 * phaseJerk[i],
+                            0.0));
+        }
+
+        return segments;
+    }
+
+    public List<PolynomialCurveSegment> accelerationSegments() {
+        List<PolynomialCurveSegment> segments = new ArrayList<>();
+        if (trivial) return segments;
+
+        if (tPrefix > 0) {
+            segments.add(new PolynomialCurveSegment(0.0, tPrefix, a0, jPrefix, 0.0, 0.0));
+        }
+
+        addBrakeAccelerationSegments(segments);
+
+        for (int i = 0; i < 7; i++) {
+            double start = phaseStartT[i];
+            double end = phaseStartT[i + 1];
+            if (end <= start) continue;
+            segments.add(new PolynomialCurveSegment(start, end, phaseStartA[i], phaseJerk[i], 0.0, 0.0));
+        }
+
+        return segments;
+    }
+
+    private void addBrakePositionSegments(List<PolynomialCurveSegment> segments) {
+        if (tBrake <= 0) return;
+        for (int i = 0; i < 3; i++) {
+            double start = brakeSubT[i];
+            double end = brakeSubT[i + 1];
+            if (end <= start) continue;
+            segments.add(
+                    new PolynomialCurveSegment(
+                            start,
+                            end,
+                            brakeSubP[i],
+                            brakeSubV[i],
+                            0.5 * brakeSubA[i],
+                            brakeSubJ[i] / 6.0));
+        }
+    }
+
+    private void addBrakeVelocitySegments(List<PolynomialCurveSegment> segments) {
+        if (tBrake <= 0) return;
+        for (int i = 0; i < 3; i++) {
+            double start = brakeSubT[i];
+            double end = brakeSubT[i + 1];
+            if (end <= start) continue;
+            segments.add(
+                    new PolynomialCurveSegment(
+                            start,
+                            end,
+                            brakeSubV[i],
+                            brakeSubA[i],
+                            0.5 * brakeSubJ[i],
+                            0.0));
+        }
+    }
+
+    private void addBrakeAccelerationSegments(List<PolynomialCurveSegment> segments) {
+        if (tBrake <= 0) return;
+        for (int i = 0; i < 3; i++) {
+            double start = brakeSubT[i];
+            double end = brakeSubT[i + 1];
+            if (end <= start) continue;
+            segments.add(new PolynomialCurveSegment(start, end, brakeSubA[i], brakeSubJ[i], 0.0, 0.0));
+        }
     }
 }
