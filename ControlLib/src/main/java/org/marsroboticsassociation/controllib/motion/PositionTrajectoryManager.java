@@ -143,7 +143,12 @@ public class PositionTrajectoryManager {
         this.jMax = Math.abs(jMax);
     }
 
-    /** Plan a new trajectory from current state to the given target position. */
+    /**
+     * Plan a new trajectory from the currently sampled state to the given target position.
+     *
+     * <p>The manager carries forward position, velocity, and acceleration only. This makes
+     * mid-motion replans continuous in {@code p/v/a}, but not necessarily in jerk.
+     */
     private void changeTrajectory(double pTarget) {
         currentTrajectory =
                 factory.create(lastP, pTarget, lastV, lastA, vMax, aMaxAccel, aMaxDecel, jMax);
@@ -191,7 +196,14 @@ public class PositionTrajectoryManager {
         changeTrajectory(targetPosition.get());
     }
 
-    /** Command a new target position. */
+    /**
+     * Command a new target position.
+     *
+     * <p>If the target changes while a trajectory is already in progress, the next plan begins
+     * from the sampled current {@code p/v/a} state. That preserves position, velocity, and
+     * acceleration continuity across the replan, while still allowing the new trajectory to choose
+     * its own jerk profile from that state.
+     */
     public void setTarget(double pTarget) {
         targetPosition.set(pTarget);
     }

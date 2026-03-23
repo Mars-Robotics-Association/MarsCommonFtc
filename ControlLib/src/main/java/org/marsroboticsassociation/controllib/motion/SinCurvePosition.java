@@ -33,6 +33,13 @@ package org.marsroboticsassociation.controllib.motion;
  * <p>The {@code jMax} parameter has the same semantics as in {@link SCurvePosition}: the sinusoidal
  * transition duration equals {@code aMax/jMax}, matching the linear-jerk transition time. The peak
  * instantaneous jerk is {@code &pi;&middot;jMax/2}.
+ *
+ * <p>For a single uninterrupted move, the profile is smooth in position, velocity, and
+ * acceleration, and it removes the acceleration corner points of a standard 7-segment polynomial
+ * S-curve. When used through {@link PositionTrajectoryManager}, mid-motion replans also preserve
+ * {@code p/v/a} because the next trajectory is seeded from the sampled current state. However,
+ * replans do not preserve jerk continuity: rapid target changes may introduce sharp nodes in the
+ * acceleration trace even though acceleration itself remains continuous.
  */
 public class SinCurvePosition implements PositionTrajectory {
 
@@ -82,6 +89,12 @@ public class SinCurvePosition implements PositionTrajectory {
     public final double pHandoffStart; // position at start of handoff (= pBrake)
     public final double pHandoffEnd; // position at end of handoff (= phaseStartP[0])
     public final double vHandoffEnd; // velocity at end of handoff (= phaseStartV[0])
+
+    // Midpoint combined: when T4=0, T3-offset + T5-onset replaced by a single general arc
+    // (accelAmpl → decelAmpl) stored in phase slot 2. Phase slots 3 and 4 have duration 0.
+    public final boolean midpointCombined;
+    private double aMidStart; // accelAmpl = aPkAccel * dir (world frame)
+    private double aMidEnd; // decelAmpl = -aPkDecel * dir (world frame)
 
     // Brake sub-phase table (3 sub-phases: onset, constant, offset)
     // brakeSubT[0..3] = absolute start times (4 boundaries for 3 sub-phases)
@@ -138,6 +151,9 @@ public class SinCurvePosition implements PositionTrajectory {
             pHandoffStart = p0;
             pHandoffEnd = p0;
             vHandoffEnd = 0;
+            midpointCombined = false;
+            aMidStart = 0;
+            aMidEnd = 0;
             phaseStartP[0] = p0;
             phaseStartV[0] = v0;
             for (int i = 1; i < 8; i++) {
@@ -312,8 +328,8 @@ public class SinCurvePosition implements PositionTrajectory {
                     for (int i = 0; i < 64; i++) {
                         double mid = (lo + hi) * 0.5;
                         double d =
-                                sinHalfDist(v0adj, mid, this.aMaxAccel, this.jMax)
-                                        + sinHalfDist(0, mid, this.aMaxDecel, this.jMax);
+                                sinFullDistCombinedMid(
+                                        v0adj, mid, this.aMaxAccel, this.aMaxDecel, this.jMax);
                         if (d < distRemaining) lo = mid;
                         else hi = mid;
                     }
@@ -399,8 +415,13 @@ public class SinCurvePosition implements PositionTrajectory {
                         for (int i = 0; i < 64; i++) {
                             double mid = (lo + hi) * 0.5;
                             double d =
-                                    sinHalfDistCombined(v0adj, mid, this.aMaxAccel, this.jMax, brkA)
-                                            + sinHalfDist(0, mid, this.aMaxDecel, this.jMax);
+                                    sinFullDistHandoffAndMid(
+                                            v0adj,
+                                            mid,
+                                            this.aMaxAccel,
+                                            this.aMaxDecel,
+                                            this.jMax,
+                                            brkA);
                             if (d < distRemaining2) lo = mid;
                             else hi = mid;
                         }
@@ -478,6 +499,14 @@ public class SinCurvePosition implements PositionTrajectory {
                             (vPeakSolved - vHEnd_calc - aPkAccel * aPkAccel / (2.0 * this.jMax))
                                     / aPkAccel);
         }
+        // Midpoint combined: when T4=0 and both accel/decel peaks are nonzero,
+        // replace T3-offset + T5-onset with a single general arc.
+        boolean doMidpoint = (T4solved == 0) && (aPkAccel > 1e-9) && (aPkDecel > 1e-9);
+        if (doMidpoint) {
+            t3 = (aPkAccel + aPkDecel) / this.jMax; // combined arc stored in T3 slot
+            t5 = 0; // T5 absorbed into combined arc
+        }
+
         this.T2 = Math.max(0, t2);
         this.T3 = Math.max(0, t3);
         this.T5 = Math.max(0, t5);
@@ -511,13 +540,22 @@ public class SinCurvePosition implements PositionTrajectory {
         this.pHandoffEnd = pHEnd;
         this.vHandoffEnd = vHEnd;
 
+        this.midpointCombined = doMidpoint;
+        if (doMidpoint) {
+            this.aMidStart = aPkAccel * dir; // accelAmpl (world frame)
+            this.aMidEnd = -aPkDecel * dir; // decelAmpl (world frame)
+        } else {
+            this.aMidStart = 0;
+            this.aMidEnd = 0;
+        }
+
         // ---------------------------------------------------------------
         // Build phase table
         //
         // Phase signs and amplitudes in world frame:
         //   0 (T1): onset,    ampl = +aPkAccel*dir  (a: 0 -> aPkAccel*dir)  [T1=0 when Case B]
         //   1 (T2): constant, ampl = +aPkAccel*dir  (a = aPkAccel*dir)
-        //   2 (T3): offset,   ampl = +aPkAccel*dir  (a: aPkAccel*dir -> 0)
+        //   2 (T3): offset,   ampl = +aPkAccel*dir  (a: aPkAccel*dir -> 0)  [midpoint arc when combined]
         //   3 (T4): constant, ampl = 0              (cruise)
         //   4 (T5): onset,    ampl = -aPkDecel*dir  (a: 0 -> -aPkDecel*dir)
         //   5 (T6): constant, ampl = -aPkDecel*dir  (a = -aPkDecel*dir)
@@ -547,13 +585,20 @@ public class SinCurvePosition implements PositionTrajectory {
         phaseStartV[0] = doHandoff ? vHEnd : (v0adj * dir);
 
         for (int i = 0; i < 7; i++) {
-            double[] end =
-                    evalPhaseEnd(
-                            phaseStartP[i],
-                            phaseStartV[i],
-                            phaseAmpl[i],
-                            phaseSign[i],
-                            durations[i]);
+            double[] end;
+            if (midpointCombined && i == 2) {
+                end =
+                        evalPhaseEndGen(
+                                phaseStartP[i], phaseStartV[i], aMidStart, aMidEnd, durations[i]);
+            } else {
+                end =
+                        evalPhaseEnd(
+                                phaseStartP[i],
+                                phaseStartV[i],
+                                phaseAmpl[i],
+                                phaseSign[i],
+                                durations[i]);
+            }
             phaseStartT[i + 1] = phaseStartT[i] + durations[i];
             phaseStartP[i + 1] = end[0];
             phaseStartV[i + 1] = end[1];
@@ -607,6 +652,9 @@ public class SinCurvePosition implements PositionTrajectory {
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         double T = phaseStartT[ph + 1] - phaseStartT[ph];
+        if (midpointCombined && ph == 2) {
+            return evalPgen(phaseStartP[2], phaseStartV[2], aMidStart, aMidEnd - aMidStart, dt, T);
+        }
         return evalP(phaseStartP[ph], phaseStartV[ph], phaseAmpl[ph], phaseSign[ph], dt, T);
     }
 
@@ -643,6 +691,9 @@ public class SinCurvePosition implements PositionTrajectory {
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         double T = phaseStartT[ph + 1] - phaseStartT[ph];
+        if (midpointCombined && ph == 2) {
+            return evalVgen(phaseStartV[2], aMidStart, aMidEnd - aMidStart, dt, T);
+        }
         return evalV(phaseStartV[ph], phaseAmpl[ph], phaseSign[ph], dt, T);
     }
 
@@ -679,6 +730,9 @@ public class SinCurvePosition implements PositionTrajectory {
         int ph = findPhase(t);
         double dt = t - phaseStartT[ph];
         double T = phaseStartT[ph + 1] - phaseStartT[ph];
+        if (midpointCombined && ph == 2) {
+            return evalAgen(aMidStart, aMidEnd - aMidStart, dt, T);
+        }
         return evalA(phaseAmpl[ph], phaseSign[ph], dt, T);
     }
 
@@ -697,6 +751,7 @@ public class SinCurvePosition implements PositionTrajectory {
             return brakeSubSign[findBrakePhase(t)] == 0;
         }
         if (handoffCombined && t < tHandoffEnd) return false; // active handoff arc
+        if (midpointCombined && findPhase(t) == 2) return false;
         return phaseSign[findPhase(t)] == 0;
     }
 
@@ -863,6 +918,130 @@ public class SinCurvePosition implements PositionTrajectory {
         double d_T3 = v_start_T3 * T3 + aPkAccel * T3 * T3 * C_OFFSET;
 
         return d_H + d_T2 + d_T3;
+    }
+
+    /** Full no-cruise distance when T3+T5 are replaced by a single midpoint arc. */
+    static double sinFullDistCombinedMid(
+            double v0adj, double vPeak, double aMaxAccel, double aMaxDecel, double jMax) {
+        if (vPeak <= v0adj) {
+            return sinHalfDist(0, vPeak, aMaxDecel, jMax);
+        }
+
+        double dvAccel = vPeak - v0adj;
+        double vAccelMin = aMaxAccel * aMaxAccel / jMax;
+        double aPkAccel;
+        double T1;
+        double T2;
+        if (dvAccel >= vAccelMin) {
+            aPkAccel = aMaxAccel;
+            T1 = aPkAccel / jMax;
+            T2 = (dvAccel - vAccelMin) / aPkAccel;
+        } else {
+            aPkAccel = Math.sqrt(dvAccel * jMax);
+            T1 = aPkAccel / jMax;
+            T2 = 0;
+        }
+
+        double vDecelMin = aMaxDecel * aMaxDecel / jMax;
+        double aPkDecel;
+        double T6;
+        double T7;
+        if (vPeak >= vDecelMin) {
+            aPkDecel = aMaxDecel;
+            T6 = (vPeak - vDecelMin) / aPkDecel;
+            T7 = aPkDecel / jMax;
+        } else {
+            aPkDecel = Math.sqrt(vPeak * jMax);
+            T6 = 0;
+            T7 = aPkDecel / jMax;
+        }
+
+        double p = 0.0;
+        double v = v0adj;
+
+        double[] end = evalPhaseEnd(p, v, aPkAccel, -1, T1);
+        p = end[0];
+        v = end[1];
+
+        end = evalPhaseEnd(p, v, aPkAccel, 0, T2);
+        p = end[0];
+        v = end[1];
+
+        double Tmid = (aPkAccel + aPkDecel) / jMax;
+        end = evalPhaseEndGen(p, v, aPkAccel, -aPkDecel, Tmid);
+        p = end[0];
+        v = end[1];
+
+        end = evalPhaseEnd(p, v, -aPkDecel, 0, T6);
+        p = end[0];
+        v = end[1];
+
+        end = evalPhaseEnd(p, v, -aPkDecel, +1, T7);
+        return end[0];
+    }
+
+    /** Full no-cruise distance when both the braking handoff and midpoint arc are combined. */
+    static double sinFullDistHandoffAndMid(
+            double v0adj, double vPeak, double aMaxAccel, double aMaxDecel, double jMax, double brkA) {
+        if (vPeak <= 0) {
+            return 0;
+        }
+
+        double vMin = aMaxAccel * aMaxAccel / jMax;
+        double vMinHandoff = brkA * brkA / (2.0 * jMax);
+        double aPkAccel;
+        double T_H;
+        double T2;
+        if (aMaxAccel >= brkA && vPeak <= vMin - vMinHandoff) {
+            aPkAccel = Math.sqrt(jMax * vPeak + brkA * brkA / 2.0);
+            T_H = (aPkAccel - brkA) / jMax;
+            T2 = 0;
+        } else {
+            aPkAccel = aMaxAccel;
+            T_H = Math.abs(aPkAccel - brkA) / jMax;
+            double vAfterH = T_H * (brkA + aPkAccel) / 2.0;
+            T2 =
+                    Math.max(
+                            0.0,
+                            (vPeak - vAfterH - aPkAccel * aPkAccel / (2.0 * jMax)) / aPkAccel);
+        }
+
+        double vDecelMin = aMaxDecel * aMaxDecel / jMax;
+        double aPkDecel;
+        double T6;
+        double T7;
+        if (vPeak >= vDecelMin) {
+            aPkDecel = aMaxDecel;
+            T6 = (vPeak - vDecelMin) / aPkDecel;
+            T7 = aPkDecel / jMax;
+        } else {
+            aPkDecel = Math.sqrt(vPeak * jMax);
+            T6 = 0;
+            T7 = aPkDecel / jMax;
+        }
+
+        double p = 0.0;
+        double v = 0.0;
+
+        double[] end = evalPhaseEndGen(p, v, brkA, aPkAccel, T_H);
+        p = end[0];
+        v = end[1];
+
+        end = evalPhaseEnd(p, v, aPkAccel, 0, T2);
+        p = end[0];
+        v = end[1];
+
+        double Tmid = (aPkAccel + aPkDecel) / jMax;
+        end = evalPhaseEndGen(p, v, aPkAccel, -aPkDecel, Tmid);
+        p = end[0];
+        v = end[1];
+
+        end = evalPhaseEnd(p, v, -aPkDecel, 0, T6);
+        p = end[0];
+        v = end[1];
+
+        end = evalPhaseEnd(p, v, -aPkDecel, +1, T7);
+        return end[0];
     }
 
     // ---------------------------------------------------------------

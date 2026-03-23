@@ -28,6 +28,9 @@ class SinCurvePositionTest {
     static Stream<Config> allConfigs() {
         return Stream.of(
                 new Config("sym_short", 0, 1, 0, 0, 5, 3, 3, 10),
+                new Config("no_cruise_sym", 0, 0.2, 0, 0, 5, 3, 3, 10),
+                new Config("no_cruise_asym", 0, 0.2, 0, 0, 5, 4, 2, 10),
+                new Config("reversal_no_cruise", 0, 0.75, -1.5, 0, 5, 2, 4, 10),
                 new Config("sym_long", 0, 100, 0, 0, 5, 3, 3, 10),
                 new Config("asym_accel", 0, 50, 0, 0, 8, 5, 2, 12),
                 new Config("asym_decel", 0, 50, 0, 0, 8, 2, 5, 12),
@@ -270,6 +273,26 @@ class SinCurvePositionTest {
         assertEquals(0.0, s.getAcceleration(s.tPrefix), 1e-9, "a at end of prefix should be 0");
         // Acceleration at start should match a0
         assertEquals(2.0, s.getAcceleration(0), 1e-9, "a(0) should match a0");
+    }
+
+    @Test
+    void noCruiseSymmetric_usesCombinedMidpointArc() {
+        SinCurvePosition s = new SinCurvePosition(0, 0.2, 0, 0, 5, 3, 3, 10);
+        assertEquals(0.0, s.T4, 1e-9, "expected no cruise");
+        assertTrue(s.midpointCombined, "expected midpoint arc to be combined");
+        assertEquals(0.0, s.T5, 1e-9, "T5 should be absorbed into the midpoint arc");
+        assertTrue(s.T3 > 0, "combined midpoint arc should occupy T3");
+    }
+
+    @Test
+    void noCruiseReversal_combinesHandoffAndMidpoint() {
+        SinCurvePosition s = new SinCurvePosition(0, 0.75, -1.5, 0, 5, 2, 4, 10);
+        assertEquals(0.0, s.T4, 1e-9, "expected no cruise");
+        assertTrue(s.handoffCombined, "expected Case B handoff");
+        assertTrue(s.midpointCombined, "expected midpoint arc to be combined");
+        assertEquals(0.0, s.T5, 1e-9, "T5 should be absorbed into the midpoint arc");
+        assertEquals(0.0, s.getVelocity(s.getTotalTime() - 1e-6), 1e-3, "velocity should end continuously");
+        assertEquals(0.75, s.getPosition(s.getTotalTime() - 1e-6), 1e-3, "position should end continuously");
     }
 
     // ---------------------------------------------------------------

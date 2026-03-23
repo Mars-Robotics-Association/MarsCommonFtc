@@ -110,10 +110,18 @@ public class TrajectoryEngine {
             case SIN_CURVE_POSITION:
                 posManager.updateConfig(pendingVMax, pendingAAccel, pendingADecel, pendingJMax);
                 posManager.setTarget(target);
+                posManager.update();
+                lastP = posManager.getPosition();
+                lastV = posManager.getVelocity();
+                lastA = posManager.getAcceleration();
                 break;
             case SCURVE_VELOCITY:
                 velManager.updateConfig(pendingAMax, pendingJInc, pendingJDec);
                 velManager.setTarget(target);
+                velManager.update();
+                lastP = 0;
+                lastV = velManager.getVelocity();
+                lastA = velManager.getAcceleration();
                 break;
             case RUCKIG:
                 if (rIn != null) {
@@ -124,6 +132,9 @@ public class TrajectoryEngine {
                     rIn.targetVelocity[0] = 0;
                     rIn.targetAcceleration[0] = 0;
                     ruckigFinished = false;
+                    lastP = rIn.currentPosition[0];
+                    lastV = rIn.currentVelocity[0];
+                    lastA = rIn.currentAcceleration[0];
                 }
                 break;
         }

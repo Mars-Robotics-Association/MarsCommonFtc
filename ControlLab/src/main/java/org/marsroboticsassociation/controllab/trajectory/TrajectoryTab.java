@@ -367,6 +367,7 @@ public class TrajectoryTab extends JPanel {
 
     private void onGoTo(JSlider targetSlider) {
         engine.applyParamsAndGoTo(targetSliderValue(targetSlider));
+        recordCurrentSample();
     }
 
     private void buildTimer() {
@@ -378,6 +379,10 @@ public class TrajectoryTab extends JPanel {
         if (!engine.isMoving()) return;
         engine.tick();
         elapsedSec += TrajectoryEngine.CYCLE_S;
+        recordCurrentSample();
+    }
+
+    private void recordCurrentSample() {
         buffer.add(
                 elapsedSec,
                 engine.getPosition(),

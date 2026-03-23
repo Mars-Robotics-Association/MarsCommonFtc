@@ -22,6 +22,18 @@ class PositionTrajectoryManagerTest {
                 clockNs::get);
     }
 
+    private static PositionTrajectoryManager makeManager(
+            AtomicLong clockNs,
+            double vMax,
+            double aMaxAccel,
+            double aMaxDecel,
+            double jMax,
+            double pTol,
+            PositionTrajectoryManager.TrajectoryFactory factory) {
+        return new PositionTrajectoryManager(
+                vMax, aMaxAccel, aMaxDecel, jMax, pTol, NO_OP_TELEMETRY, clockNs::get, factory);
+    }
+
     // ---------------------------------------------------------------
 
     @Test
@@ -167,6 +179,48 @@ class PositionTrajectoryManagerTest {
         // BUG: vAfter ≈ 0 instead of continuing from vBefore ≈ +10
         assertEquals(vBefore, vAfter, 2.0,
                 String.format("reversal replan should be continuous: vBefore=%.3f vAfter=%.3f diff=%.3f",
+                        vBefore, vAfter, Math.abs(vAfter - vBefore)));
+    }
+
+    @Test
+    void sinCurve_midMove_sameDirection_velocityIsContinuous() {
+        AtomicLong clock = new AtomicLong(0);
+        PositionTrajectoryManager m =
+                makeManager(clock, 10, 50, 50, 500, 0.01, SinCurvePosition::new);
+
+        m.setTarget(100.0);
+        clock.set((long) 1e9);
+        m.update();
+        double vBefore = m.getVelocity();
+
+        m.setTarget(50.0);
+        clock.set((long) (1e9 + 20_000_000L));
+        m.update();
+        double vAfter = m.getVelocity();
+
+        assertEquals(vBefore, vAfter, 2.0,
+                String.format("SinCurve same-direction replan should be continuous: vBefore=%.3f vAfter=%.3f diff=%.3f",
+                        vBefore, vAfter, Math.abs(vAfter - vBefore)));
+    }
+
+    @Test
+    void sinCurve_midMove_targetReversal_velocityIsContinuous() {
+        AtomicLong clock = new AtomicLong(0);
+        PositionTrajectoryManager m =
+                makeManager(clock, 10, 50, 50, 500, 0.01, SinCurvePosition::new);
+
+        m.setTarget(100.0);
+        clock.set((long) 1e9);
+        m.update();
+        double vBefore = m.getVelocity();
+
+        m.setTarget(-100.0);
+        clock.set((long) (1e9 + 20_000_000L));
+        m.update();
+        double vAfter = m.getVelocity();
+
+        assertEquals(vBefore, vAfter, 2.0,
+                String.format("SinCurve reversal replan should be continuous: vBefore=%.3f vAfter=%.3f diff=%.3f",
                         vBefore, vAfter, Math.abs(vAfter - vBefore)));
     }
 
