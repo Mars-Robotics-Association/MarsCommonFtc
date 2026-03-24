@@ -31,6 +31,15 @@ public class FlywheelEngine implements IMotor {
     private double kP = 0.010;
     private double velLpfCutoffHz = 4.0;
 
+    // FlywheelSimple-specific params (NaN = use PARAMS default)
+    private double simpleMaxAccel = Double.NaN;
+    private double simpleApproachTau = Double.NaN;
+
+    // VelocityMotorPF-specific params (NaN = use config default)
+    private double pfAccelMax = Double.NaN;
+    private double pfJerkIncreasing = Double.NaN;
+    private double pfJerkDecreasing = Double.NaN;
+
     // Physical Plant Params (the "Real Robot")
     private double plantKV = 12.5 / 2632.1;
     private double plantKA = 12.5 / 2087.9;
@@ -100,6 +109,8 @@ public class FlywheelEngine implements IMotor {
                 FlywheelSimple.PARAMS.kS = kS;
                 FlywheelSimple.PARAMS.kP = kP;
                 FlywheelSimple.PARAMS.velLpfCutoffHz = velLpfCutoffHz;
+                if (!Double.isNaN(simpleMaxAccel)) FlywheelSimple.PARAMS.maxAccel = simpleMaxAccel;
+                if (!Double.isNaN(simpleApproachTau)) FlywheelSimple.PARAMS.approachTau = simpleApproachTau;
                 simple = new FlywheelSimple(noOp, () -> elapsedNanos, this);
                 pf = null;
                 pfConfig = null;
@@ -112,6 +123,9 @@ public class FlywheelEngine implements IMotor {
                 pfConfig.kS = kS;
                 pfConfig.kP = kP;
                 pfConfig.measurementLpfCutoffHz = velLpfCutoffHz;
+                if (!Double.isNaN(pfAccelMax)) pfConfig.accelMax = pfAccelMax;
+                if (!Double.isNaN(pfJerkIncreasing)) pfConfig.jerkIncreasing = pfJerkIncreasing;
+                if (!Double.isNaN(pfJerkDecreasing)) pfConfig.jerkDecreasing = pfJerkDecreasing;
                 pf = new VelocityMotorPF(noOp, 1.0, 28, 0.01, pfConfig, this, () -> elapsedNanos);
                 simple = null;
                 ss = null;
@@ -234,6 +248,46 @@ public class FlywheelEngine implements IMotor {
     public double getKS() { return kS; }
     public double getKP() { return kP; }
     public double getVelLpfCutoffHz() { return velLpfCutoffHz; }
+
+    public void setSimpleParams(double maxAccel, double approachTau) {
+        this.simpleMaxAccel = maxAccel;
+        this.simpleApproachTau = approachTau;
+        if (simple != null) {
+            FlywheelSimple.PARAMS.maxAccel = maxAccel;
+            FlywheelSimple.PARAMS.approachTau = approachTau;
+        }
+    }
+
+    public void setPFParams(double accelMax, double jerkIncreasing, double jerkDecreasing) {
+        this.pfAccelMax = accelMax;
+        this.pfJerkIncreasing = jerkIncreasing;
+        this.pfJerkDecreasing = jerkDecreasing;
+        if (pf != null && pfConfig != null) {
+            pfConfig.accelMax = accelMax;
+            pfConfig.jerkIncreasing = jerkIncreasing;
+            pfConfig.jerkDecreasing = jerkDecreasing;
+        }
+    }
+
+    public double getSimpleMaxAccel() {
+        return simple != null ? FlywheelSimple.PARAMS.maxAccel : simpleMaxAccel;
+    }
+
+    public double getSimpleApproachTau() {
+        return simple != null ? FlywheelSimple.PARAMS.approachTau : simpleApproachTau;
+    }
+
+    public double getPFBAccelMax() {
+        return pf != null ? pfConfig.accelMax : pfAccelMax;
+    }
+
+    public double getPFJerkIncreasing() {
+        return pf != null ? pfConfig.jerkIncreasing : pfJerkIncreasing;
+    }
+
+    public double getPFJerkDecreasing() {
+        return pf != null ? pfConfig.jerkDecreasing : pfJerkDecreasing;
+    }
 
     public void reset() {
         sim.reset(0);

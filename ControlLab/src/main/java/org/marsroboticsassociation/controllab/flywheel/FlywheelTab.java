@@ -3,6 +3,7 @@ package org.marsroboticsassociation.controllab.flywheel;
 import org.knowm.xchart.*;
 import org.knowm.xchart.style.markers.SeriesMarkers;
 import org.marsroboticsassociation.controllab.trajectory.RollingBuffer;
+import org.marsroboticsassociation.controllib.control.FlywheelSimple;
 
 import javax.swing.*;
 import java.awt.*;
@@ -23,11 +24,14 @@ public class FlywheelTab extends JPanel {
 
     private JComboBox<FlywheelControllerType> typeCombo;
     private JPanel paramPanel, plantPanel;
+    private JPanel simplePanel, pfPanel;
 
     // Editable fields
     private EditableParamField efKS, efKV, efKA, efKP, efCutoff;
     private EditableParamField efPlantKS, efPlantKV, efPlantKA;
     private EditableParamField efTargetA, efTargetB;
+    private EditableParamField efSimpleMaxAccel, efSimpleTau;
+    private EditableParamField efPFAccelMax, efPFRisingJerk, efPFFallingJerk;
 
     private double targetA = 1000;
     private double targetB = 2000;
@@ -76,6 +80,7 @@ public class FlywheelTab extends JPanel {
         typeCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
         typeCombo.addActionListener(e -> {
             engine.setType((FlywheelControllerType) typeCombo.getSelectedItem());
+            updateControllerPanel();
             buffer.clear();
         });
         sidebar.add(typeCombo);
@@ -100,6 +105,16 @@ public class FlywheelTab extends JPanel {
         paramPanel.add(efCutoff);
 
         sidebar.add(paramPanel);
+        sidebar.add(Box.createVerticalStrut(12));
+
+        sidebar.add(boldLabel("Controller"));
+        sidebar.add(Box.createVerticalStrut(4));
+
+        buildControllerPanels();
+
+        sidebar.add(simplePanel);
+        sidebar.add(pfPanel);
+        updateControllerPanel();
         sidebar.add(Box.createVerticalStrut(12));
 
         JButton btnRevealPlant = new JButton("Show Simulator Plant");
@@ -181,6 +196,45 @@ public class FlywheelTab extends JPanel {
     private void buildTimer() {
         simTimer = new Timer(TIMER_MS, e -> onTick());
         simTimer.start();
+    }
+
+    private void buildControllerPanels() {
+        double physicalMaxAccel = (12.0 - engine.getKS()) / engine.getKA();
+
+        efSimpleMaxAccel = new EditableParamField("Max Accel (TPS\u00B2)", physicalMaxAccel, "%.0f", 0, physicalMaxAccel, v -> {
+            engine.setSimpleParams(v, engine.getSimpleApproachTau());
+        });
+        efSimpleTau = new EditableParamField("Tau (s)", FlywheelSimple.PARAMS.approachTau, "%.4f", 1e-6, 10.0, v -> {
+            engine.setSimpleParams(engine.getSimpleMaxAccel(), v);
+        });
+
+        simplePanel = new JPanel();
+        simplePanel.setLayout(new BoxLayout(simplePanel, BoxLayout.Y_AXIS));
+        simplePanel.add(efSimpleMaxAccel);
+        simplePanel.add(efSimpleTau);
+
+        efPFAccelMax = new EditableParamField("Accel Max (TPS\u00B2)", engine.getPFBAccelMax(), "%.0f", 0, 5000, v -> {
+            engine.setPFParams(v, engine.getPFJerkIncreasing(), engine.getPFJerkDecreasing());
+        });
+        efPFRisingJerk = new EditableParamField("Rising Jerk (TPS\u00B3)", engine.getPFJerkIncreasing(), "%.0f", 0, 10000, v -> {
+            engine.setPFParams(engine.getPFBAccelMax(), v, engine.getPFJerkDecreasing());
+        });
+        efPFFallingJerk = new EditableParamField("Falling Jerk (TPS\u00B3)", engine.getPFJerkDecreasing(), "%.0f", 0, 10000, v -> {
+            engine.setPFParams(engine.getPFBAccelMax(), engine.getPFJerkIncreasing(), v);
+        });
+
+        pfPanel = new JPanel();
+        pfPanel.setLayout(new BoxLayout(pfPanel, BoxLayout.Y_AXIS));
+        pfPanel.add(efPFAccelMax);
+        pfPanel.add(efPFRisingJerk);
+        pfPanel.add(efPFFallingJerk);
+    }
+
+    private void updateControllerPanel() {
+        FlywheelControllerType type = (FlywheelControllerType) typeCombo.getSelectedItem();
+        simplePanel.setVisible(type == FlywheelControllerType.FLYWHEEL_SIMPLE);
+        pfPanel.setVisible(type == FlywheelControllerType.VELOCITY_MOTOR_PF);
+        revalidate();
     }
 
     private void onTick() {

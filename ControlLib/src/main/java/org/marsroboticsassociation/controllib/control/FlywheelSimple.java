@@ -37,6 +37,9 @@ public class FlywheelSimple {
         public double approachTau  = kA / (kV + kP);
         public double maxProfileDt = 0.060;              // cap profile dt to prevent gap overshoot
 
+        // Max acceleration for the motion profile, in TPS^2. Clamped to physicalMaxAccel at runtime.
+        public double maxAccel = (12.0 - kS) / kA;
+
         // Readiness
         public double readyThreshold  = 40.0;  // tps within which isReady() is true
         public double snapThresholdTPS = 20.0;  // profile snaps to setpoint within this error
@@ -144,9 +147,10 @@ public class FlywheelSimple {
         // decaying smoothly to zero. Cap dt so a gap doesn't cause overshoot.
         double profileDt = Math.min(dt, PARAMS.maxProfileDt);
         double physicalMaxAccel = (hubVoltage - PARAMS.kS) / PARAMS.kA;
+        double maxAccel = Math.min(PARAMS.maxAccel, physicalMaxAccel);
         double error = rawSetpoint - profiledVelocity;
         double rawAccel = error / PARAMS.approachTau;
-        double accel = MathUtil.clamp(rawAccel, -physicalMaxAccel, physicalMaxAccel);
+        double accel = MathUtil.clamp(rawAccel, -maxAccel, maxAccel);
         profiledVelocity += accel * profileDt;
 
         // Snap to target once within one quantization step (avoids asymptotic creep)
