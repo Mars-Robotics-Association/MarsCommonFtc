@@ -40,12 +40,19 @@ public class EditableParamField extends JPanel {
 
         textField.addKeyListener(new KeyAdapter() {
             @Override
-            public void keyReleased(KeyEvent e) {
+            public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                     commit();
+                    e.consume();
                 } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     revert();
-                } else {
+                    e.consume();
+                }
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (e.getKeyCode() != KeyEvent.VK_ENTER && e.getKeyCode() != KeyEvent.VK_ESCAPE) {
                     updateDirtyState();
                 }
             }
@@ -76,7 +83,6 @@ public class EditableParamField extends JPanel {
                 committedValue = textField.getText();
                 updateDirtyState();
                 onCommit.accept(val);
-                textField.transferFocus(); // Remove focus after commit
             } else {
                 revert(); // Out of bounds
             }
@@ -88,7 +94,6 @@ public class EditableParamField extends JPanel {
     private void revert() {
         textField.setText(committedValue);
         updateDirtyState();
-        textField.transferFocus();
     }
 
     public void setValue(double value, String format) {

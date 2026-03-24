@@ -26,7 +26,7 @@ public class FlywheelTab extends JPanel {
 
     // Editable fields
     private EditableParamField efKS, efKV, efKA, efKP, efCutoff;
-    private EditableParamField efPlantKV, efPlantKA;
+    private EditableParamField efPlantKS, efPlantKV, efPlantKA;
     private EditableParamField efTargetA, efTargetB;
 
     private double targetA = 1000;
@@ -54,7 +54,7 @@ public class FlywheelTab extends JPanel {
         chart.getStyler().setMarkerSize(0);
         chart.getStyler().setLegendPosition(org.knowm.xchart.style.Styler.LegendPosition.InsideNW);
         
-        chart.addSeries("True Velocity", new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
+        chart.addSeries("True Velocity", new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE).setEnabled(false);
         chart.addSeries("Measured Velocity", new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
         chart.addSeries("Filtered Velocity", new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
         chart.addSeries("Profiled Velocity", new double[]{0}, new double[]{0}).setMarker(SeriesMarkers.NONE);
@@ -111,8 +111,10 @@ public class FlywheelTab extends JPanel {
         plantPanel.setLayout(new BoxLayout(plantPanel, BoxLayout.Y_AXIS));
         plantPanel.setVisible(false);
 
+        efPlantKS = new EditableParamField("Plant kS", engine.getPlantKS(), "%.3f", 0, 12.0, v -> updatePlantParams());
         efPlantKV = new EditableParamField("Plant kV", engine.getPlantKV(), "%.6f", 0, 1.0, v -> updatePlantParams());
         efPlantKA = new EditableParamField("Plant kA", engine.getPlantKA(), "%.6f", 1e-9, 1.0, v -> updatePlantParams());
+        plantPanel.add(efPlantKS);
         plantPanel.add(efPlantKV);
         plantPanel.add(efPlantKA);
         
@@ -121,6 +123,7 @@ public class FlywheelTab extends JPanel {
         btnRevealPlant.addActionListener(e -> {
             boolean visible = !plantPanel.isVisible();
             plantPanel.setVisible(visible);
+            chart.getSeriesMap().get("True Velocity").setEnabled(visible);
             btnRevealPlant.setText(visible ? "Hide Simulator Plant" : "Show Simulator Plant");
             sidebar.revalidate();
         });
@@ -170,7 +173,8 @@ public class FlywheelTab extends JPanel {
     private void updatePlantParams() {
         engine.setPlantParams(
                 efPlantKV.getValue(),
-                efPlantKA.getValue()
+                efPlantKA.getValue(),
+                efPlantKS.getValue()
         );
     }
 

@@ -33,17 +33,19 @@ public class FlywheelEngine implements IMotor {
     // Physical Plant Params (the "Real Robot")
     private double plantKV = 12.5 / 2632.1;
     private double plantKA = 12.5 / 2087.9;
+    private double plantKS = 0.8931;
 
     private double targetTps = 0;
     private double currentPower = 0;
-    private double elapsedSec = 0;
     private long elapsedNanos = 0;
+    private double elapsedSec = 0;
 
     private final TelemetryAddData noOp = (c, f, v) -> {};
 
     public FlywheelEngine(FlywheelControllerType type) {
         this.type = type;
-        this.sim = new FlywheelMotorSim(kV, kA);
+        this.sim = new FlywheelMotorSim(plantKV, plantKA);
+        this.sim.setDisturbanceVoltage(-plantKS);
         rebuildController();
     }
 
@@ -76,15 +78,18 @@ public class FlywheelEngine implements IMotor {
         }
     }
 
-    public void setPlantParams(double plantKV, double plantKA) {
+    public void setPlantParams(double plantKV, double plantKA, double plantKS) {
         this.plantKV = plantKV;
         this.plantKA = plantKA;
+        this.plantKS = plantKS;
         // Update the physical simulation plant
         this.sim = new FlywheelMotorSim(plantKV, Math.max(plantKA, 1e-6), sim.getPositionTicks(), sim.getTrueVelocityTps());
+        this.sim.setDisturbanceVoltage(-plantKS);
     }
 
     public double getPlantKV() { return plantKV; }
     public double getPlantKA() { return plantKA; }
+    public double getPlantKS() { return plantKS; }
 
     private void rebuildController() {
         switch (type) {
