@@ -199,9 +199,9 @@ public class FlywheelTab extends JPanel {
     }
 
     private void buildControllerPanels() {
-        double physicalMaxAccel = (12.0 - engine.getKS()) / engine.getKA();
+        double initialMaxAccel = FlywheelSimple.PARAMS.maxAccel;
 
-        efSimpleMaxAccel = new EditableParamField("Max Accel (TPS\u00B2)", physicalMaxAccel, "%.0f", 0, physicalMaxAccel, v -> {
+        efSimpleMaxAccel = new EditableParamField("Max Accel (TPS\u00B2)", initialMaxAccel, "%.0f", 0, initialMaxAccel, v -> {
             engine.setSimpleParams(v, engine.getSimpleApproachTau());
         });
         efSimpleTau = new EditableParamField("Tau (s)", FlywheelSimple.PARAMS.approachTau, "%.4f", 1e-6, 10.0, v -> {

@@ -250,11 +250,11 @@ public class FlywheelEngine implements IMotor {
     public double getVelLpfCutoffHz() { return velLpfCutoffHz; }
 
     public void setSimpleParams(double maxAccel, double approachTau) {
-        this.simpleMaxAccel = maxAccel;
-        this.simpleApproachTau = approachTau;
+        if (!Double.isNaN(maxAccel)) this.simpleMaxAccel = maxAccel;
+        if (!Double.isNaN(approachTau)) this.simpleApproachTau = approachTau;
         if (simple != null) {
-            FlywheelSimple.PARAMS.maxAccel = maxAccel;
-            FlywheelSimple.PARAMS.approachTau = approachTau;
+            if (!Double.isNaN(this.simpleMaxAccel)) FlywheelSimple.PARAMS.maxAccel = this.simpleMaxAccel;
+            if (!Double.isNaN(this.simpleApproachTau)) FlywheelSimple.PARAMS.approachTau = this.simpleApproachTau;
         }
     }
 
@@ -278,15 +278,15 @@ public class FlywheelEngine implements IMotor {
     }
 
     public double getPFBAccelMax() {
-        return pf != null ? pfConfig.accelMax : pfAccelMax;
+        return pf != null ? pfConfig.accelMax : (!Double.isNaN(pfAccelMax) ? pfAccelMax : 2500.0);
     }
 
     public double getPFJerkIncreasing() {
-        return pf != null ? pfConfig.jerkIncreasing : pfJerkIncreasing;
+        return pf != null ? pfConfig.jerkIncreasing : (!Double.isNaN(pfJerkIncreasing) ? pfJerkIncreasing : 2000.0);
     }
 
     public double getPFJerkDecreasing() {
-        return pf != null ? pfConfig.jerkDecreasing : pfJerkDecreasing;
+        return pf != null ? pfConfig.jerkDecreasing : (!Double.isNaN(pfJerkDecreasing) ? pfJerkDecreasing : 1000.0);
     }
 
     public void reset() {

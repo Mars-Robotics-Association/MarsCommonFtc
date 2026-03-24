@@ -37,7 +37,9 @@ public class FlywheelSimple {
         public double approachTau  = kA / (kV + kP);
         public double maxProfileDt = 0.060;              // cap profile dt to prevent gap overshoot
 
-        // Max acceleration for the motion profile, in TPS^2. Clamped to physicalMaxAccel at runtime.
+        // Max acceleration cap for the motion profile, in TPS^2. The actual acceleration limit
+        // at any point is min(maxAccel, (V - kS - kV * profiledVelocity) / kA), accounting
+        // for back-EMF stealing voltage at higher speeds.
         public double maxAccel = (12.0 - kS) / kA;
 
         // Readiness
@@ -142,15 +144,15 @@ public class FlywheelSimple {
         }
 
         // ── Clamped-exponential setpoint profile ─────────────────────────
-        // Far from target: acceleration clamped by the physical limit (full battery voltage
-        // minus kS, divided by kA). Close to target: acceleration = error/approachTau,
+        // Far from target: acceleration clamped by the voltage budget minus back-EMF
+        // (V - kS - kV * profiledVelocity) / kA. Close to target: acceleration = error/tau,
         // decaying smoothly to zero. Cap dt so a gap doesn't cause overshoot.
         double profileDt = Math.min(dt, PARAMS.maxProfileDt);
-        double physicalMaxAccel = (hubVoltage - PARAMS.kS) / PARAMS.kA;
-        double maxAccel = Math.min(PARAMS.maxAccel, physicalMaxAccel);
+        double accelLimit = (hubVoltage - PARAMS.kS - PARAMS.kV * profiledVelocity) / PARAMS.kA;
+        accelLimit = Math.min(PARAMS.maxAccel, Math.max(accelLimit, 0));
         double error = rawSetpoint - profiledVelocity;
         double rawAccel = error / PARAMS.approachTau;
-        double accel = MathUtil.clamp(rawAccel, -maxAccel, maxAccel);
+        double accel = MathUtil.clamp(rawAccel, -accelLimit, accelLimit);
         profiledVelocity += accel * profileDt;
 
         // Snap to target once within one quantization step (avoids asymptotic creep)
