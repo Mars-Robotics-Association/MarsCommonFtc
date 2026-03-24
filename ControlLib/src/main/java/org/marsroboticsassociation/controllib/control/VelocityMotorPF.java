@@ -159,7 +159,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
         super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor,
                 config.accelMax, config.jerkIncreasing, config.jerkDecreasing, 10.0);
         _config = config;
-        accelLpf = new BiquadLowPassVarDt(config.accelLpfCutoffHz, 0.5);
+        accelLpf = new BiquadLowPassVarDt(_config.accelLpfCutoffHz, 0.5);
     }
 
     /**
