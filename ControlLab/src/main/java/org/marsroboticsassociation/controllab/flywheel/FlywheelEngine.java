@@ -21,6 +21,7 @@ public class FlywheelEngine implements IMotor {
     // Controllers
     private FlywheelSimple simple;
     private VelocityMotorPF pf;
+    private VelocityMotorPF.VelocityMotorPFConfig pfConfig;
     private FlywheelStateSpace ss;
 
     // Controller Params
@@ -65,11 +66,11 @@ public class FlywheelEngine implements IMotor {
             FlywheelSimple.PARAMS.velLpfCutoffHz = velLpfCutoffHz;
         }
         if (pf != null) {
-            pf.config.kV = kV;
-            pf.config.kA = kA;
-            pf.config.kS = kS;
-            pf.config.kP = kP;
-            pf.config.measurementLpfCutoffHz = velLpfCutoffHz;
+            pfConfig.kV = kV;
+            pfConfig.kA = kA;
+            pfConfig.kS = kS;
+            pfConfig.kP = kP;
+            pfConfig.measurementLpfCutoffHz = velLpfCutoffHz;
         }
         if (ss != null) {
             FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * Math.PI); // Convert to rad/s
@@ -101,16 +102,17 @@ public class FlywheelEngine implements IMotor {
                 FlywheelSimple.PARAMS.velLpfCutoffHz = velLpfCutoffHz;
                 simple = new FlywheelSimple(noOp, () -> elapsedNanos, this);
                 pf = null;
+                pfConfig = null;
                 ss = null;
                 break;
             case VELOCITY_MOTOR_PF:
-                VelocityMotorPF.VelocityMotorPFConfig config = new VelocityMotorPF.VelocityMotorPFConfig();
-                config.kV = kV;
-                config.kA = kA;
-                config.kS = kS;
-                config.kP = kP;
-                config.measurementLpfCutoffHz = velLpfCutoffHz;
-                pf = new VelocityMotorPF(noOp, 1.0, 28, 0.01, config, this, () -> elapsedNanos);
+                pfConfig = new VelocityMotorPF.VelocityMotorPFConfig();
+                pfConfig.kV = kV;
+                pfConfig.kA = kA;
+                pfConfig.kS = kS;
+                pfConfig.kP = kP;
+                pfConfig.measurementLpfCutoffHz = velLpfCutoffHz;
+                pf = new VelocityMotorPF(noOp, 1.0, 28, 0.01, pfConfig, this, () -> elapsedNanos);
                 simple = null;
                 ss = null;
                 break;
@@ -121,6 +123,7 @@ public class FlywheelEngine implements IMotor {
                 ss = new FlywheelStateSpace(this, noOp);
                 simple = null;
                 pf = null;
+                pfConfig = null;
                 break;
         }
     }
