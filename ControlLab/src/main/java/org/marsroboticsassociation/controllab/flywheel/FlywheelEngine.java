@@ -33,7 +33,6 @@ public class FlywheelEngine implements IMotor {
 
     // FlywheelSimple-specific params (NaN = use PARAMS default)
     private double simpleMaxAccel = Double.NaN;
-    private double simpleApproachTau = Double.NaN;
 
     // VelocityMotorPF-specific params (NaN = use config default)
     private double pfAccelMax = Double.NaN;
@@ -110,7 +109,6 @@ public class FlywheelEngine implements IMotor {
                 FlywheelSimple.PARAMS.kP = kP;
                 FlywheelSimple.PARAMS.velLpfCutoffHz = velLpfCutoffHz;
                 if (!Double.isNaN(simpleMaxAccel)) FlywheelSimple.PARAMS.maxAccel = simpleMaxAccel;
-                if (!Double.isNaN(simpleApproachTau)) FlywheelSimple.PARAMS.approachTau = simpleApproachTau;
                 simple = new FlywheelSimple(noOp, () -> elapsedNanos, this);
                 pf = null;
                 pfConfig = null;
@@ -249,13 +247,15 @@ public class FlywheelEngine implements IMotor {
     public double getKP() { return kP; }
     public double getVelLpfCutoffHz() { return velLpfCutoffHz; }
 
-    public void setSimpleParams(double maxAccel, double approachTau) {
+    public void setSimpleParams(double maxAccel) {
         if (!Double.isNaN(maxAccel)) this.simpleMaxAccel = maxAccel;
-        if (!Double.isNaN(approachTau)) this.simpleApproachTau = approachTau;
-        if (simple != null) {
-            if (!Double.isNaN(this.simpleMaxAccel)) FlywheelSimple.PARAMS.maxAccel = this.simpleMaxAccel;
-            if (!Double.isNaN(this.simpleApproachTau)) FlywheelSimple.PARAMS.approachTau = this.simpleApproachTau;
+        if (simple != null && !Double.isNaN(this.simpleMaxAccel)) {
+            FlywheelSimple.PARAMS.maxAccel = this.simpleMaxAccel;
         }
+    }
+
+    public double getSimpleMaxAccel() {
+        return simple != null ? FlywheelSimple.PARAMS.maxAccel : simpleMaxAccel;
     }
 
     public void setPFParams(double accelMax, double jerkIncreasing, double jerkDecreasing) {
@@ -267,14 +267,6 @@ public class FlywheelEngine implements IMotor {
             pfConfig.jerkIncreasing = jerkIncreasing;
             pfConfig.jerkDecreasing = jerkDecreasing;
         }
-    }
-
-    public double getSimpleMaxAccel() {
-        return simple != null ? FlywheelSimple.PARAMS.maxAccel : simpleMaxAccel;
-    }
-
-    public double getSimpleApproachTau() {
-        return simple != null ? FlywheelSimple.PARAMS.approachTau : simpleApproachTau;
     }
 
     public double getPFBAccelMax() {

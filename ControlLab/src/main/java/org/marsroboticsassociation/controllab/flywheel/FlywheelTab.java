@@ -30,7 +30,7 @@ public class FlywheelTab extends JPanel {
     private EditableParamField efKS, efKV, efKA, efKP, efCutoff;
     private EditableParamField efPlantKS, efPlantKV, efPlantKA;
     private EditableParamField efTargetA, efTargetB;
-    private EditableParamField efSimpleMaxAccel, efSimpleTau;
+    private EditableParamField efSimpleMaxAccel;
     private EditableParamField efPFAccelMax, efPFRisingJerk, efPFFallingJerk;
 
     private double targetA = 1000;
@@ -202,16 +202,12 @@ public class FlywheelTab extends JPanel {
         double initialMaxAccel = FlywheelSimple.PARAMS.maxAccel;
 
         efSimpleMaxAccel = new EditableParamField("Max Accel (TPS\u00B2)", initialMaxAccel, "%.0f", 0, initialMaxAccel, v -> {
-            engine.setSimpleParams(v, engine.getSimpleApproachTau());
-        });
-        efSimpleTau = new EditableParamField("Tau (s)", FlywheelSimple.PARAMS.approachTau, "%.4f", 1e-6, 10.0, v -> {
-            engine.setSimpleParams(engine.getSimpleMaxAccel(), v);
+            engine.setSimpleParams(v);
         });
 
         simplePanel = new JPanel();
         simplePanel.setLayout(new BoxLayout(simplePanel, BoxLayout.Y_AXIS));
         simplePanel.add(efSimpleMaxAccel);
-        simplePanel.add(efSimpleTau);
 
         efPFAccelMax = new EditableParamField("Accel Max (TPS\u00B2)", engine.getPFBAccelMax(), "%.0f", 0, 5000, v -> {
             engine.setPFParams(v, engine.getPFJerkIncreasing(), engine.getPFJerkDecreasing());

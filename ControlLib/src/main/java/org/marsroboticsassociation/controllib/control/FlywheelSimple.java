@@ -21,30 +21,37 @@ public class FlywheelSimple {
      * Parameters for tuning
      */
     public static class Params {
-        public double velLpfCutoffHz = 4.0;   // filter for measured velocity
+        /** Low-pass filter cutoff frequency for measured velocity, in Hz. */
+        public double velLpfCutoffHz = 4.0;
 
-        // Feedforward (voltage-based, from FlywheelsFeedforwardTuning)
-        public double kS = 0.8931;
+        /** Feedforward voltage constant (voltage per unit velocity). From FlywheelsFeedforwardTuning. */
         public double kV = 12.5 / 2632.1;
+        /** Feedforward voltage constant (voltage per unit acceleration). From FlywheelsFeedforwardTuning. */
         public double kA = 12.5 / 2087.9;
+        /** Feedforward voltage constant (Coulomb friction). From FlywheelsFeedforwardTuning. */
+        public double kS = 0.8931;
 
-        // Feedback
-        public double kP    = 0.010;  // proportional gain (volts per tps error)
-        public double fbMax = 0.2;    // maximum feedback as fraction of hub voltage
+        /** Proportional feedback gain (volts per tps error). */
+        public double kP = 0.010;
+        /** Maximum feedback as a fraction of hub voltage. */
+        public double fbMax = 0.2;
 
-        // Profile — approachTau matches the closed-loop tracking time constant kA/(kV+kP),
-        // which minimises total spin-up time by letting the motor track the profile closely.
-        public double approachTau  = kA / (kV + kP);
-        public double maxProfileDt = 0.060;              // cap profile dt to prevent gap overshoot
+        /** Maximum duration of a single profile step, in seconds. Caps dt to prevent gap overshoot. */
+        public double maxProfileDt = 0.060;
 
-        // Max acceleration cap for the motion profile, in TPS^2. The actual acceleration limit
-        // at any point is min(maxAccel, (V - kS - kV * profiledVelocity) / kA), accounting
-        // for back-EMF stealing voltage at higher speeds.
+        /**
+         * Maximum acceleration cap for the motion profile, in TPS^2.
+         *
+         * <p>The actual acceleration limit at any point is:
+         * {@code min(maxAccel, (V - kS - kV * profiledVelocity) / kA)},
+         * accounting for back-EMF stealing voltage at higher speeds.
+         */
         public double maxAccel = (12.0 - kS) / kA;
 
-        // Readiness
-        public double readyThreshold  = 40.0;  // tps within which isReady() is true
-        public double snapThresholdTPS = 20.0;  // profile snaps to setpoint within this error
+        /** Velocity threshold (TPS) within which isReady() returns true. */
+        public double readyThreshold = 40.0;
+        /** Velocity error (TPS) below which the profile snaps to the setpoint. */
+        public double snapThresholdTPS = 10.0;
     }
 
     /**
@@ -143,16 +150,14 @@ public class FlywheelSimple {
             stopped = false;
         }
 
-        // ── Clamped-exponential setpoint profile ─────────────────────────
-        // Far from target: acceleration clamped by the voltage budget minus back-EMF
-        // (V - kS - kV * profiledVelocity) / kA. Close to target: acceleration = error/tau,
-        // decaying smoothly to zero. Cap dt so a gap doesn't cause overshoot.
+        // ── Velocity ramp profile ────────────────────────────────────────
+        // Ramp toward target at accelLimit, decelerate when approaching.
+        // accelLimit accounts for back-EMF: (V - kS - kV * profiledVelocity) / kA.
         double profileDt = Math.min(dt, PARAMS.maxProfileDt);
         double accelLimit = (hubVoltage - PARAMS.kS - PARAMS.kV * profiledVelocity) / PARAMS.kA;
         accelLimit = Math.min(PARAMS.maxAccel, Math.max(accelLimit, 0));
         double error = rawSetpoint - profiledVelocity;
-        double rawAccel = error / PARAMS.approachTau;
-        double accel = MathUtil.clamp(rawAccel, -accelLimit, accelLimit);
+        double accel = Math.signum(error) * accelLimit;
         profiledVelocity += accel * profileDt;
 
         // Snap to target once within one quantization step (avoids asymptotic creep)
