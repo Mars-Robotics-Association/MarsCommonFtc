@@ -350,4 +350,128 @@ public class SCurveVelocity implements VelocityTrajectory {
     private double firstPhaseJerkSigned() {
         return (aPeak >= Math.abs(a0) ? dir * jInc : -dir * jDec);
     }
+
+    /**
+     * Find the maximum jDec that doesn't violate back-EMF constraints for a given motor.
+     * Uses binary search to find the threshold.
+     *
+     * @param v0        Initial velocity
+     * @param v1        Target velocity
+     * @param a0        Initial acceleration
+     * @param aMax      Maximum acceleration
+     * @param jInc      Jerk when increasing acceleration
+     * @param voltage   Motor voltage (e.g., 12.0)
+     * @param kS        Motor static voltage (V)
+     * @param kV        Motor velocity constant (V/rpm)
+     * @param kA        Motor acceleration constant (V/(units/s^2))
+     * @return          Maximum jDec that stays within back-EMF limits
+     */
+    public static double findMaxJDec(double v0, double v1, double a0, double aMax, double jInc,
+            double voltage, double kS, double kV, double kA) {
+        return findMaxJDec(v0, v1, a0, aMax, jInc, voltage, kS, kV, kA, 30, 1000);
+    }
+
+    /**
+     * Find the maximum jDec with configurable iterations and samples.
+     */
+    public static double findMaxJDec(double v0, double v1, double a0, double aMax, double jInc,
+            double voltage, double kS, double kV, double kA, int iterations, int samples) {
+        if (kA <= 0) return Double.POSITIVE_INFINITY;
+        
+        double low = 1;
+        double high = 5000;
+        double best = low;
+        
+        for (int iter = 0; iter < iterations; iter++) {
+            double mid = (low + high) / 2;
+            
+            SCurveVelocity traj = new SCurveVelocity(v0, v1, a0, aMax, jInc, mid);
+            double totalTime = traj.getTotalTime();
+            
+            boolean violates = false;
+            for (int i = 0; i <= samples; i++) {
+                double t = totalTime * i / samples;
+                double v = traj.getVelocity(t);
+                double a = traj.getAcceleration(t);
+                
+                double availableVoltage = voltage - kS - kV * Math.abs(v);
+                if (availableVoltage <= 0) {
+                    violates = true;
+                    break;
+                }
+                double motorAMax = availableVoltage / kA;
+                if (a > motorAMax) {
+                    violates = true;
+                    break;
+                }
+            }
+            
+            if (violates) {
+                high = mid;
+            } else {
+                best = mid;
+                low = mid;
+            }
+        }
+        
+        return best;
+    }
+
+    /**
+     * Find the maximum aMax that doesn't violate back-EMF constraints at v=0.
+     * Uses binary search to find the threshold.
+     *
+     * @param v0        Initial velocity
+     * @param v1        Target velocity
+     * @param jInc      Jerk when increasing acceleration (also used for jDec in search)
+     * @param voltage   Motor voltage (e.g., 12.0)
+     * @param kS        Motor static voltage (V)
+     * @param kV        Motor velocity constant (V/rpm)
+     * @param kA        Motor acceleration constant (V/(units/s^2))
+     * @return          Maximum aMax that stays within back-EMF limits
+     */
+    public static double findMaxAMax(double v0, double v1, double jInc,
+            double voltage, double kS, double kV, double kA) {
+        if (kA <= 0) return Double.POSITIVE_INFINITY;
+        
+        double motorAMaxAtZero = (voltage - kS) / kA;
+        double low = motorAMaxAtZero;
+        double high = 5000;
+        double best = low;
+        
+        for (int iter = 0; iter < 30; iter++) {
+            double mid = (low + high) / 2;
+            
+            SCurveVelocity traj = new SCurveVelocity(v0, v1, 0, mid, jInc, jInc);
+            double totalTime = traj.getTotalTime();
+            
+            boolean violates = false;
+            int samples = 1000;
+            for (int i = 0; i <= samples; i++) {
+                double t = totalTime * i / samples;
+                double v = traj.getVelocity(t);
+                double a = traj.getAcceleration(t);
+                
+                double availableVoltage = voltage - kS - kV * Math.abs(v);
+                if (availableVoltage <= 0) {
+                    violates = true;
+                    break;
+                }
+                double motorAMax = availableVoltage / kA;
+                if (a > motorAMax) {
+                    violates = true;
+                    break;
+                }
+            }
+            
+            if (violates) {
+                high = mid;
+            } else {
+                best = mid;
+                low = mid;
+            }
+        }
+        
+        return best;
+    }
 }

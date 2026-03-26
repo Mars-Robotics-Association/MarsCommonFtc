@@ -147,6 +147,21 @@ public class TrajectoryEngine {
         }
     }
 
+    public void reset() {
+        lastP = 0;
+        lastV = 0;
+        lastA = 0;
+        currentTarget = 0;
+        moving = false;
+        clockNs = 0;
+        if (velManager != null) {
+            velManager.updateConfig(pendingAMax, pendingJInc, pendingJDec);
+            velManager.resetFromMeasurement(0, 0);
+            lastV = velManager.getVelocity();
+            lastA = velManager.getAcceleration();
+        }
+    }
+
     // ------------------------------------------------------------------
     // Simulation tick (call every 20 ms from Swing Timer)
     // ------------------------------------------------------------------

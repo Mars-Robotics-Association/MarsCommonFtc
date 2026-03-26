@@ -81,6 +81,7 @@ public class RollingBuffer {
     public List<Double> getVelocities() { return getData(1); }
     public List<Double> getAccelerations() { return getData(2); }
     public List<Double> getTargets() { return getData(3); }
+    public List<Double> getMaxMotorAccels() { return getData(4); }
 
     private List<Double> toList(double[] arr) {
         List<Double> out = new ArrayList<>(size);
