@@ -4,6 +4,7 @@ import org.marsroboticsassociation.controllib.control.FlywheelSimple;
 import org.marsroboticsassociation.controllib.control.FlywheelStateSpace;
 import org.marsroboticsassociation.controllib.control.VelocityMotorPF;
 import org.marsroboticsassociation.controllib.hardware.IMotor;
+import org.marsroboticsassociation.controllib.motion.SCurveVelocity;
 import org.marsroboticsassociation.controllib.sim.FlywheelMotorSim;
 import org.marsroboticsassociation.controllib.util.TelemetryAddData;
 
@@ -307,5 +308,51 @@ public class FlywheelEngine implements IMotor {
         if (simple != null) simple.setTps(0);
         if (pf != null) pf.stop();
         if (ss != null) ss.setTps(0);
+    }
+
+    /**
+     * Randomize plant, zero tuning params, auto-tune profile, reset sim.
+     * @param targetA the "A" target velocity for profile auto-tuning
+     * @param targetB the "B" target velocity for profile auto-tuning
+     */
+    public void newChallenge(double targetA, double targetB) {
+        // 1. Randomize plant params (FTC-reasonable ranges)
+        //    kV: 12.5/3000 .. 12.5/1000  (different motor speeds)
+        //    kA: 12.5/4000 .. 12.5/800   (different flywheel inertias)
+        //    kS: 0.3 .. 1.5              (different friction)
+        double maxTps = 1000 + random.nextDouble() * 2000; // 1000..3000 TPS
+        this.plantKV = 12.5 / maxTps;
+        double accelDenom = 800 + random.nextDouble() * 3200; // 800..4000
+        this.plantKA = 12.5 / accelDenom;
+        this.plantKS = 0.3 + random.nextDouble() * 1.2; // 0.3..1.5 V
+
+        // 2. Rebuild sim with new plant
+        this.sim = new FlywheelMotorSim(plantKV, plantKA);
+        this.sim.setDisturbanceVoltage(-plantKS);
+
+        // 3. Zero tuning params (leave cutoff alone)
+        this.kS = 0;
+        this.kV = 0;
+        this.kA = 0;
+        this.kP = 0;
+
+        // 4. Auto-tune profile params from new plant
+        double v0 = Math.min(targetA, targetB);
+        double v1 = Math.max(targetA, targetB);
+        double jInc = Double.isNaN(pfJerkIncreasing) ? 2000 : pfJerkIncreasing;
+        double voltage = 12.0;
+
+        double aMax = SCurveVelocity.findMaxAMax(v0, v1, jInc, voltage, plantKS, plantKV, plantKA);
+        double jDec = SCurveVelocity.findMaxJDec(v0, v1, 0, aMax, jInc, voltage, plantKS, plantKV, plantKA);
+
+        this.pfAccelMax = aMax;
+        this.pfJerkDecreasing = jDec;
+
+        // 5. Reset sim and rebuild controller with zeroed params
+        this.elapsedSec = 0;
+        this.elapsedNanos = 0;
+        this.currentPower = 0;
+        rebuildController();
+        setTarget(0); // propagate zero target to newly built controller
     }
 }
