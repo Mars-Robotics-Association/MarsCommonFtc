@@ -38,7 +38,7 @@ public class FlywheelTab extends JPanel {
     private double targetB = 2000;
 
     private JButton btnGoA, btnGoB, btnCoast;
-    private JButton btnNewChallenge;
+    private JButton btnNewChallenge, btnRevealPlant;
     private Timer simTimer;
 
     public FlywheelTab() {
@@ -126,7 +126,7 @@ public class FlywheelTab extends JPanel {
         updateControllerPanel();
         sidebar.add(Box.createVerticalStrut(12));
 
-        JButton btnRevealPlant = new JButton("Show Simulator Plant");
+        btnRevealPlant = new JButton("Show Simulator Plant");
         btnRevealPlant.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
         sidebar.add(btnRevealPlant);
         sidebar.add(Box.createVerticalStrut(4));
@@ -212,6 +212,11 @@ public class FlywheelTab extends JPanel {
         // Update profile param fields
         efPFAccelMax.setValue(engine.getPFBAccelMax(), "%.0f");
         efPFFallingJerk.setValue(engine.getPFJerkDecreasing(), "%.0f");
+
+        // Hide plant panel so new values aren't immediately visible
+        plantPanel.setVisible(false);
+        chart.getSeriesMap().get("True Velocity").setEnabled(false);
+        btnRevealPlant.setText("Show Simulator Plant");
     }
 
     private void updateParams() {
