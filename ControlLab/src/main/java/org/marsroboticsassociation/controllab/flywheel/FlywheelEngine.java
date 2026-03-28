@@ -316,34 +316,35 @@ public class FlywheelEngine implements IMotor {
      * @param targetB the "B" target velocity for profile auto-tuning
      */
     public void newChallenge(double targetA, double targetB) {
-        // 1. Randomize plant params (FTC-reasonable ranges)
-        //    kV: 12.5/3000 .. 12.5/1000  (different motor speeds)
-        //    kA: 12.5/4000 .. 12.5/800   (different flywheel inertias)
-        //    kS: 0.3 .. 1.5              (different friction)
-        double maxTps = 1000 + random.nextDouble() * 2000; // 1000..3000 TPS
-        this.plantKV = 12.5 / maxTps;
-        double accelDenom = 800 + random.nextDouble() * 3200; // 800..4000
-        this.plantKA = 12.5 / accelDenom;
-        this.plantKS = 0.3 + random.nextDouble() * 1.2; // 0.3..1.5 V
-
-        // 2. Rebuild sim with new plant
-        this.sim = new FlywheelMotorSim(plantKV, plantKA);
-        this.sim.setDisturbanceVoltage(-plantKS);
-
-        // 3. Zero tuning params (leave cutoff alone)
-        this.kS = 0;
-        this.kV = 0;
-        this.kA = 0;
-        this.kP = 0;
-
-        // 4. Auto-tune profile params from new plant
         double v0 = Math.min(targetA, targetB);
         double v1 = Math.max(targetA, targetB);
         double jInc = Double.isNaN(pfJerkIncreasing) ? 2000 : pfJerkIncreasing;
         double voltage = 12.0;
 
-        double aMax = SCurveVelocity.findMaxAMax(v0, v1, jInc, voltage, plantKS, plantKV, plantKA);
-        double jDec = SCurveVelocity.findMaxJDec(v0, v1, 0, aMax, jInc, voltage, plantKS, plantKV, plantKA);
+        // Re-randomize until falling jerk is reasonable (>= 200)
+        double aMax, jDec;
+        do {
+            // 1. Randomize plant params (FTC-reasonable ranges)
+            double maxTps = 1000 + random.nextDouble() * 2000; // 1000..3000 TPS
+            this.plantKV = 12.5 / maxTps;
+            double accelDenom = 800 + random.nextDouble() * 3200; // 800..4000
+            this.plantKA = 12.5 / accelDenom;
+            this.plantKS = 0.3 + random.nextDouble() * 1.2; // 0.3..1.5 V
+
+            // 2. Auto-tune profile params from new plant
+            aMax = SCurveVelocity.findMaxAMax(v0, v1, jInc, voltage, plantKS, plantKV, plantKA);
+            jDec = SCurveVelocity.findMaxJDec(v0, v1, 0, aMax, jInc, voltage, plantKS, plantKV, plantKA);
+        } while (jDec < 200);
+
+        // 3. Rebuild sim with new plant
+        this.sim = new FlywheelMotorSim(plantKV, plantKA);
+        this.sim.setDisturbanceVoltage(-plantKS);
+
+        // 4. Zero tuning params (leave cutoff alone)
+        this.kS = 0;
+        this.kV = 0;
+        this.kA = 0;
+        this.kP = 0;
 
         this.pfAccelMax = aMax;
         this.pfJerkDecreasing = jDec;
