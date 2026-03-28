@@ -63,8 +63,6 @@ public class TrajectoryTab extends JPanel {
     // Back-EMF motor characterization (for SCurveVelocity)
     private EditableParamField efKs, efKv, efKa;
     private JPanel bemfPanel;
-    private JLabel lbMotorAMax;
-    private JLabel lbBackEmfStatus;
 
     // Target sliders
     private JSlider slTargetA, slTargetB;
@@ -145,9 +143,10 @@ public class TrajectoryTab extends JPanel {
         };
         
         violationBandPanel = new ViolationBandPanel();
-        
-        layeredPane.add(violationBandPanel, JLayeredPane.DEFAULT_LAYER);
-        layeredPane.add(chartPanel, JLayeredPane.PALETTE_LAYER);
+        violationBandPanel.setOpaque(false);
+
+        layeredPane.add(chartPanel, JLayeredPane.DEFAULT_LAYER);
+        layeredPane.add(violationBandPanel, JLayeredPane.PALETTE_LAYER);
         
         add(layeredPane, BorderLayout.CENTER);
     }
@@ -156,31 +155,41 @@ public class TrajectoryTab extends JPanel {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            System.out.println("DEBUG ViolationBandPanel.paintComponent: violationRanges.size=" + violationRanges.size() + ", size=" + getWidth() + "x" + getHeight());
             if (violationRanges.isEmpty() || getWidth() <= 0 || getHeight() <= 0) return;
-            
-            double timeMin = buffer.getTimes().isEmpty() ? 0 : buffer.getTimes().get(0);
-            double timeMax = buffer.getTimes().isEmpty() ? 10 : buffer.getTimes().get(buffer.getTimes().size() - 1);
-            System.out.println("DEBUG paintComponent: timeMin=" + timeMin + ", timeMax=" + timeMax);
-            if (timeMax <= timeMin) timeMax = timeMin + 1;
-            
+
+            // Derive the plot area bounds from two known screen-coordinate mappings.
+            // getScreenYFromChart(dataY) is linear: screenY = slope * dataY + intercept.
+            // Two points let us solve for slope and intercept, then find the plot edges
+            // (where dataY equals the axis min/max), but we don't know axis min/max either.
+            // Instead, use reflection to access the package-private getPlot().getBounds().
+            java.awt.geom.Rectangle2D plotBounds;
+            try {
+                var m = chart.getClass().getSuperclass().getDeclaredMethod("getPlot");
+                m.setAccessible(true);
+                Object plot = m.invoke(chart);
+                plotBounds = (java.awt.geom.Rectangle2D) plot.getClass().getMethod("getBounds").invoke(plot);
+            } catch (Exception e) {
+                return; // can't determine plot area
+            }
+            if (plotBounds == null || plotBounds.getWidth() <= 0) return;
+
+            int plotLeft = (int) plotBounds.getX();
+            int plotRight = (int) (plotBounds.getX() + plotBounds.getWidth());
+            int plotTop = (int) plotBounds.getY();
+            int plotH = (int) plotBounds.getHeight();
+
             Graphics2D g2 = (Graphics2D) g;
             g2.setColor(new Color(180, 180, 180, 120));
-            
+
             for (double[] range : violationRanges) {
-                double startTime = range[0];
-                double endTime = range[1];
-                
-                int x1 = (int) ((startTime - timeMin) / (timeMax - timeMin) * getWidth());
-                int x2 = (int) ((endTime - timeMin) / (timeMax - timeMin) * getWidth());
-                
-                x1 = Math.max(0, Math.min(getWidth(), x1));
-                x2 = Math.max(0, Math.min(getWidth(), x2));
-                
-                System.out.println("DEBUG paintComponent: drawing band " + startTime + " to " + endTime + " => x " + x1 + " to " + x2);
-                
+                int x1 = (int) chart.getScreenXFromChart(range[0]);
+                int x2 = (int) chart.getScreenXFromChart(range[1]);
+
+                x1 = Math.max(plotLeft, x1);
+                x2 = Math.min(plotRight, x2);
+
                 if (x2 > x1) {
-                    g2.fillRect(x1, 0, x2 - x1, getHeight());
+                    g2.fillRect(x1, plotTop, x2 - x1, plotH);
                 }
             }
         }
@@ -290,14 +299,6 @@ public class TrajectoryTab extends JPanel {
         sidebar.add(Box.createVerticalStrut(8));
         sidebar.add(btnAutoTune);
         
-        lbBackEmfStatus = new JLabel("Back-EMF Status");
-        lbBackEmfStatus.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
-        lbBackEmfStatus.setAlignmentX(Component.CENTER_ALIGNMENT);
-        lbBackEmfStatus.setMaximumSize(new Dimension(280, 40));
-        lbBackEmfStatus.setPreferredSize(new Dimension(280, 24));
-        lbBackEmfStatus.setVisible(false);
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(lbBackEmfStatus);
         
         typeCombo.addActionListener(e -> onTypeChanged());
         btnGoA.addActionListener(e -> onGoTo(slTargetA));
@@ -418,12 +419,9 @@ public class TrajectoryTab extends JPanel {
         efKs = new EditableParamField("kS", 0.893, "%.3f", 0, 12.0, v -> checkBackEmfViolation());
         efKv = new EditableParamField("kV", 0.00475, "%.6f", 0, 1.0, v -> checkBackEmfViolation());
         efKa = new EditableParamField("kA", 0.00599, "%.6f", 1e-9, 1.0, v -> checkBackEmfViolation());
-        lbMotorAMax = new JLabel("Motor aMax: ");
         bemfPanel.add(efKs);
         bemfPanel.add(efKv);
         bemfPanel.add(efKa);
-        bemfPanel.add(Box.createVerticalStrut(4));
-        bemfPanel.add(lbMotorAMax);
     }
 
     private void stagePosParams() {
@@ -478,7 +476,6 @@ public class TrajectoryTab extends JPanel {
                 bemfPanel.setVisible(false);
                 btnReset.setVisible(false);
                 btnAutoTune.setVisible(false);
-                lbBackEmfStatus.setVisible(false);
                 updateTargetRange(-200, 200, -100, 100);
                 break;
             case SCURVE_VELOCITY:
@@ -490,7 +487,6 @@ public class TrajectoryTab extends JPanel {
                 bemfPanel.setVisible(true);
                 btnReset.setVisible(true);
                 btnAutoTune.setVisible(true);
-                lbBackEmfStatus.setVisible(true);
                 double ks = efKs.getValue();
                 double kv = efKv.getValue();
                 double maxV = kv > 0 ? (MOTOR_VOLTAGE - ks) / kv : 6000;
@@ -504,7 +500,6 @@ public class TrajectoryTab extends JPanel {
                 addSliderRow(limitPanel, lbRJMax, slRJMax);
                 bemfPanel.setVisible(false);
                 btnReset.setVisible(false);
-                lbBackEmfStatus.setVisible(false);
                 updateTargetRange(-200, 200, -100, 100);
                 break;
         }
@@ -898,28 +893,18 @@ public class TrajectoryTab extends JPanel {
         if (engine == null || engine.getType() != TrajectoryType.SCURVE_VELOCITY) {
             backEmfViolation = false;
             violationRanges.clear();
-            if (lbMotorAMax != null) lbMotorAMax.setText("Motor aMax: N/A");
-            if (lbBackEmfStatus != null) lbBackEmfStatus.setText("Back-EMF: N/A");
             updateViolationBandPanel();
             return;
         }
-        
+
         double ka = efKa.getValue();
         double targetV = engine.getTarget();
-        
+
         if (targetV <= 0) {
-            if (lbMotorAMax != null) lbMotorAMax.setText("Motor aMax: Set target to see limit");
-            if (lbBackEmfStatus != null) lbBackEmfStatus.setText("Back-EMF: N/A");
             backEmfViolation = false;
             violationRanges.clear();
             updateViolationBandPanel();
             return;
-        }
-        
-        if (lbMotorAMax != null) {
-            double motorAMaxAtTarget = maxMotorAcceleration(targetV);
-            double aMax = s2l(slAMax.getValue(), 10, 5000);
-            lbMotorAMax.setText(String.format("Motor aMax at target: %.1f (trajectory aMax: %.1f)", motorAMaxAtTarget, aMax));
         }
         
         if (ka <= 0) {
@@ -966,12 +951,7 @@ public class TrajectoryTab extends JPanel {
         }
         
         backEmfViolation = !violationRanges.isEmpty();
-        
-        if (lbBackEmfStatus != null) {
-            lbBackEmfStatus.setText(backEmfViolation ? "Status: VIOLATION" : "Status: OK");
-            lbBackEmfStatus.setForeground(backEmfViolation ? Color.RED : Color.GREEN);
-        }
-        
+
         updateViolationBandPanel();
     }
 

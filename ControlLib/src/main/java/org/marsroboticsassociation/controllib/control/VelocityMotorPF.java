@@ -71,7 +71,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
          * {@link #getMaxVelocity()} returns {@code (1 - headroomAllowance)} times
          * the physical max derived from kS, kV, and battery voltage.
          */
-        public double headroomAllowance = 0.2;
+        public double headroomAllowance = 0.1;
 
         /**
          * Maximum Acceleration Constraint.
