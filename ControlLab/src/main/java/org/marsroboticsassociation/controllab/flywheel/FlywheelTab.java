@@ -38,6 +38,7 @@ public class FlywheelTab extends JPanel {
     private double targetB = 2000;
 
     private JButton btnGoA, btnGoB, btnCoast;
+    private JButton btnNewChallenge;
     private Timer simTimer;
 
     public FlywheelTab() {
@@ -85,6 +86,12 @@ public class FlywheelTab extends JPanel {
             buffer.clear();
         });
         sidebar.add(typeCombo);
+        sidebar.add(Box.createVerticalStrut(12));
+
+        btnNewChallenge = new JButton("New Challenge");
+        btnNewChallenge.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        btnNewChallenge.addActionListener(e -> onNewChallenge());
+        sidebar.add(btnNewChallenge);
         sidebar.add(Box.createVerticalStrut(12));
 
         sidebar.add(boldLabel("Tuning"));
@@ -138,7 +145,17 @@ public class FlywheelTab extends JPanel {
         sidebar.add(plantPanel);
 
         btnRevealPlant.addActionListener(e -> {
-            boolean visible = !plantPanel.isVisible();
+            boolean currentlyVisible = plantPanel.isVisible();
+            if (!currentlyVisible) {
+                // Revealing: confirm first
+                int result = JOptionPane.showConfirmDialog(
+                        this,
+                        "Are you sure you want to reveal the plant values?",
+                        "Show Plant",
+                        JOptionPane.YES_NO_OPTION);
+                if (result != JOptionPane.YES_OPTION) return;
+            }
+            boolean visible = !currentlyVisible;
             plantPanel.setVisible(visible);
             chart.getSeriesMap().get("True Velocity").setEnabled(visible);
             btnRevealPlant.setText(visible ? "Hide Simulator Plant" : "Show Simulator Plant");
@@ -175,6 +192,26 @@ public class FlywheelTab extends JPanel {
         sidebar.add(btnCoast);
 
         add(sidebar, BorderLayout.WEST);
+    }
+
+    private void onNewChallenge() {
+        engine.newChallenge(targetA, targetB);
+        buffer.clear();
+
+        // Update tuning param fields to show zeroed values
+        efKS.setValue(0, "%.3f");
+        efKV.setValue(0, "%.6f");
+        efKA.setValue(0, "%.6f");
+        efKP.setValue(0, "%.4f");
+
+        // Update plant fields to show new (hidden) values
+        efPlantKS.setValue(engine.getPlantKS(), "%.3f");
+        efPlantKV.setValue(engine.getPlantKV(), "%.6f");
+        efPlantKA.setValue(engine.getPlantKA(), "%.6f");
+
+        // Update profile param fields
+        efPFAccelMax.setValue(engine.getPFBAccelMax(), "%.0f");
+        efPFFallingJerk.setValue(engine.getPFJerkDecreasing(), "%.0f");
     }
 
     private void updateParams() {
@@ -245,6 +282,7 @@ public class FlywheelTab extends JPanel {
         simplePanel.setVisible(type == FlywheelControllerType.FLYWHEEL_SIMPLE);
         pfPanel.setVisible(type == FlywheelControllerType.VELOCITY_MOTOR_PF);
         ssPanel.setVisible(type == FlywheelControllerType.FLYWHEEL_STATE_SPACE);
+        btnNewChallenge.setVisible(type == FlywheelControllerType.VELOCITY_MOTOR_PF);
         revalidate();
     }
 
