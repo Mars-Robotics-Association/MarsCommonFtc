@@ -312,12 +312,9 @@ public class FlywheelEngine implements IMotor {
 
     /**
      * Randomize plant, zero tuning params, auto-tune profile, reset sim.
-     * @param targetA the "A" target velocity for profile auto-tuning
-     * @param targetB the "B" target velocity for profile auto-tuning
+     * Profile is tuned for 0 to 75% of max achievable velocity.
      */
-    public void newChallenge(double targetA, double targetB) {
-        double v0 = Math.min(targetA, targetB);
-        double v1 = Math.max(targetA, targetB);
+    public void newChallenge() {
         double jInc = Double.isNaN(pfJerkIncreasing) ? 2000 : pfJerkIncreasing;
         double voltage = 12.0;
 
@@ -331,9 +328,11 @@ public class FlywheelEngine implements IMotor {
             this.plantKA = 12.5 / accelDenom;
             this.plantKS = 0.3 + random.nextDouble() * 1.2; // 0.3..1.5 V
 
-            // 2. Auto-tune profile params from new plant
-            aMax = SCurveVelocity.findMaxAMax(v0, v1, jInc, voltage, plantKS, plantKV, plantKA);
-            jDec = SCurveVelocity.findMaxJDec(v0, v1, 0, aMax, jInc, voltage, plantKS, plantKV, plantKA);
+            // 2. Auto-tune profile params: 0 to 75% of max achievable velocity
+            double maxVelocity = (voltage - plantKS) / plantKV;
+            double v1 = 0.75 * maxVelocity;
+            aMax = SCurveVelocity.findMaxAMax(0, v1, jInc, voltage, plantKS, plantKV, plantKA);
+            jDec = SCurveVelocity.findMaxJDec(0, v1, 0, aMax, jInc, voltage, plantKS, plantKV, plantKA);
         } while (jDec < 200);
 
         // 3. Rebuild sim with new plant

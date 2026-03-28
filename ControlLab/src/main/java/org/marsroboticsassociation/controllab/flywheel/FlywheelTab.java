@@ -195,7 +195,7 @@ public class FlywheelTab extends JPanel {
     }
 
     private void onNewChallenge() {
-        engine.newChallenge(targetA, targetB);
+        engine.newChallenge();
         buffer.clear();
 
         // Update tuning param fields to show zeroed values
