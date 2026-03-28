@@ -39,6 +39,10 @@ public class FlywheelEngine implements IMotor {
     private double pfJerkIncreasing = Double.NaN;
     private double pfJerkDecreasing = Double.NaN;
 
+    // FlywheelStateSpace-specific params
+    private double ssModelStdDev = FlywheelStateSpace.PARAMS.modelStdDevRadPerSec;
+    private double ssMeasurementStdDev = FlywheelStateSpace.PARAMS.measurementStdDevRadPerSec;
+
     // Physical Plant Params (the "Real Robot")
     private double plantKV = 12.5 / 2632.1;
     private double plantKA = 12.5 / 2087.9;
@@ -131,7 +135,8 @@ public class FlywheelEngine implements IMotor {
             case FLYWHEEL_STATE_SPACE:
                 FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * Math.PI);
                 FlywheelStateSpace.PARAMS.kA = Math.max(kA, 1e-6) * 28 / (2 * Math.PI);
-                // Note: kS and kP aren't directly used by SS in the same way, but let's assume kV/kA represent the plant.
+                FlywheelStateSpace.PARAMS.modelStdDevRadPerSec = ssModelStdDev;
+                FlywheelStateSpace.PARAMS.measurementStdDevRadPerSec = ssMeasurementStdDev;
                 ss = new FlywheelStateSpace(this, noOp);
                 simple = null;
                 pf = null;
@@ -280,6 +285,20 @@ public class FlywheelEngine implements IMotor {
     public double getPFJerkDecreasing() {
         return pf != null ? pfConfig.jerkDecreasing : (!Double.isNaN(pfJerkDecreasing) ? pfJerkDecreasing : 1000.0);
     }
+
+    public void setSSParams(double modelStdDev, double measurementStdDev) {
+        this.ssModelStdDev = modelStdDev;
+        this.ssMeasurementStdDev = measurementStdDev;
+        if (ss != null) {
+            FlywheelStateSpace.PARAMS.modelStdDevRadPerSec = modelStdDev;
+            FlywheelStateSpace.PARAMS.measurementStdDevRadPerSec = measurementStdDev;
+            rebuildController();
+            ss.setTps(targetTps);
+        }
+    }
+
+    public double getSSModelStdDev() { return ssModelStdDev; }
+    public double getSSMeasurementStdDev() { return ssMeasurementStdDev; }
 
     public void reset() {
         sim.reset(0);

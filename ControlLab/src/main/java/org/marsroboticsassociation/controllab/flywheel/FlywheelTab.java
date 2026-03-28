@@ -24,7 +24,7 @@ public class FlywheelTab extends JPanel {
 
     private JComboBox<FlywheelControllerType> typeCombo;
     private JPanel paramPanel, plantPanel;
-    private JPanel simplePanel, pfPanel;
+    private JPanel simplePanel, pfPanel, ssPanel;
 
     // Editable fields
     private EditableParamField efKS, efKV, efKA, efKP, efCutoff;
@@ -32,6 +32,7 @@ public class FlywheelTab extends JPanel {
     private EditableParamField efTargetA, efTargetB;
     private EditableParamField efSimpleMaxAccel;
     private EditableParamField efPFAccelMax, efPFRisingJerk, efPFFallingJerk;
+    private EditableParamField efSSModelStdDev, efSSMeasurementStdDev;
 
     private double targetA = 1000;
     private double targetB = 2000;
@@ -114,6 +115,7 @@ public class FlywheelTab extends JPanel {
 
         sidebar.add(simplePanel);
         sidebar.add(pfPanel);
+        sidebar.add(ssPanel);
         updateControllerPanel();
         sidebar.add(Box.createVerticalStrut(12));
 
@@ -224,12 +226,25 @@ public class FlywheelTab extends JPanel {
         pfPanel.add(efPFAccelMax);
         pfPanel.add(efPFRisingJerk);
         pfPanel.add(efPFFallingJerk);
+
+        efSSModelStdDev = new EditableParamField("Model StdDev (rad/s)", engine.getSSModelStdDev(), "%.4f", 0.001, 100.0, v -> {
+            engine.setSSParams(v, engine.getSSMeasurementStdDev());
+        });
+        efSSMeasurementStdDev = new EditableParamField("Meas StdDev (rad/s)", engine.getSSMeasurementStdDev(), "%.4f", 0.001, 100.0, v -> {
+            engine.setSSParams(engine.getSSModelStdDev(), v);
+        });
+
+        ssPanel = new JPanel();
+        ssPanel.setLayout(new BoxLayout(ssPanel, BoxLayout.Y_AXIS));
+        ssPanel.add(efSSModelStdDev);
+        ssPanel.add(efSSMeasurementStdDev);
     }
 
     private void updateControllerPanel() {
         FlywheelControllerType type = (FlywheelControllerType) typeCombo.getSelectedItem();
         simplePanel.setVisible(type == FlywheelControllerType.FLYWHEEL_SIMPLE);
         pfPanel.setVisible(type == FlywheelControllerType.VELOCITY_MOTOR_PF);
+        ssPanel.setVisible(type == FlywheelControllerType.FLYWHEEL_STATE_SPACE);
         revalidate();
     }
 
