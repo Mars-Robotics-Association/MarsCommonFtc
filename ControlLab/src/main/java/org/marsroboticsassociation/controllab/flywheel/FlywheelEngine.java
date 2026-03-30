@@ -178,6 +178,11 @@ public class FlywheelEngine implements IMotor {
     // --- IMotor implementation ---
 
     @Override
+    public int getPosition() {
+        return sim.getPositionTicks();
+    }
+
+    @Override
     public double getVelocity() {
         return sim.getVelocityTps();
     }
