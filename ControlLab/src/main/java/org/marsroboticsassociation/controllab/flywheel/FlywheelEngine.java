@@ -322,10 +322,13 @@ public class FlywheelEngine implements IMotor {
         double aMax, jDec;
         do {
             // 1. Randomize plant params (FTC-reasonable ranges)
-            double maxTps = 1000 + random.nextDouble() * 2000; // 1000..3000 TPS
+            // Upper bound: GoBilda 5203 1:1 (fastest common FTC motor): 6000 RPM × 28 PPR / 60 = 2800 TPS
+            double maxTps = 1000 + random.nextDouble() * 1800; // 1000..2800 TPS
             this.plantKV = 12.5 / maxTps;
-            double accelDenom = 800 + random.nextDouble() * 3200; // 800..4000
+            // Upper bound: GoBilda 5203 1:1 stall torque 1.47 kg·cm → at R=1.3Ω, light flywheel load gives ~4000 TPS/s²
+            double accelDenom = 800 + random.nextDouble() * 3200; // 800..4000 TPS/s²
             this.plantKA = 12.5 / accelDenom;
+            // GoBilda 5203 1:1 free current 0.25A × R 1.3Ω ≈ 0.33V lower bound; heavy friction motors ~1.5V upper bound
             this.plantKS = 0.3 + random.nextDouble() * 1.2; // 0.3..1.5 V
 
             // 2. Auto-tune profile params: 0 to 75% of max achievable velocity
