@@ -26,7 +26,7 @@ Decision: use `SCurvePosition` via `PositionTrajectoryManager` with separate acc
 
 The `cos(theta)` gravity term dominates the arm's dynamics across the 270 degree range. Feedforward must handle this — the feedback controller should only deal with residual errors.
 
-Decision: use WPiLib's `ArmFeedforward` with the RK4-accurate `calculateWithVelocities` method (via the variable-dt overload). The feedforward computes the voltage needed for the trajectory's current position, velocity, and acceleration, including gravity compensation. This keeps the feedback controller's job small.
+Decision: use WPiLib's `ArmFeedforward` with the RK4-accurate `calculateWithVelocities` method (via the variable-dt overload). The feedforward computes the voltage needed for the trajectory's velocity and acceleration targets, with gravity compensation at the **predicted actual arm angle** (not the trajectory position). This is critical — gravity acts at the arm's actual angle, and indexing gravity compensation off the trajectory position caused instability in the previous controller: when the arm got ahead of the profile in the gravity-assisted direction, the profile-based gravity comp was too weak, under-compensating and letting the arm accelerate further ahead in a positive feedback loop.
 
 ### 3. Latency compensation via Kalman filter
 
@@ -86,7 +86,7 @@ The control loop has significant timing jitter (16 ms +/- 5 ms). Three component
 ```
 SCurvePosition --> trajectory (p, v, a setpoints)
                         |
-                        +---> ArmFeedforward ---> ff voltage
+                        +---> ArmFeedforward(predicted angle, traj v, traj a) ---> ff voltage
                         |
                         +---> compare with predicted state ---> PD ---> fb voltage
                         |
@@ -96,7 +96,7 @@ KalmanFilter ---> predict forward (latency comp) ---> predicted state
                 power = clamp(voltage / hubVoltage, -1, 1)
 ```
 
-The Kalman filter receives `u_linear` (gravity/friction subtracted). The feedforward receives the trajectory setpoints. PD feedback operates on the error between the latency-compensated predicted state and the trajectory setpoint.
+The Kalman filter receives `u_linear` (gravity/friction subtracted). The feedforward receives the trajectory velocity/acceleration targets but uses the **predicted actual position** for gravity compensation — gravity torque depends on where the arm physically is, not where the trajectory expects it. PD feedback operates on the error between the latency-compensated predicted state and the trajectory setpoint.
 
 ## Files
 

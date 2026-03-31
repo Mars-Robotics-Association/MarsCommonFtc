@@ -271,8 +271,10 @@ public class ArmController {
         }
 
         // 8. Feedforward (use deprecated overload for variable dt with RK4 accuracy)
+        //    Use predicted position (not trajectory position) for gravity compensation —
+        //    gravity acts at the arm's actual angle, not where the trajectory expects it.
         double nextVel = trajVel + trajAccel * dt;
-        double ffVoltage = feedforward.calculate(trajPos, trajVel, nextVel, dt);
+        double ffVoltage = feedforward.calculate(predictedPosRad, trajVel, nextVel, dt);
 
         // 9. PD feedback
         double posError = trajPos - predictedPosRad;
