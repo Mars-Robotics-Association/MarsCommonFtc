@@ -392,6 +392,44 @@ public class ArmController {
     }
 
     /**
+     * Compute per-move trajectory limits based on the worst-case gravity torque in the sweep.
+     * Returns [maxVel, maxAccel, maxDecel].
+     *
+     * <p>The sweep is split at the midpoint: the first half constrains acceleration,
+     * the second half constrains deceleration. Max velocity is constrained across the full
+     * sweep. All results are capped at the PARAMS global maximums.
+     *
+     * @param fromRad    start angle (radians from horizontal)
+     * @param toRad      target angle (radians from horizontal)
+     * @param hubVoltage current battery voltage
+     * @return double[3]: {maxVel, maxAccel, maxDecel} in rad/s and rad/s^2
+     */
+    double[] computeMoveLimits(double fromRad, double toRad, double hubVoltage) {
+        double midRad = (fromRad + toRad) / 2.0;
+
+        // Worst-case angle in each phase
+        double worstAccelAngle = worstCaseAngle(fromRad, midRad);
+        double worstDecelAngle = worstCaseAngle(midRad, toRad);
+        double worstVelAngle = worstCaseAngle(fromRad, toRad);
+
+        // Use PARAMS.maxVelRad as the velocity for accel/decel queries (conservative:
+        // back-EMF at max velocity consumes the most voltage, leaving least for torque)
+        double accel = feedforward.maxAchievableAcceleration(
+                hubVoltage, worstAccelAngle, PARAMS.maxVelRad);
+        double decel = feedforward.maxAchievableAcceleration(
+                hubVoltage, worstDecelAngle, PARAMS.maxVelRad);
+        double vel = feedforward.maxAchievableVelocity(
+                hubVoltage, worstVelAngle, 0);
+
+        // Cap at global maximums and ensure non-negative
+        vel = Math.min(Math.max(vel, 0), PARAMS.maxVelRad);
+        accel = Math.min(Math.max(accel, 0), PARAMS.maxAccelRad);
+        decel = Math.min(Math.max(decel, 0), PARAMS.maxDecelRad);
+
+        return new double[] { vel, accel, decel };
+    }
+
+    /**
      * Find the angle in the range between {@code a} and {@code b} where {@code |cos(theta)|}
      * is maximized (worst-case gravity torque). Candidates: endpoints plus any horizontal
      * crossing (0 or -pi) within the range.

@@ -346,6 +346,50 @@ class ArmControllerTest {
     }
 
     @Test
+    void testComputeMoveLimits_limitsVaryWithSweep() {
+        // Create a controller with known gains
+        ArmMotorSim sim = makeSim(MAX_ANGLE_RAD);
+        SimMotorAdapter adapter = new SimMotorAdapter(sim);
+        ArmController controller = new ArmController(adapter,
+                (caption, format, value) -> {}, this::clockSupplier);
+
+        // Move near vertical (-90 deg): gravity torque is 0, max torque available
+        double[] limitsVertical = controller.computeMoveLimits(
+                Math.toRadians(-85), Math.toRadians(-95), HUB_VOLTAGE);
+
+        // Move crossing horizontal (0 deg): gravity torque is maximal, less torque available
+        double[] limitsHorizontal = controller.computeMoveLimits(
+                Math.toRadians(-10), Math.toRadians(10), HUB_VOLTAGE);
+
+        // Acceleration limit near vertical should be >= near horizontal
+        assertTrue(limitsVertical[1] >= limitsHorizontal[1],
+                "accel limit near vertical should be >= near horizontal");
+
+        // Velocity limit near vertical should be >= near horizontal
+        assertTrue(limitsVertical[0] >= limitsHorizontal[0],
+                "velocity limit near vertical should be >= near horizontal");
+    }
+
+    @Test
+    void testComputeMoveLimits_cappedAtParamsMaximums() {
+        ArmMotorSim sim = makeSim(MAX_ANGLE_RAD);
+        SimMotorAdapter adapter = new SimMotorAdapter(sim);
+        ArmController controller = new ArmController(adapter,
+                (caption, format, value) -> {}, this::clockSupplier);
+
+        // Move near vertical where motor has lots of headroom
+        double[] limits = controller.computeMoveLimits(
+                Math.toRadians(-85), Math.toRadians(-95), HUB_VOLTAGE);
+
+        assertTrue(limits[0] <= ArmController.PARAMS.maxVelRad,
+                "velocity should be capped at PARAMS.maxVelRad");
+        assertTrue(limits[1] <= ArmController.PARAMS.maxAccelRad,
+                "accel should be capped at PARAMS.maxAccelRad");
+        assertTrue(limits[2] <= ArmController.PARAMS.maxDecelRad,
+                "decel should be capped at PARAMS.maxDecelRad");
+    }
+
+    @Test
     void testVoltageCompensation() {
         // Run the same move at two different voltages, verify similar tracking
         double startAngle = MAX_ANGLE_RAD;
