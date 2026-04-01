@@ -320,6 +320,32 @@ class ArmControllerTest {
     }
 
     @Test
+    void testWorstCaseAngle_rangeNotCrossingHorizontal() {
+        double result = ArmController.worstCaseAngle(Math.toRadians(-60), Math.toRadians(-120));
+        double absCosResult = Math.abs(Math.cos(result));
+        assertEquals(0.5, absCosResult, 0.01, "should pick an endpoint with |cos|=0.5");
+    }
+
+    @Test
+    void testWorstCaseAngle_rangeCrossingHorizontal() {
+        double result = ArmController.worstCaseAngle(Math.toRadians(-30), Math.toRadians(30));
+        assertEquals(0.0, result, 0.01, "should pick horizontal crossing at 0");
+    }
+
+    @Test
+    void testWorstCaseAngle_rangeCrossingNegativePi() {
+        double result = ArmController.worstCaseAngle(Math.toRadians(-150), Math.toRadians(-210));
+        assertEquals(-Math.PI, result, 0.01, "should pick horizontal crossing at -pi");
+    }
+
+    @Test
+    void testWorstCaseAngle_sameAngle() {
+        double angle = Math.toRadians(-90);
+        double result = ArmController.worstCaseAngle(angle, angle);
+        assertEquals(angle, result, 0.01, "should return the single angle");
+    }
+
+    @Test
     void testVoltageCompensation() {
         // Run the same move at two different voltages, verify similar tracking
         double startAngle = MAX_ANGLE_RAD;

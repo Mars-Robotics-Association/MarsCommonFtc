@@ -390,4 +390,38 @@ public class ArmController {
         double distToMax = Math.abs(posRad - PARAMS.maxAngleRad);
         return distToMin < distToMax ? PARAMS.minAngleRad : PARAMS.maxAngleRad;
     }
+
+    /**
+     * Find the angle in the range between {@code a} and {@code b} where {@code |cos(theta)|}
+     * is maximized (worst-case gravity torque). Candidates: endpoints plus any horizontal
+     * crossing (0 or -pi) within the range.
+     */
+    static double worstCaseAngle(double a, double b) {
+        double lo = Math.min(a, b);
+        double hi = Math.max(a, b);
+
+        double bestAngle = a;
+        double bestAbsCos = Math.abs(Math.cos(a));
+
+        double absCosB = Math.abs(Math.cos(b));
+        if (absCosB > bestAbsCos) {
+            bestAngle = b;
+            bestAbsCos = absCosB;
+        }
+
+        // Check horizontal crossings: 0 and -pi
+        if (lo <= 0 && hi >= 0) {
+            // cos(0) = 1.0
+            bestAngle = 0;
+            bestAbsCos = 1.0;
+        }
+        if (lo <= -Math.PI && hi >= -Math.PI) {
+            // |cos(-pi)| = 1.0
+            if (1.0 > bestAbsCos) {
+                bestAngle = -Math.PI;
+            }
+        }
+
+        return bestAngle;
+    }
 }
