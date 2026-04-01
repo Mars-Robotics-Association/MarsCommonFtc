@@ -81,6 +81,16 @@ The control loop has significant timing jitter (16 ms +/- 5 ms). Three component
 - `ArmFeedforward.calculate(angle, currentVel, nextVel, dt)` (deprecated overload) constructs a fresh feedforward with the actual dt for RK4 accuracy
 - The trajectory manager uses its own wall clock internally, independent of dt
 
+### Per-move trajectory limits
+
+The S-curve trajectory limits (max velocity, acceleration, deceleration) are computed per-move based on the worst-case gravity torque across the sweep, rather than using fixed global values. This allows the arm to move faster when gravity is favorable and remain safe when it isn't.
+
+For each move, the sweep is split at the midpoint. The worst-case angle in the first half determines the acceleration limit; the worst-case angle in the second half determines the deceleration limit. The worst-case angle across the full sweep determines the max velocity limit. "Worst case" is where `|cos(theta)|` is maximized — the candidates are the sweep endpoints plus any horizontal crossing (theta = 0 or theta = -pi) within the range. All computed limits are capped at the global PARAMS maximums, which serve as a mechanical safety ceiling.
+
+The limits are computed using `ArmFeedforward.maxAchievableAcceleration` and `maxAchievableVelocity` with the live hub voltage. Acceleration queries use `PARAMS.maxVelRad` as the velocity argument (conservative: back-EMF at max velocity leaves the least torque headroom).
+
+On replan (tracking error exceeds threshold), limits are recomputed for the remaining sweep from the predicted position to the target. This gives tighter limits for the remainder when the worst-case angles have already been passed.
+
 ## Architecture
 
 ```
