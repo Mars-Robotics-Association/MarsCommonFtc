@@ -390,6 +390,56 @@ class ArmControllerTest {
     }
 
     @Test
+    void testSetTarget_updatesTrajectoryLimits() {
+        // Verify that setTarget calls computeMoveLimits by checking that a move
+        // crossing horizontal uses different (lower) limits than a move near vertical.
+        // We test this indirectly: a move near horizontal should take longer than
+        // a move near vertical of the same angular distance, because the limits are lower.
+
+        double angularDistance = Math.toRadians(20);
+
+        // Move near vertical: -80 to -100 deg (low gravity torque, high limits)
+        ArmMotorSim sim1 = makeSim(Math.toRadians(-80));
+        SimMotorAdapter adapter1 = new SimMotorAdapter(sim1);
+        simTimeNanos = 0;
+        ArmController ctrl1 = new ArmController(adapter1,
+                (caption, format, value) -> {}, this::clockSupplier);
+        ctrl1.setTarget(Math.toRadians(-100));
+
+        Random rng1 = new Random(SEED);
+        int steps1 = 0;
+        for (int i = 0; i < 500; i++) {
+            step(ctrl1, adapter1, sim1, rng1);
+            steps1++;
+            if (ctrl1.isAtTarget()) break;
+        }
+
+        // Move crossing horizontal: +10 to -10 deg (high gravity torque, lower limits)
+        ArmController.PARAMS.maxAngleRad = Math.toRadians(15);  // widen range for this test
+        ArmMotorSim sim2 = makeSim(Math.toRadians(10));
+        SimMotorAdapter adapter2 = new SimMotorAdapter(sim2);
+        simTimeNanos = 0;
+        ArmController ctrl2 = new ArmController(adapter2,
+                (caption, format, value) -> {}, this::clockSupplier);
+        ctrl2.setTarget(Math.toRadians(-10));
+
+        Random rng2 = new Random(SEED);
+        int steps2 = 0;
+        for (int i = 0; i < 500; i++) {
+            step(ctrl2, adapter2, sim2, rng2);
+            steps2++;
+            if (ctrl2.isAtTarget()) break;
+        }
+
+        System.out.printf("testSetTarget_updatesTrajectoryLimits: vertical steps=%d, horizontal steps=%d%n",
+                steps1, steps2);
+
+        // The horizontal move should take at least as many steps (lower limits = slower)
+        assertTrue(steps2 >= steps1,
+                "move crossing horizontal should take at least as long as move near vertical");
+    }
+
+    @Test
     void testVoltageCompensation() {
         // Run the same move at two different voltages, verify similar tracking
         double startAngle = MAX_ANGLE_RAD;

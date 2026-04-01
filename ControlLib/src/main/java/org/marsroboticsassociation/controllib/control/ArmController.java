@@ -185,13 +185,27 @@ public class ArmController {
     /**
      * Set the target arm angle in radians (measured from horizontal).
      *
+     * <p>Computes per-move trajectory limits based on the worst-case gravity torque
+     * across the sweep, then plans the trajectory with those limits.
+     *
      * <p>If the arm is currently coasting at a hard stop, this wakes it up:
      * the state is reset to the hard stop angle with zero velocity, and a
      * new trajectory is planned from there.
      */
     public void setTarget(double angleRad) {
+        setTarget(angleRad, motor.getHubVoltage());
+    }
+
+    /**
+     * Set the target arm angle with a pre-sampled hub voltage (for testing).
+     *
+     * @param angleRad   target angle in radians from horizontal
+     * @param hubVoltage current battery voltage in volts
+     */
+    public void setTarget(double angleRad, double hubVoltage) {
         targetAngleRad = MathUtil.clamp(angleRad, PARAMS.minAngleRad, PARAMS.maxAngleRad);
 
+        double fromRad;
         if (mode == Mode.COASTING) {
             // Wake from hard stop: assume position is at the nearest hard stop
             double hardStopAngle = nearestHardStop(predictedPosRad);
@@ -200,7 +214,14 @@ public class ArmController {
             predictedPosRad = hardStopAngle;
             predictedVelRad = 0;
             mode = Mode.TRACKING;
+            fromRad = hardStopAngle;
+        } else {
+            fromRad = predictedPosRad;
         }
+
+        // Compute gravity-aware trajectory limits for this move
+        double[] limits = computeMoveLimits(fromRad, targetAngleRad, hubVoltage);
+        trajectory.updateConfig(limits[0], limits[1], limits[2], PARAMS.maxJerkRad);
 
         trajectory.setTarget(targetAngleRad);
     }
@@ -262,6 +283,10 @@ public class ArmController {
 
         // 7. Replan check
         if (Math.abs(predictedPosRad - trajPos) > PARAMS.replanThresholdRad) {
+            // Recompute limits for the remaining sweep
+            double[] limits = computeMoveLimits(predictedPosRad, targetAngleRad, hubVoltage);
+            trajectory.updateConfig(limits[0], limits[1], limits[2], PARAMS.maxJerkRad);
+
             trajectory.resetFromMeasurement(predictedPosRad, predictedVelRad);
             // Re-read trajectory state after replan
             trajectory.update();
