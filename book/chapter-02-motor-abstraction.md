@@ -270,7 +270,7 @@ $$V_{\text{applied}} = IR + k_E \omega$$
 
 Where $V_{\text{applied}}$ is the voltage applied to the motor terminals, $I$ is current, $R$ is winding resistance, $k_E$ is the back-EMF constant, and $\omega$ is angular velocity. The feedforward voltage needed to achieve a target velocity is:
 
-$$V_{ff} = k_S \operatorname{sign}(\omega) + k_V \omega + k_A \alpha$$
+$$V_{ff} = k_S \mathop{\text{sign}}(\omega) + k_V \omega + k_A \alpha$$
 
 Where $k_S$ accounts for stiction, $k_V$ for back-EMF, and $k_A$ for acceleration. To convert this voltage to a power command:
 

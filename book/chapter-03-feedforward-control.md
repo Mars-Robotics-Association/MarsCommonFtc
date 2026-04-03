@@ -42,9 +42,9 @@ Each term has a physical meaning:
 
 Written as a single equation:
 
-$$V = k_S \operatorname{sign}(v) + k_V v + k_A a$$
+$$V = k_S \mathop{\text{sign}}(v) + k_V v + k_A a$$
 
-The $\operatorname{sign}(v)$ term ensures that friction always opposes motion, regardless of direction.
+The $\mathop{\text{sign}}(v)$ term ensures that friction always opposes motion, regardless of direction.
 
 ## 3.3 Back-EMF: The Velocity Ceiling
 
@@ -78,11 +78,11 @@ $$\tau = \frac{k_A}{k_V} = \frac{12.5/2087.9}{12.5/2632.1} = 1.26 \text{ seconds
 
 This means the flywheel reaches 63% of its target velocity in about 1.26 seconds under full voltage. The full analytical solution for velocity over time is:
 
-$$v(t) = v_{ss} - (v_{ss} - v_0) \cdot e^{-(k_V/k_A) \, t}$$
+$$v(t) = v_{ss} - (v_{ss} - v_0) \cdot e^{-(k_V/k_A) t}$$
 
 Where $v_{ss}$ is the steady-state velocity and $v_0$ is the initial velocity. The acceleration decays exponentially:
 
-$$a(t) = a_0 \cdot e^{-(k_V/k_A) \, t}$$
+$$a(t) = a_0 \cdot e^{-(k_V/k_A) t}$$
 
 This exponential behavior is not a limitation of the controller — it is the physics of the motor itself. No amount of tuning can make a first-order system respond faster than its time constant allows.
 
@@ -163,9 +163,9 @@ These numbers come from empirical characterization: the motor was tested at vari
 
 `ArmFeedforward` extends the model to account for gravity. An arm mechanism has an additional voltage term that depends on the arm's angle:
 
-$$V = k_S \operatorname{sign}(v) + k_G \cos(\theta) + k_V v + k_A a$$
+$$V = k_S \mathop{\text{sign}}(v) + k_G \cos(\theta) + k_V v + k_A a$$
 
-The $k_G \cos(\theta)$ term represents the voltage needed to hold the arm against gravity. When the arm is horizontal ($\theta = 0$), gravity torque is maximum and $\cos(0) = 1$. When the arm is vertical ($\theta = 90°$), gravity torque is zero and $\cos(90°) = 0$.
+The $k_G \cos(\theta)$ term represents the voltage needed to hold the arm against gravity. When the arm is horizontal ($\theta = 0$), gravity torque is maximum and $\cos(0) = 1$. When the arm is vertical ($\theta = 90^\circ$), gravity torque is zero and $\cos(90^\circ) = 0$.
 
 ```java
 ArmFeedforward ff = new ArmFeedforward(kS, kG, kV, kA, dt);
@@ -178,7 +178,7 @@ When `kA` is significant (>= 0.1), `ArmFeedforward.calculateWithVelocities()` us
 
 Instead, the solver uses RK4 integration with Newton's method and backtracking line search to find the voltage $u$ such that integrating the nonlinear arm dynamics for one timestep yields the target velocity:
 
-$$\frac{d\omega}{dt} = -\frac{k_V}{k_A} \omega + \frac{1}{k_A} \left( u - k_S \operatorname{sign}(\omega) - k_G \cos(\theta) \right)$$
+$$\frac{d\omega}{dt} = -\frac{k_V}{k_A} \omega + \frac{1}{k_A} \left( u - k_S \mathop{\text{sign}}(\omega) - k_G \cos(\theta) \right)$$
 
 This is the same physics model used in `ArmMotorSim` for simulation. The feedforward solver essentially runs the simulation in reverse: given the desired outcome, what voltage produces it?
 
@@ -196,7 +196,7 @@ At the horizontal position, gravity consumes $k_G$ volts, leaving less voltage f
 
 `ElevatorFeedforward` is similar to `SimpleMotorFeedforward` but adds a constant gravity term $k_G$:
 
-$$V = k_S \operatorname{sign}(v) + k_G + k_V v + k_A a$$
+$$V = k_S \mathop{\text{sign}}(v) + k_G + k_V v + k_A a$$
 
 Unlike an arm, an elevator's gravity load is constant regardless of position (assuming a vertical mechanism). The $k_G$ term is the voltage needed to hold the elevator stationary against gravity.
 
@@ -218,7 +218,7 @@ DifferentialDriveFeedforward ff = new DifferentialDriveFeedforward(
 
 Internally, it uses `LinearPlantInversionFeedforward` with a drivetrain linear system model. The plant inversion approach generalizes the kS/kV/kA concept to multi-input, multi-output systems:
 
-$$u_{ff} = B^{+}(r_{k+1} - A \, r_k)$$
+$$u_{ff} = B^{+}(r_{k+1} - A r_k)$$
 
 Where $B^{+}$ is the pseudoinverse of the $B$ matrix, $A$ is the discretized state transition matrix, and $r_k$ and $r_{k+1}$ are the current and next reference states.
 
@@ -347,7 +347,7 @@ $$v(t) = v_{ss} - (v_{ss} - v_0) \cdot e^{-t/\tau}$$
 
 Taking the natural log:
 
-$$\ln\!\left(1 - \frac{v(t)}{v_{ss}}\right) = -\frac{t}{\tau}$$
+$$\ln\left(1 - \frac{v(t)}{v_{ss}}\right) = -\frac{t}{\tau}$$
 
 Fit a line to $\ln(1 - v/v_{ss})$ versus time. The slope is $-1/\tau$. Then:
 

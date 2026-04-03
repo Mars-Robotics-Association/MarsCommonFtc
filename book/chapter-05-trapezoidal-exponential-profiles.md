@@ -255,7 +255,7 @@ $$v(t) = \left(v_0 + \frac{Bu}{A}\right) e^{At} - \frac{Bu}{A}$$
 
 The position is the integral of velocity:
 
-$$p(t) = p_0 + \frac{-Bu \, t + \left(v_0 + \frac{Bu}{A}\right)\left(e^{At} - 1\right)}{A}$$
+$$p(t) = p_0 + \frac{-Bu t + \left(v_0 + \frac{Bu}{A}\right)\left(e^{At} - 1\right)}{A}$$
 
 These are the exact solutions to the first-order ODE. No numerical integration is needed — the profile evaluates these closed-form expressions directly.
 
@@ -328,7 +328,7 @@ if (timeNeeded < timeAvailable) {
 
 For the exponential profile, the timing computation involves solving transcendental equations. The implementation uses logarithms to invert the exponential velocity equation:
 
-$$t = \frac{\ln\!\left(\frac{Av + Bu}{Av_0 + Bu}\right)}{A}$$
+$$t = \frac{\ln\left(\frac{Av + Bu}{Av_0 + Bu}\right)}{A}$$
 
 ## 5.8 Profile Limitations
 

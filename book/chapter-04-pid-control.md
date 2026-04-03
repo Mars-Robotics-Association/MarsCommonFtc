@@ -6,7 +6,7 @@ PID control is the most widely used feedback strategy in robotics. It is simple,
 
 The PID controller computes its output from three terms:
 
-$$u = k_P \, e + k_I \int e \, dt + k_D \frac{de}{dt}$$
+$$u = k_P e + k_I \int e\thinspace dt + k_D \frac{de}{dt}$$
 
 Each term addresses a different aspect of the control problem:
 

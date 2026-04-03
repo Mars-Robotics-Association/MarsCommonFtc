@@ -66,11 +66,11 @@ The seven phases are:
 
 Each phase is a cubic polynomial in time:
 
-$$p(t) = p_0 + v_0 t + \tfrac{1}{2} a_0 t^2 + \tfrac{1}{6} j \, t^3$$
+$$p(t) = p_0 + v_0 t + \tfrac{1}{2} a_0 t^2 + \tfrac{1}{6} j t^3$$
 
-$$v(t) = v_0 + a_0 t + \tfrac{1}{2} j \, t^2$$
+$$v(t) = v_0 + a_0 t + \tfrac{1}{2} j t^2$$
 
-$$a(t) = a_0 + j \, t$$
+$$a(t) = a_0 + j t$$
 
 The jerk is constant within each phase, so the acceleration is linear, the velocity is quadratic, and the position is cubic.
 
@@ -333,7 +333,7 @@ This handles disturbances: if the arm is pushed off the trajectory, the controll
 
 `SinCurvePosition` replaces the piecewise-linear acceleration ramps of `SCurvePosition` with **raised-cosine transitions**:
 
-$$a(t') = \frac{A}{2}\left(1 + s \cos\!\left(\frac{\pi \, t'}{T}\right)\right)$$
+$$a(t') = \frac{A}{2}\left(1 + s \cos\left(\frac{\pi t'}{T}\right)\right)$$
 
 Where $s = -1$ for acceleration onset ($0 \to a_{\max}$), $s = +1$ for acceleration offset ($a_{\max} \to 0$), and $s = 0$ for the constant phase.
 
@@ -345,7 +345,7 @@ The raised-cosine shape has two key properties:
 
 2. **Same duration as linear jerk** — The transition from 0 to $a_{\max}$ takes exactly $a_{\max}/j_{\max}$ seconds, matching the piecewise-linear S-curve. The only difference is the shape of the transition.
 
-The peak instantaneous jerk is $\pi \, j_{\max} / 2$, slightly higher than the linear-jerk $j_{\max}$, but the jerk is continuous — it ramps smoothly through zero at the phase boundaries.
+The peak instantaneous jerk is $\pi j_{\max} / 2$, slightly higher than the linear-jerk $j_{\max}$, but the jerk is continuous — it ramps smoothly through zero at the phase boundaries.
 
 ### Smart Phase Merging
 
