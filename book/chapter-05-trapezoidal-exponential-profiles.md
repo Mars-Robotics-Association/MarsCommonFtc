@@ -50,9 +50,9 @@ Given a distance to travel, the profile computes three phases:
 
 The position during each phase is computed by integrating the velocity:
 
-- **Acceleration**: `p(t) = p0 + v0*t + 0.5*a*t^2`
-- **Cruise**: `p(t) = p_accel_end + v_max * (t - t_accel)`
-- **Deceleration**: `p(t) = p_goal - v_goal*(t_end - t) - 0.5*a*(t_end - t)^2`
+- **Acceleration**: $p(t) = p_0 + v_0 t + \tfrac{1}{2} a t^2$
+- **Cruise**: $p(t) = p_{\text{accel\_end}} + v_{\max}(t - t_{\text{accel}})$
+- **Deceleration**: $p(t) = p_{\text{goal}} - v_{\text{goal}}(t_{\text{end}} - t) - \tfrac{1}{2} a (t_{\text{end}} - t)^2$
 
 The deceleration phase is computed **backward from the goal**, ensuring the profile arrives at the exact target position with zero velocity.
 
@@ -60,9 +60,7 @@ The deceleration phase is computed **backward from the goal**, ensuring the prof
 
 When the distance is too short to reach `maxVelocity`, the profile becomes triangular — it accelerates for half the distance and immediately decelerates for the other half. The peak velocity is:
 
-```
-v_peak = sqrt(distance * maxAcceleration)
-```
+$$v_{\text{peak}} = \sqrt{d \cdot a_{\max}}$$
 
 The profile detects this case automatically. If the computed "full speed distance" is negative, there is no cruise phase, and the acceleration time is recalculated:
 
@@ -204,11 +202,9 @@ The trapezoidal profile assumes constant acceleration — a good approximation f
 
 The `ExponentialProfile` models this physics directly. Instead of constant acceleration, it uses the first-order system dynamics:
 
-```
-dv/dt = A * v + B * u
-```
+$$\frac{dv}{dt} = Av + Bu$$
 
-Where `A = -kV/kA` (the back-EMF damping term), `B = 1/kA` (the input gain), and `u` is the input voltage (either `+maxInput` or `-maxInput`).
+Where $A = -k_V/k_A$ (the back-EMF damping term), $B = 1/k_A$ (the input gain), and $u$ is the input voltage (either $+u_{\max}$ or $-u_{\max}$).
 
 ### Constraints
 
@@ -222,15 +218,15 @@ ExponentialProfile.Constraints constraints = ExponentialProfile.Constraints.from
     kA          // acceleration constant (V per unit acceleration)
 );
 
-// Or directly from state-space matrices
+// Or directly from state-space coefficients
 ExponentialProfile.Constraints constraints = ExponentialProfile.Constraints.fromStateSpace(
     maxInput,   // maximum voltage
-    A,          // 1x1 state matrix
-    B           // 1x1 input matrix
+    A,          // state coefficient (scalar: -kV/kA)
+    B           // input coefficient (scalar: 1/kA)
 );
 ```
 
-The `fromCharacteristics` factory method computes `A = -kV/kA` and `B = 1/kA` from the familiar feedforward constants.
+The `fromCharacteristics` factory method computes $A = -k_V/k_A$ and $B = 1/k_A$ from the familiar feedforward constants.
 
 ### The Optimal Control Law
 
@@ -253,17 +249,13 @@ The inflection point is the velocity at which the input must switch sign to reac
 
 ### Analytical Solution
 
-The velocity under constant input `u` follows an exponential approach to steady-state:
+The velocity under constant input $u$ follows an exponential approach to steady-state:
 
-```
-v(t) = (v0 + B*u/A) * exp(A*t) - B*u/A
-```
+$$v(t) = \left(v_0 + \frac{Bu}{A}\right) e^{At} - \frac{Bu}{A}$$
 
 The position is the integral of velocity:
 
-```
-p(t) = p0 + (-B*u*t + (v0 + B*u/A) * (exp(A*t) - 1)) / A
-```
+$$p(t) = p_0 + \frac{-Bu \, t + \left(v_0 + \frac{Bu}{A}\right)\left(e^{At} - 1\right)}{A}$$
 
 These are the exact solutions to the first-order ODE. No numerical integration is needed — the profile evaluates these closed-form expressions directly.
 
@@ -271,9 +263,7 @@ These are the exact solutions to the first-order ODE. No numerical integration i
 
 The maximum achievable velocity under constant input is the steady-state velocity:
 
-```
-v_ss = -maxInput * B / A = (maxInput - kS) / kV
-```
+$$v_{ss} = -\frac{u_{\max} \cdot B}{A} = \frac{u_{\max} - k_S}{k_V}$$
 
 This is the same back-EMF ceiling from Chapter 3. The exponential profile respects it naturally — the velocity asymptotically approaches `v_ss` but never exceeds it.
 
@@ -338,9 +328,7 @@ if (timeNeeded < timeAvailable) {
 
 For the exponential profile, the timing computation involves solving transcendental equations. The implementation uses logarithms to invert the exponential velocity equation:
 
-```
-t = ln((A*v + B*u) / (A*v0 + B*u)) / A
-```
+$$t = \frac{\ln\!\left(\frac{Av + Bu}{Av_0 + Bu}\right)}{A}$$
 
 ## 5.8 Profile Limitations
 

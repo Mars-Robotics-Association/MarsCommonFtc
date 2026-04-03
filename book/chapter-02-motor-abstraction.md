@@ -266,21 +266,15 @@ Battery voltage sags under load and declines as the match progresses. A power co
 
 A DC motor obeys:
 
-```
-V_applied = I * R + kE * ω
-```
+$$V_{\text{applied}} = IR + k_E \omega$$
 
-Where `V_applied` is the voltage applied to the motor terminals, `I` is current, `R` is winding resistance, `kE` is the back-EMF constant, and `ω` is angular velocity. The feedforward voltage needed to achieve a target velocity is:
+Where $V_{\text{applied}}$ is the voltage applied to the motor terminals, $I$ is current, $R$ is winding resistance, $k_E$ is the back-EMF constant, and $\omega$ is angular velocity. The feedforward voltage needed to achieve a target velocity is:
 
-```
-V_ff = kS * sign(ω) + kV * ω + kA * α
-```
+$$V_{ff} = k_S \operatorname{sign}(\omega) + k_V \omega + k_A \alpha$$
 
-Where `kS` accounts for stiction, `kV` for back-EMF, and `kA` for acceleration. To convert this voltage to a power command:
+Where $k_S$ accounts for stiction, $k_V$ for back-EMF, and $k_A$ for acceleration. To convert this voltage to a power command:
 
-```
-power = V_ff / V_battery
-```
+$$\text{power} = \frac{V_{ff}}{V_{\text{battery}}}$$
 
 This simple division normalizes the command so that the same velocity target produces the correct terminal voltage regardless of battery state.
 
@@ -350,7 +344,7 @@ public void update() {
 `FlywheelSimple` includes a diagnostic that warns when the feedforward voltage approaches the available battery voltage:
 
 ```java
-public boolean isPowerTooLowForTargetTargetVelocity() {
+public boolean isPowerTooLowForTargetVelocity() {
     double ffFraction = Math.abs(ffVoltage) / hubVoltage;
     return ffFraction > 0.85;
 }

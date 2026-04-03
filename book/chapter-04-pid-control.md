@@ -6,9 +6,7 @@ PID control is the most widely used feedback strategy in robotics. It is simple,
 
 The PID controller computes its output from three terms:
 
-```
-output = kP * error + kI * integral(error) + kD * derivative(error)
-```
+$$u = k_P \, e + k_I \int e \, dt + k_D \frac{de}{dt}$$
 
 Each term addresses a different aspect of the control problem:
 
@@ -48,13 +46,11 @@ The proportional term is the simplest form of feedback: double the error, double
 
 A useful mental model is the **proportional band** — the error range that produces full output:
 
-```
-error_full = 1.0 / kP
-```
+$$e_{\text{full}} = \frac{1}{k_P}$$
 
-With kP = 0.010 V/TPS (the `FlywheelSimple` default), an error of 100 TPS produces 1.0 V of feedback. At full battery (12.5 V), the proportional band is 1250 TPS — errors larger than this are saturated.
+With $k_P$ = 0.010 V/TPS (the `FlywheelSimple` default), an error of 100 TPS produces 1.0 V of feedback. At full battery (12.5 V), the proportional band is 1250 TPS — errors larger than this are saturated.
 
-For `ArmController` with kP = 15 V/rad, the proportional band is 1/15 = 0.067 rad = 3.8 degrees. An error larger than 3.8 degrees commands more than 12 V of output.
+For `ArmController` with $k_P$ = 15 V/rad, the proportional band is $1/15$ = 0.067 rad = 3.8 degrees. An error larger than 3.8 degrees commands more than 12 V of output.
 
 ### When kP Is Too Low
 
@@ -70,11 +66,9 @@ The derivative term damps oscillation by reacting to the *rate of change* of err
 
 The derivative of error is:
 
-```
-d(error)/dt = (error_current - error_previous) / dt
-```
+$$\frac{de}{dt} = \frac{e_k - e_{k-1}}{\Delta t}$$
 
-With kD = 1.0 V/(rad/s) and a velocity error changing at 10 rad/s per cycle, the derivative output is 10 V — a strong damping force.
+With $k_D$ = 1.0 V/(rad/s) and a velocity error changing at 10 rad/s per cycle, the derivative output is 10 V — a strong damping force.
 
 ### Derivative on Measurement vs. Derivative on Error
 
@@ -270,7 +264,7 @@ double kPEffective = kP * Math.max(0, 1.0 - Math.abs(acceleration) / accelMax);
 fb_voltage = MathUtil.clamp(fb_voltage, -fbMax * hubVoltage, fbMax * hubVoltage);
 ```
 
-This ensures feedback never overwhelms feedforward. `PIDController` has no built-in output clamping that is aware of battery voltage.
+This ensures feedback never overwhelms feedforward. While `PIDController` has integral clamping, it has no built-in output clamping that is aware of battery voltage — the kind needed here to scale the feedback ceiling dynamically.
 
 These are not criticisms of `PIDController` — it is a well-designed class that works perfectly for many applications. The point is that MarsCommonFtc's mechanism controllers have specific requirements that are better served by manual feedback implementation.
 

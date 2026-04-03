@@ -30,41 +30,33 @@ In practice, no model is perfect. Feedforward gets you 90% of the way there, and
 
 A DC motor obeys a simple voltage balance at every instant:
 
-```
-V_applied = V_friction + V_back-EMF + V_acceleration
-```
+$$V_{\text{applied}} = V_{\text{friction}} + V_{\text{back-EMF}} + V_{\text{acceleration}}$$
 
 Each term has a physical meaning:
 
-**V_friction (kS)** — The voltage needed to overcome static friction and stiction in the motor bearings, gear train, and mechanism. This is a constant offset that must be exceeded before the motor moves at all. Typical values range from 0.3 V to 1.5 V depending on the mechanism.
+**$V_{\text{friction}}$ ($k_S$)** — The voltage needed to overcome static friction and stiction in the motor bearings, gear train, and mechanism. This is a constant offset that must be exceeded before the motor moves at all. Typical values range from 0.3 V to 1.5 V depending on the mechanism.
 
-**V_back-EMF (kV * v)** — The voltage consumed by the back-EMF effect. As the motor spins, the rotating magnets generate a voltage that opposes the applied voltage. This term grows linearly with velocity. The constant `kV` (volts per unit velocity) is determined by the motor's magnetic strength and gear ratio.
+**$V_{\text{back-EMF}}$ ($k_V \cdot v$)** — The voltage consumed by the back-EMF effect. As the motor spins, the rotating magnets generate a voltage that opposes the applied voltage. This term grows linearly with velocity. The constant $k_V$ (volts per unit velocity) is determined by the motor's magnetic strength and gear ratio.
 
-**V_acceleration (kA * a)** — The voltage needed to accelerate the rotating mass. This term is proportional to acceleration. The constant `kA` (volts per unit acceleration) is determined by the total inertia of the motor, gears, and mechanism.
+**$V_{\text{acceleration}}$ ($k_A \cdot a$)** — The voltage needed to accelerate the rotating mass. This term is proportional to acceleration. The constant $k_A$ (volts per unit acceleration) is determined by the total inertia of the motor, gears, and mechanism.
 
 Written as a single equation:
 
-```
-V = kS * sign(v) + kV * v + kA * a
-```
+$$V = k_S \operatorname{sign}(v) + k_V v + k_A a$$
 
-The `sign(v)` term ensures that friction always opposes motion, regardless of direction.
+The $\operatorname{sign}(v)$ term ensures that friction always opposes motion, regardless of direction.
 
 ## 3.3 Back-EMF: The Velocity Ceiling
 
-Back-EMF is the reason a motor cannot spin infinitely fast. As velocity increases, the back-EMF term `kV * v` grows, consuming more and more of the available voltage. Eventually, all voltage is consumed by friction and back-EMF, leaving nothing for acceleration:
+Back-EMF is the reason a motor cannot spin infinitely fast. As velocity increases, the back-EMF term $k_V v$ grows, consuming more and more of the available voltage. Eventually, all voltage is consumed by friction and back-EMF, leaving nothing for acceleration:
 
-```
-V_battery = kS + kV * v_max
-```
+$$V_{\text{battery}} = k_S + k_V \cdot v_{\max}$$
 
 Solving for the maximum velocity:
 
-```
-v_max = (V_battery - kS) / kV
-```
+$$v_{\max} = \frac{V_{\text{battery}} - k_S}{k_V}$$
 
-This is the **absolute ceiling** — no controller, no amount of gain tuning, no algorithm can make the motor exceed this velocity at the given battery voltage. With a 12.5 V battery, kS = 0.89 V, and kV = 12.5/2632.1 V/TPS:
+This is the **absolute ceiling** — no controller, no amount of gain tuning, no algorithm can make the motor exceed this velocity at the given battery voltage. With a 12.5 V battery, $k_S$ = 0.89 V, and $k_V$ = 12.5/2632.1 V/TPS:
 
 ```
 v_max = (12.5 - 0.89) / (12.5/2632.1) = 2442 TPS
@@ -80,23 +72,17 @@ This is why battery voltage compensation matters. Without it, the same power com
 
 ### The Time Constant
 
-The ratio `kA/kV` is the **time constant** of the motor system — the time it takes for velocity to reach approximately 63% of its steady-state value under full voltage. For a typical goBILDA 5000-series flywheel:
+The ratio $k_A / k_V$ is the **time constant** of the motor system — the time it takes for velocity to reach approximately 63% of its steady-state value under full voltage. For a typical goBILDA 5000-series flywheel:
 
-```
-tau = kA / kV = (12.5/2087.9) / (12.5/2632.1) = 1.26 seconds
-```
+$$\tau = \frac{k_A}{k_V} = \frac{12.5/2087.9}{12.5/2632.1} = 1.26 \text{ seconds}$$
 
 This means the flywheel reaches 63% of its target velocity in about 1.26 seconds under full voltage. The full analytical solution for velocity over time is:
 
-```
-v(t) = v_ss - (v_ss - v_0) * exp(-(kV/kA) * t)
-```
+$$v(t) = v_{ss} - (v_{ss} - v_0) \cdot e^{-(k_V/k_A) \, t}$$
 
-Where `v_ss` is the steady-state velocity and `v_0` is the initial velocity. The acceleration decays exponentially:
+Where $v_{ss}$ is the steady-state velocity and $v_0$ is the initial velocity. The acceleration decays exponentially:
 
-```
-a(t) = a_0 * exp(-(kV/kA) * t)
-```
+$$a(t) = a_0 \cdot e^{-(k_V/k_A) \, t}$$
 
 This exponential behavior is not a limitation of the controller — it is the physics of the motor itself. No amount of tuning can make a first-order system respond faster than its time constant allows.
 
@@ -146,6 +132,8 @@ public double calculateWithVelocities(double currentVelocity, double nextVelocit
 
 The discrete formulation is more accurate because it respects the system's dynamics over the timestep. It answers the question: "what constant voltage, applied for `dt` seconds, will take the motor from `currentVelocity` to `nextVelocity`?"
 
+Note that the output is clamped to ±12.0 V — a hard-coded nominal voltage. In practice, controllers that use this method divide by the live battery voltage when converting to a power command (see Section 3.8), so the hard-coded clamp serves as a safety bound rather than the compensation mechanism.
+
 ### Achievable Velocity and Acceleration
 
 `SimpleMotorFeedforward` provides methods to compute the physical limits of the system:
@@ -175,11 +163,9 @@ These numbers come from empirical characterization: the motor was tested at vari
 
 `ArmFeedforward` extends the model to account for gravity. An arm mechanism has an additional voltage term that depends on the arm's angle:
 
-```
-V = kS * sign(v) + kG * cos(angle) + kV * v + kA * a
-```
+$$V = k_S \operatorname{sign}(v) + k_G \cos(\theta) + k_V v + k_A a$$
 
-The `kG * cos(angle)` term represents the voltage needed to hold the arm against gravity. When the arm is horizontal (angle = 0), gravity torque is maximum and `cos(0) = 1`. When the arm is vertical (angle = 90 degrees), gravity torque is zero and `cos(90) = 0`.
+The $k_G \cos(\theta)$ term represents the voltage needed to hold the arm against gravity. When the arm is horizontal ($\theta = 0$), gravity torque is maximum and $\cos(0) = 1$. When the arm is vertical ($\theta = 90°$), gravity torque is zero and $\cos(90°) = 0$.
 
 ```java
 ArmFeedforward ff = new ArmFeedforward(kS, kG, kV, kA, dt);
@@ -190,11 +176,9 @@ double voltage = ff.calculate(angle, velocity, acceleration);
 
 When `kA` is significant (>= 0.1), `ArmFeedforward.calculateWithVelocities()` uses a sophisticated iterative solver. The arm dynamics are nonlinear due to the `cos(angle)` gravity term, so the matrix exponential approach used by `SimpleMotorFeedforward` does not apply directly.
 
-Instead, the solver uses RK4 integration with Newton's method and backtracking line search to find the voltage `u` such that integrating the nonlinear arm dynamics for one timestep yields the target velocity:
+Instead, the solver uses RK4 integration with Newton's method and backtracking line search to find the voltage $u$ such that integrating the nonlinear arm dynamics for one timestep yields the target velocity:
 
-```
-d(omega)/dt = -(kV/kA) * omega + (1/kA) * (u - kS * sign(omega) - kG * cos(theta))
-```
+$$\frac{d\omega}{dt} = -\frac{k_V}{k_A} \omega + \frac{1}{k_A} \left( u - k_S \operatorname{sign}(\omega) - k_G \cos(\theta) \right)$$
 
 This is the same physics model used in `ArmMotorSim` for simulation. The feedforward solver essentially runs the simulation in reverse: given the desired outcome, what voltage produces it?
 
@@ -206,17 +190,15 @@ The `maxAchievableVelocity()` and `maxAchievableAcceleration()` methods account 
 double maxVel = ff.maxAchievableVelocity(batteryVoltage, angle);
 ```
 
-At the horizontal position, gravity consumes `kG` volts, leaving less voltage for motion. At the vertical position, gravity is zero and the full voltage budget is available. This is why arm trajectory limits must be angle-dependent — the same velocity that is achievable at the top of the arc may be impossible at the bottom.
+At the horizontal position, gravity consumes $k_G$ volts, leaving less voltage for motion. At the vertical position, gravity is zero and the full voltage budget is available. This is why arm trajectory limits must be angle-dependent — the same velocity that is achievable at the top of the arc may be impossible at the bottom.
 
 ## 3.6 ElevatorFeedforward
 
-`ElevatorFeedforward` is similar to `SimpleMotorFeedforward` but adds a constant gravity term `kG`:
+`ElevatorFeedforward` is similar to `SimpleMotorFeedforward` but adds a constant gravity term $k_G$:
 
-```
-V = kS * sign(v) + kG + kV * v + kA * a
-```
+$$V = k_S \operatorname{sign}(v) + k_G + k_V v + k_A a$$
 
-Unlike an arm, an elevator's gravity load is constant regardless of position (assuming a vertical mechanism). The `kG` term is the voltage needed to hold the elevator stationary against gravity.
+Unlike an arm, an elevator's gravity load is constant regardless of position (assuming a vertical mechanism). The $k_G$ term is the voltage needed to hold the elevator stationary against gravity.
 
 ```java
 ElevatorFeedforward ff = new ElevatorFeedforward(kS, kG, kV, kA, dt);
@@ -236,11 +218,9 @@ DifferentialDriveFeedforward ff = new DifferentialDriveFeedforward(
 
 Internally, it uses `LinearPlantInversionFeedforward` with a drivetrain linear system model. The plant inversion approach generalizes the kS/kV/kA concept to multi-input, multi-output systems:
 
-```
-u_ff = B^+ * (r_{k+1} - A * r_k)
-```
+$$u_{ff} = B^{+}(r_{k+1} - A \, r_k)$$
 
-Where `B^+` is the pseudoinverse of the B matrix, `A` is the discretized state transition matrix, and `r_k` and `r_{k+1}` are the current and next reference states.
+Where $B^{+}$ is the pseudoinverse of the $B$ matrix, $A$ is the discretized state transition matrix, and $r_k$ and $r_{k+1}$ are the current and next reference states.
 
 ## 3.8 Feedforward in Controllers
 
@@ -293,7 +273,7 @@ At peak acceleration, `kPEffective` is zero — the controller runs on pure feed
 double predictedPosRad = position + velocity * latency;
 double predictedVelRad = velocity;
 
-// Feedforward uses predicted state for gravity
+// Feedforward: position from measurement prediction, velocity from trajectory
 double nextVel = trajVel + trajAccel * dt;
 double ffVoltage = feedforward.calculate(predictedPosRad, trajVel, nextVel, dt);
 
@@ -306,7 +286,7 @@ double totalVoltage = ffVoltage + pdVoltage;
 lastPower = MathUtil.clamp(totalVoltage / hubVoltage, -1.0, 1.0);
 ```
 
-Using the predicted position for gravity compensation is essential. If the arm is lagging behind the trajectory (due to latency or disturbance), the trajectory position overestimates the arm's actual angle. Computing gravity at the trajectory position would apply the wrong compensation voltage, causing the arm to sag or overshoot.
+Notice the mixed sources in the feedforward call: the position (`predictedPosRad`) comes from measurement prediction for accurate gravity compensation, while the velocity (`trajVel`, `nextVel`) comes from the trajectory for smooth dynamics. Using the predicted position for gravity compensation is essential. If the arm is lagging behind the trajectory (due to latency or disturbance), the trajectory position overestimates the arm's actual angle. Computing gravity at the trajectory position would apply the wrong compensation voltage, causing the arm to sag or overshoot.
 
 Additionally, the Kalman filter input is gravity-corrected:
 
@@ -345,51 +325,39 @@ The feedforward model is only as good as its gains. Finding kS, kV, kA, and kG r
 
 ### The kS Test (Stiction)
 
-Ramp power slowly from zero until the mechanism moves. The power at which motion begins, multiplied by battery voltage, is kS:
+Ramp power slowly from zero until the mechanism moves. The power at which motion begins, multiplied by battery voltage, is $k_S$:
 
-```
-kS = power_at_motion_start * battery_voltage
-```
+$$k_S = \text{power}_{\text{start}} \times V_{\text{battery}}$$
 
-For a typical goBILDA 5000-series motor, kS ranges from 0.3 V (well-lubricated flywheel) to 1.5 V (heavy arm with high friction).
+For a typical goBILDA 5000-series motor, $k_S$ ranges from 0.3 V (well-lubricated flywheel) to 1.5 V (heavy arm with high friction).
 
 ### The kV Test (Steady-State Velocity)
 
 Apply a known power level, wait for the mechanism to reach steady state, and measure the velocity:
 
-```
-kV = (power * battery_voltage - kS) / steady_state_velocity
-```
+$$k_V = \frac{\text{power} \times V_{\text{battery}} - k_S}{v_{ss}}$$
 
-Repeat at several power levels and fit a line. The slope is kV.
+Repeat at several power levels and fit a line. The slope is $k_V$.
 
 ### The kA Test (Step Response)
 
 Apply a step power command and measure the velocity over time. The velocity follows an exponential approach:
 
-```
-v(t) = v_ss - (v_ss - v_0) * exp(-t / tau)
-```
+$$v(t) = v_{ss} - (v_{ss} - v_0) \cdot e^{-t/\tau}$$
 
 Taking the natural log:
 
-```
-ln(1 - v(t)/v_ss) = -t / tau
-```
+$$\ln\!\left(1 - \frac{v(t)}{v_{ss}}\right) = -\frac{t}{\tau}$$
 
-Fit a line to `ln(1 - v/v_ss)` versus time. The slope is `-1/tau`. Then:
+Fit a line to $\ln(1 - v/v_{ss})$ versus time. The slope is $-1/\tau$. Then:
 
-```
-kA = tau * kV
-```
+$$k_A = \tau \cdot k_V$$
 
 ### The kG Test (Gravity)
 
 For an arm or elevator, find the power needed to hold the mechanism stationary against gravity:
 
-```
-kG = hold_power * battery_voltage
-```
+$$k_G = \text{power}_{\text{hold}} \times V_{\text{battery}}$$
 
 For an arm, measure at the horizontal position (maximum gravity torque). For an elevator, any position works since gravity is constant.
 
@@ -410,19 +378,13 @@ The feedforward gains are unit-dependent. MarsCommonFtc uses two different veloc
 
 **TPS (ticks per second)** — Used by flywheel controllers. The encoder ticks per revolution depend on the motor and gear ratio. For a goBILDA 5000-series motor with 1120 CPR at the output shaft:
 
-```
-kV = 12.5 / 2632.1  V/TPS    // 2632.1 TPS at 12.5 V
-kA = 12.5 / 2087.9  V/TPS^2  // reaches 2087.9 TPS/s under 12.5 V
-```
+$$k_V = \frac{12.5}{2632.1} \text{ V/TPS} \qquad k_A = \frac{12.5}{2087.9} \text{ V/TPS}^2$$
 
 **rad/s (radians per second)** — Used by arm controllers. This is the output shaft angular velocity in SI units:
 
-```
-kV = 12.5 * 28 / (2632.1 * 2 * pi)  V*s/rad  // converted from TPS
-kA = 12.5 * 28 / (2087.9 * 2 * pi)  V*s^2/rad
-```
+$$k_V = \frac{12.5 \times 28}{2632.1 \times 2\pi} \text{ V·s/rad} \qquad k_A = \frac{12.5 \times 28}{2087.9 \times 2\pi} \text{ V·s}^2\text{/rad}$$
 
-The conversion factor is `gear_ratio / (2 * pi * CPR)`. Mixing units is a common source of bugs. Always verify that your gains match the units your controller expects.
+The conversion factor is $\frac{\text{gear\_ratio}}{2\pi \cdot \text{CPR}}$. Mixing units is a common source of bugs. Always verify that your gains match the units your controller expects.
 
 ## 3.11 When Feedforward Is Not Enough
 

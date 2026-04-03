@@ -205,7 +205,7 @@ import org.marsroboticsassociation.controllib.util.LUT;
 The package structure mirrors the module structure:
 
 - `org.marsroboticsassociation.controllib.*` — classes from ControlLib
-- `org.marsroboticsassociation.wpmath.*` — classes from WpiMath
+- `org.marsroboticsassociation.wpimath.*` — classes from WpiMath
 - `org.marsroboticsassociation.controllib.sim.*` — simulation classes
 - `org.marsroboticsassociation.controllib.filter.*` — signal filters
 - `org.marsroboticsassociation.controllib.localization.*` — pose estimation

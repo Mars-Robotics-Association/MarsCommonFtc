@@ -66,11 +66,11 @@ The seven phases are:
 
 Each phase is a cubic polynomial in time:
 
-```
-p(t) = p_start + v_start*t + 0.5*a_start*t^2 + (1/6)*j*t^3
-v(t) = v_start + a_start*t + 0.5*j*t^2
-a(t) = a_start + j*t
-```
+$$p(t) = p_0 + v_0 t + \tfrac{1}{2} a_0 t^2 + \tfrac{1}{6} j \, t^3$$
+
+$$v(t) = v_0 + a_0 t + \tfrac{1}{2} j \, t^2$$
+
+$$a(t) = a_0 + j \, t$$
 
 The jerk is constant within each phase, so the acceleration is linear, the velocity is quadratic, and the position is cubic.
 
@@ -78,12 +78,7 @@ The jerk is constant within each phase, so the acceleration is linear, the veloc
 
 The durations of T1, T3, T5, and T7 are determined by the jerk and acceleration limits:
 
-```
-T1 = aMaxAccel / jMax
-T3 = aMaxAccel / jMax
-T5 = aMaxDecel / jMax
-T7 = aMaxDecel / jMax
-```
+$$T_1 = T_3 = \frac{a_{\max,\text{accel}}}{j_{\max}} \qquad T_5 = T_7 = \frac{a_{\max,\text{decel}}}{j_{\max}}$$
 
 The durations of T2, T4, and T6 depend on the total distance. If the distance is short, T2, T4, and T6 may be zero — the profile becomes purely triangular in acceleration and velocity.
 
@@ -126,7 +121,7 @@ There is an important optimization: if the initial acceleration is already point
 
 ```java
 if (vStart * dir < 0 && a0 * dir >= 0) {
-    // a0 is helping to brake — skip the a0 prefix
+    // Velocity is away from target but a0 is already decelerating it — preserve a0
     aStart = a0;
 }
 ```
@@ -162,17 +157,11 @@ new SCurvePosition(
 
 The phase durations reflect the asymmetry:
 
-```
-T1 = aMaxAccel / jMax     T5 = aMaxDecel / jMax
-T3 = aMaxAccel / jMax     T7 = aMaxDecel / jMax
-```
+$$T_1 = T_3 = \frac{a_{\max,\text{accel}}}{j_{\max}} \qquad T_5 = T_7 = \frac{a_{\max,\text{decel}}}{j_{\max}}$$
 
 The triangular threshold also differs for acceleration and deceleration:
 
-```
-vAccelMin = aMaxAccel^2 / jMax    // minimum velocity change for trapezoidal accel
-vDecelMin = aMaxDecel^2 / jMax    // minimum velocity change for trapezoidal decel
-```
+$$\Delta v_{\text{accel,min}} = \frac{a_{\max,\text{accel}}^2}{j_{\max}} \qquad \Delta v_{\text{decel,min}} = \frac{a_{\max,\text{decel}}^2}{j_{\max}}$$
 
 If the velocity change during acceleration is less than `vAccelMin`, the acceleration phase is triangular (no constant-acceleration segment). Similarly for deceleration.
 
@@ -188,13 +177,9 @@ The structure is simpler — only three phases:
 | T2 | 0 | constant `aPeak` | Hold acceleration |
 | T3 | `-jDec` | `aPeak` → 0 | Ramp acceleration to zero |
 
-The profile transitions from velocity `v0` to velocity `v1` with bounded jerk. The peak acceleration `aPeak` is computed from the velocity change and jerk limits:
+The profile transitions from velocity `v0` to velocity `v1` with bounded jerk. The peak acceleration $a_{\text{peak}}$ is computed from the velocity change and jerk limits. For a triangular profile (no constant-acceleration phase):
 
-```
-// For triangular profile (no constant-acceleration phase):
-// dv = (aPeak^2 - a0^2) / (2*jInc) + aPeak^2 / (2*jDec)
-// => aPeak^2 = (2*dv + a0^2/jInc) / (1/jInc + 1/jDec)
-```
+$$\Delta v = \frac{a_{\text{peak}}^2 - a_0^2}{2 j_{\text{inc}}} + \frac{a_{\text{peak}}^2}{2 j_{\text{dec}}} \quad \Rightarrow \quad a_{\text{peak}}^2 = \frac{2 \Delta v + a_0^2 / j_{\text{inc}}}{1/j_{\text{inc}} + 1/j_{\text{dec}}}$$
 
 `SCurveVelocity` supports asymmetric jerk: `jInc` for increasing acceleration and `jDec` for decreasing. This matters because the back-EMF constraint is asymmetric — accelerating into high velocity is more voltage-constrained than decelerating.
 
@@ -328,7 +313,7 @@ currentTrajectory = factory.create(
     vMax, aMaxAccel, aMaxDecel, jMax);
 ```
 
-The new trajectory starts from the current position, velocity, and acceleration, ensuring **C2 continuity** (position, velocity, and acceleration are continuous). Jerk is discontinuous at the replan boundary — this is an inherent limitation of the piecewise-linear S-curve.
+The new trajectory starts from the current position, velocity, and acceleration, ensuring **C2 continuity** (position, velocity, and acceleration are continuous; jerk is not). The jerk discontinuity at the replan boundary is an inherent limitation of the piecewise-linear S-curve.
 
 ### Replan on Tracking Error
 
@@ -348,11 +333,9 @@ This handles disturbances: if the arm is pushed off the trajectory, the controll
 
 `SinCurvePosition` replaces the piecewise-linear acceleration ramps of `SCurvePosition` with **raised-cosine transitions**:
 
-```
-a(t') = ampl/2 * (1 + sign * cos(pi * t' / T))
-```
+$$a(t') = \frac{A}{2}\left(1 + s \cos\!\left(\frac{\pi \, t'}{T}\right)\right)$$
 
-Where `sign = -1` for acceleration onset (0 → aMax), `sign = +1` for acceleration offset (aMax → 0), and `sign = 0` for the constant phase.
+Where $s = -1$ for acceleration onset ($0 \to a_{\max}$), $s = +1$ for acceleration offset ($a_{\max} \to 0$), and $s = 0$ for the constant phase.
 
 ### Why Sinusoidal?
 
@@ -360,9 +343,9 @@ The raised-cosine shape has two key properties:
 
 1. **Smooth acceleration at phase boundaries** — The derivative of acceleration (jerk) is zero at the start and end of each transition. There are no jerk discontinuities anywhere in the profile.
 
-2. **Same duration as linear jerk** — The transition from 0 to `aMax` takes exactly `aMax/jMax` seconds, matching the piecewise-linear S-curve. The only difference is the shape of the transition.
+2. **Same duration as linear jerk** — The transition from 0 to $a_{\max}$ takes exactly $a_{\max}/j_{\max}$ seconds, matching the piecewise-linear S-curve. The only difference is the shape of the transition.
 
-The peak instantaneous jerk is `pi * jMax / 2`, slightly higher than the linear-jerk `jMax`, but the jerk is continuous — it ramps smoothly through zero at the phase boundaries.
+The peak instantaneous jerk is $\pi \, j_{\max} / 2$, slightly higher than the linear-jerk $j_{\max}$, but the jerk is continuous — it ramps smoothly through zero at the phase boundaries.
 
 ### Smart Phase Merging
 
@@ -378,10 +361,7 @@ The peak instantaneous jerk is `pi * jMax / 2`, slightly higher than the linear-
 
 The raised-cosine acceleration shape requires different integral constants than the linear-jerk case:
 
-```java
-static final double C_ONSET = (pi^2 - 4) / (4 * pi^2);   // ~0.1487
-static final double C_OFFSET = (pi^2 + 4) / (4 * pi^2);  // ~0.3513
-```
+$$C_{\text{onset}} = \frac{\pi^2 - 4}{4\pi^2} \approx 0.1487 \qquad C_{\text{offset}} = \frac{\pi^2 + 4}{4\pi^2} \approx 0.3513$$
 
 These constants appear in the distance calculation for each phase. The general arc evaluation (`evalPgen`, `evalVgen`, `evalAgen`) handles arbitrary `aStart → aEnd` transitions, not just 0 to `aMax`.
 
