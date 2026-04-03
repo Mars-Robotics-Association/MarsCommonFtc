@@ -6,19 +6,19 @@
 
 ## Part I: Foundations
 
-### Chapter 1: Getting Started with FTC Java Development
+### [Chapter 1: Getting Started with FTC Java Development](chapter-01-getting-started.md)
 - Project structure and module organization
 - Git submodules for shared code
 - Gradle setup and build workflow
 - The MarsCommonFtc architecture
 
-### Chapter 2: Motor Abstraction & Hardware Interfaces
+### [Chapter 2: Motor Abstraction & Hardware Interfaces](chapter-02-motor-abstraction.md)
 - The `IMotor` hardware-agnostic interface
 - `FtcMotors` constants and motor characterization
 - Quantized power updates to reduce command noise
 - Battery voltage compensation
 
-### Chapter 3: Feedforward Control Theory
+### [Chapter 3: Feedforward Control Theory](chapter-03-feedforward-control.md)
 - The kS/kV/kA model
 - Back-EMF physics and the voltage balance equation
 - `SimpleMotorFeedforward` for velocity systems
@@ -26,7 +26,7 @@
 - `ElevatorFeedforward` for constant-gravity mechanisms
 - Characterizing your mechanism to find feedforward gains
 
-### Chapter 4: PID Control
+### [Chapter 4: PID Control](chapter-04-pid-control.md)
 - How `PIDController` works
 - Tuning kP, kI, and kD
 - Continuous input for rotational mechanisms
@@ -37,12 +37,12 @@
 
 ## Part II: Motion Profiling
 
-### Chapter 5: Trapezoidal & Exponential Profiles
+### [Chapter 5: Trapezoidal & Exponential Profiles](chapter-05-trapezoidal-exponential-profiles.md)
 - `TrapezoidProfile` — constant acceleration motion
 - `ExponentialProfile` — first-order system response
 - When to use each profile type
 
-### Chapter 6: S-Curve Jerk-Limited Trajectories
+### [Chapter 6: S-Curve Jerk-Limited Trajectories](chapter-06-s-curve-trajectories.md)
 - Why jerk matters for mechanism longevity
 - `SCurvePosition` — 7-segment position profiles
 - Asymmetric acceleration and deceleration limits
