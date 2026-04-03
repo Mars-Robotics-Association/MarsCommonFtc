@@ -25,33 +25,6 @@ MarsCommonFtc provides both linear-jerk and sinusoidal S-curve profiles.
 
 The piecewise-linear S-curve (`SCurvePosition`) divides the move into seven phases, each with constant jerk:
 
-```
-acceleration
-  ^
-  |     T2 (constant a)
-  |    ┌──────────┐
-  |   /            \
-  |  / T1           \ T3
-  | /  (ramp up)     \ (ramp down)
-  |/                  \
-  +────────────────────\──────────────> time
-                        \            /
-                         \ T5       / T7
-                          \ (ramp) / (ramp)
-                           \      /
-                            \────/
-                            T6 (constant -a)
-
-velocity
-  ^
-  |         /──────────────\
-  |        /                \
-  |       /                  \
-  |      /                    \
-  |     /                      \
-  +----/                        \---> time
-```
-
 The seven phases are:
 
 | Phase | Jerk | Acceleration | Description |
@@ -63,6 +36,8 @@ The seven phases are:
 | T5 | `-jMax` | 0 → `-aMaxDecel` | Ramp up deceleration |
 | T6 | 0 | constant `-aMaxDecel` | Hold maximum deceleration |
 | T7 | `+jMax` | `-aMaxDecel` → 0 | Ramp down deceleration to stop |
+
+![S-curve position profile showing position, velocity, and acceleration vs. time](scurve-position-profile.svg)
 
 Each phase is a cubic polynomial in time:
 
@@ -168,6 +143,8 @@ If the velocity change during acceleration is less than `vAccelMin`, the acceler
 ## 6.5 SCurveVelocity: Velocity-to-Velocity Profiles
 
 `SCurvePosition` generates position trajectories (p, v, a as functions of time). `SCurveVelocity` generates velocity trajectories (v, a as functions of time) for velocity-controlled mechanisms like flywheels.
+
+![S-curve velocity profile showing velocity and acceleration vs. time](scurve-velocity-profile.svg)
 
 The structure is simpler — only three phases:
 
@@ -332,6 +309,8 @@ This handles disturbances: if the arm is pushed off the trajectory, the controll
 ## 6.9 SinCurvePosition: Smooth Acceleration Transitions
 
 `SinCurvePosition` replaces the piecewise-linear acceleration ramps of `SCurvePosition` with **raised-cosine transitions**:
+
+![Sinusoidal S-curve position profile showing smooth acceleration transitions](sincurve-position-profile.svg)
 
 $$a(t') = \frac{A}{2}\left(1 + s \cos\left(\frac{\pi t'}{T}\right)\right)$$
 

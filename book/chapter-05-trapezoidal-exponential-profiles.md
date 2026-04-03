@@ -17,17 +17,7 @@ A motion profile eliminates this problem by generating a setpoint trajectory tha
 
 The trapezoidal profile is named for the shape of its velocity curve. When plotted against time, the velocity forms a trapezoid: a linear ramp up (acceleration), a flat top (cruise at max velocity), and a linear ramp down (deceleration).
 
-```
-velocity
-  ^
-  |        /────────────\
-  |       /              \
-  |      /                \
-  |     /                  \
-  +----/                    \-----> time
-       ^                    ^
-    accel start          decel end
-```
+![Trapezoidal velocity profile showing position, velocity, and acceleration vs. time](trapezoidal-profile.svg)
 
 The profile is defined by two constraints:
 

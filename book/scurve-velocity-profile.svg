@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+  <rect width="100%" height="100%" fill="white"/>
+  <text x="450" y="24" text-anchor="middle" font-family="sans-serif" font-size="18">Trajectory</text>
+  <g font-family="sans-serif" font-size="11" fill="#444" stroke="#d0d0d0" stroke-width="1">
+    <rect x="72" y="40" width="804" height="506" fill="none" stroke="#bdbdbd"/>
+    <line x1="72" y1="40" x2="72" y2="546"/>
+    <text x="72" y="582" text-anchor="middle" stroke="none">0</text>
+    <line x1="232.8" y1="40" x2="232.8" y2="546"/>
+    <text x="232.8" y="582" text-anchor="middle" stroke="none">4.05</text>
+    <line x1="393.6" y1="40" x2="393.6" y2="546"/>
+    <text x="393.6" y="582" text-anchor="middle" stroke="none">8.1</text>
+    <line x1="554.4" y1="40" x2="554.4" y2="546"/>
+    <text x="554.4" y="582" text-anchor="middle" stroke="none">12.15</text>
+    <line x1="715.2" y1="40" x2="715.2" y2="546"/>
+    <text x="715.2" y="582" text-anchor="middle" stroke="none">16.2</text>
+    <line x1="876" y1="40" x2="876" y2="546"/>
+    <text x="876" y="582" text-anchor="middle" stroke="none">20.25</text>
+    <line x1="72" y1="546" x2="876" y2="546"/>
+    <text x="64" y="550" text-anchor="end" stroke="none">-80</text>
+    <line x1="72" y1="444.8" x2="876" y2="444.8"/>
+    <text x="64" y="448.8" text-anchor="end" stroke="none">152</text>
+    <line x1="72" y1="343.6" x2="876" y2="343.6"/>
+    <text x="64" y="347.6" text-anchor="end" stroke="none">384</text>
+    <line x1="72" y1="242.4" x2="876" y2="242.4"/>
+    <text x="64" y="246.4" text-anchor="end" stroke="none">616</text>
+    <line x1="72" y1="141.2" x2="876" y2="141.2"/>
+    <text x="64" y="145.2" text-anchor="end" stroke="none">848</text>
+    <line x1="72" y1="40" x2="876" y2="40"/>
+    <text x="64" y="44" text-anchor="end" stroke="none">1080</text>
+  </g>
+  <text x="474.0" y="596" text-anchor="middle" font-family="sans-serif" font-size="12">Time (s)</text>
+  <text x="18" y="293.0" text-anchor="middle" font-family="sans-serif" font-size="12" transform="rotate(-90 18 293)">Value</text>
+  <g font-family="sans-serif" font-size="12">
+    <rect x="80" y="48" width="170" height="68" fill="white" fill-opacity="0.9" stroke="#c8c8c8"/>
+    <line x1="90" y1="62" x2="114" y2="62" stroke="#e67e22" stroke-width="2"/>
+    <text x="122" y="66" fill="#333">Velocity (units/s)</text>
+    <line x1="90" y1="82" x2="114" y2="82" stroke="#27ae60" stroke-width="2"/>
+    <text x="122" y="86" fill="#333">Acceleration (units/s²)</text>
+    <line x1="90" y1="102" x2="114" y2="102" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="122" y="106" fill="#333">Target</text>
+  </g>
+  <path d="M 72 511.103 C 75.309 511.103 78.617 510.195 81.926 508.377 C 343.309 364.792 604.691 221.208 866.074 77.623 C 869.383 75.805 872.691 74.897 876 74.897 " fill="none" stroke="#e67e22" stroke-width="2"/>
+  <path d="M 72 511.103 C 75.309 503.833 78.617 496.563 81.926 489.293 C 343.309 489.293 604.691 489.293 866.074 489.293 C 869.383 496.563 872.691 503.833 876 511.103 " fill="none" stroke="#27ae60" stroke-width="2"/>
+  <path d="M 72 74.897 C 340 74.897 608 74.897 876 74.897 " fill="none" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
+</svg>

@@ -34,7 +34,7 @@ $$V_{\text{applied}} = V_{\text{friction}} + V_{\text{back-EMF}} + V_{\text{acce
 
 Each term has a physical meaning:
 
-**$V_{\text{friction}}$ ($k_S$)** — The voltage needed to overcome static friction and stiction in the motor bearings, gear train, and mechanism. This is a constant offset that must be exceeded before the motor moves at all. Typical values range from 0.3 V to 1.5 V depending on the mechanism.
+**$V_{\text{friction}}$ ($k_S$)** — The Coulomb friction voltage: a constant voltage that opposes motion regardless of speed. Empirically, it is the y-intercept of a voltage-vs-velocity linear regression — the voltage the line predicts at zero velocity. Typical values range from 0.3 V to 1.5 V depending on the mechanism.
 
 **$V_{\text{back-EMF}}$ ($k_V \cdot v$)** — The voltage consumed by the back-EMF effect. As the motor spins, the rotating magnets generate a voltage that opposes the applied voltage. This term grows linearly with velocity. The constant $k_V$ (volts per unit velocity) is determined by the motor's magnetic strength and gear ratio.
 
@@ -323,11 +323,11 @@ This approach separates concerns cleanly: Layer 1 cancels the nonlinearities, La
 
 The feedforward model is only as good as its gains. Finding kS, kV, kA, and kG requires empirical characterization — running the mechanism and measuring its response.
 
-### The kS Test (Stiction)
+### The kS Test (Coulomb Friction)
 
-Ramp power slowly from zero until the mechanism moves. The power at which motion begins, multiplied by battery voltage, is $k_S$:
+$k_S$ is not measured directly — it falls out of the kV regression. Run the mechanism at several steady-state velocities, record the voltage at each, and fit a line through voltage vs. velocity. The y-intercept of that line is $k_S$:
 
-$$k_S = \text{power}_{\text{start}} \times V_{\text{battery}}$$
+$$V_{ss} = k_S + k_V v_{ss} \qquad \Rightarrow \qquad k_S = V_{ss} - k_V v_{ss}$$
 
 For a typical goBILDA 5000-series motor, $k_S$ ranges from 0.3 V (well-lubricated flywheel) to 1.5 V (heavy arm with high friction).
 
@@ -365,9 +365,9 @@ For an arm, measure at the horizontal position (maximum gravity torque). For an 
 
 `FlywheelsFeedforwardTuning` in the MarsCommonFtc codebase automates this process with a four-phase routine:
 
-1. **Stiction detection** — Ramp power at 0.03/s until velocity exceeds 50 TPS
-2. **Steady-state sweep** — Step from stiction to full power in N steps, collecting average velocity and voltage at each
-3. **Linear regression** — Fit `voltage = kS + kV * velocity` via least-squares
+1. **Minimum-power detection** — Ramp power at 0.03/s until velocity exceeds 50 TPS, establishing the sweep floor
+2. **Steady-state sweep** — Step from the sweep floor to full power in N steps, collecting average velocity and voltage at each
+3. **Linear regression** — Fit `voltage = kS + kV * velocity` via least-squares (kS is the y-intercept)
 4. **Step response** — Apply step power, fit the exponential decay to extract tau, then compute `kA = tau * kV`
 
 The results are displayed in copy-paste format for direct use in controller configuration.
