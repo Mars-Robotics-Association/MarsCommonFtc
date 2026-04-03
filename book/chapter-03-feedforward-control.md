@@ -384,7 +384,7 @@ $$k_V = \frac{12.5}{2632.1} \text{ V/TPS} \qquad k_A = \frac{12.5}{2087.9} \text
 
 $$k_V = \frac{12.5 \times 28}{2632.1 \times 2\pi} \text{ V·s/rad} \qquad k_A = \frac{12.5 \times 28}{2087.9 \times 2\pi} \text{ V·s}^2\text{/rad}$$
 
-The conversion factor is $\frac{\text{gear\_ratio}}{2\pi \cdot \text{CPR}}$. Mixing units is a common source of bugs. Always verify that your gains match the units your controller expects.
+The conversion factor is $`\frac{\text{gear\_ratio}}{2\pi \cdot \text{CPR}}`$. Mixing units is a common source of bugs. Always verify that your gains match the units your controller expects.
 
 ## 3.11 When Feedforward Is Not Enough
 

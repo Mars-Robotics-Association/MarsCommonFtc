@@ -41,8 +41,8 @@ Given a distance to travel, the profile computes three phases:
 The position during each phase is computed by integrating the velocity:
 
 - **Acceleration**: $p(t) = p_0 + v_0 t + \tfrac{1}{2} a t^2$
-- **Cruise**: $p(t) = p_{\text{accel\_end}} + v_{\max}(t - t_{\text{accel}})$
-- **Deceleration**: $p(t) = p_{\text{goal}} - v_{\text{goal}}(t_{\text{end}} - t) - \tfrac{1}{2} a (t_{\text{end}} - t)^2$
+- **Cruise**: $`p(t) = p_{\text{accel\_end}} + v_{\max}(t - t_{\text{accel}})`$
+- **Deceleration**: $`p(t) = p_{\text{goal}} - v_{\text{goal}}(t_{\text{end}} - t) - \tfrac{1}{2} a (t_{\text{end}} - t)^2`$
 
 The deceleration phase is computed **backward from the goal**, ensuring the profile arrives at the exact target position with zero velocity.
 

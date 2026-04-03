@@ -25,3 +25,17 @@ sees it. Avoid `\,` `\;` `\!` `\:` and any other `\`+punctuation sequence inside
 correct operator spacing. Plain `\text{}` works but lacks operator spacing.
 
 Use `^\circ` for degrees inside math expressions, not the Unicode `°` character.
+
+### Underscores inside `\text{}`
+
+GitHub's markdown preprocessor converts `\_` to `_` before MathJax sees it, so literal underscores
+inside `\text{}` break rendering. Use the **backtick-dollar** delimiter to protect the expression
+from markdown preprocessing:
+
+- Inline: `` $`\text{accel\_end}`$ `` (backtick after opening `$`, backtick before closing `$`)
+- Display block: use a `` ```math `` fenced code block instead of `$$...$$`
+
+The backtick tells the markdown parser to treat the contents as code, passing them through to
+MathJax untouched. Only needed when the expression contains characters that conflict with markdown
+(underscores, asterisks, etc.). For expressions without such conflicts, plain `$...$` and
+`$$...$$` are preferred.
