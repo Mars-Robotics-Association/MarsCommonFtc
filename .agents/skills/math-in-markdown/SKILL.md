@@ -18,7 +18,7 @@ uses `arctan(y, x)` as its two-argument atan2.
 ## GitHub rendering pitfalls
 
 GitHub's markdown preprocessor intercepts `\` followed by any punctuation character before MathJax
-sees it. Avoid `\,` `\;` `\!` `\:` and any other `\`+punctuation sequence inside math.
+sees it. This strips `\,` `\;` `\!` `\:` `\_` and any other `\`+punctuation sequence.
 `\`+letter sequences (e.g. `\qquad`, `\bigl`) are safe.
 
 `\operatorname` is on GitHub's macro denylist. Use `\mathop{\text{...}}` instead — it gives
@@ -26,16 +26,21 @@ correct operator spacing. Plain `\text{}` works but lacks operator spacing.
 
 Use `^\circ` for degrees inside math expressions, not the Unicode `°` character.
 
-### Underscores inside `\text{}`
+### Backtick-dollar delimiter
 
-GitHub's markdown preprocessor converts `\_` to `_` before MathJax sees it, so literal underscores
-inside `\text{}` break rendering. Use the **backtick-dollar** delimiter to protect the expression
-from markdown preprocessing:
+When an expression contains characters that conflict with markdown (`\_`, `\,`, `\;`, `\!`, `\:`,
+underscores inside `\text{}`, asterisks, etc.), use the **backtick-dollar** delimiter to bypass
+the markdown preprocessor entirely:
 
-- Inline: `` $`\text{accel\_end}`$ `` (backtick after opening `$`, backtick before closing `$`)
+- Inline: `` $`...`$ `` (backtick after opening `$`, backtick before closing `$`)
 - Display block: use a `` ```math `` fenced code block instead of `$$...$$`
 
 The backtick tells the markdown parser to treat the contents as code, passing them through to
-MathJax untouched. Only needed when the expression contains characters that conflict with markdown
-(underscores, asterisks, etc.). For expressions without such conflicts, plain `$...$` and
-`$$...$$` are preferred.
+MathJax untouched. Examples:
+
+- `` $`\text{accel\_end}`$ `` — underscore inside `\text{}`
+- `` $`x\,y`$ `` — thin space
+- `` $`a \; b`$ `` — thick space
+
+For expressions without markdown-conflicting characters, plain `$...$` and `$$...$$` are
+preferred — the backtick syntax is GitHub-specific and may not render in local previewers.
