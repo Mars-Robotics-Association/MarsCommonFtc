@@ -25,7 +25,7 @@ class BookSvgGenerator {
         TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SCURVE_POSITION);
         // Very high jMax makes the jerk phases negligible → trapezoidal shape
         engine.setPositionParams(/* vMax */ 10, /* aAccel */ 5, /* aDecel */ 5, /* jMax */ 100000);
-        engine.applyParamsAndGoTo(100.0);
+        engine.applyParamsAndGoTo(40.0);
         runToCompletion(engine);
 
         TrajectorySvgModel model = engine.buildExactSvgModel();
@@ -41,7 +41,7 @@ class BookSvgGenerator {
     void generateSCurveProfile() throws IOException {
         TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SCURVE_POSITION);
         engine.setPositionParams(/* vMax */ 10, /* aAccel */ 5, /* aDecel */ 5, /* jMax */ 20);
-        engine.applyParamsAndGoTo(100.0);
+        engine.applyParamsAndGoTo(40.0);
         runToCompletion(engine);
 
         TrajectorySvgModel model = engine.buildExactSvgModel();
@@ -53,7 +53,7 @@ class BookSvgGenerator {
     void generateSinCurveProfile() throws IOException {
         TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION);
         engine.setPositionParams(/* vMax */ 10, /* aAccel */ 5, /* aDecel */ 5, /* jMax */ 20);
-        engine.applyParamsAndGoTo(100.0);
+        engine.applyParamsAndGoTo(40.0);
         runToCompletion(engine);
 
         TrajectorySvgModel model = engine.buildExactSvgModel();
@@ -65,7 +65,7 @@ class BookSvgGenerator {
     void generateSCurveVelocityProfile() throws IOException {
         TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.SCURVE_VELOCITY);
         engine.setVelocityParams(/* aMax */ 50, /* jInc */ 200, /* jDec */ 200);
-        engine.applyParamsAndGoTo(1000.0);
+        engine.applyParamsAndGoTo(400.0);
         runToCompletion(engine);
 
         TrajectorySvgModel model = engine.buildExactSvgModel();

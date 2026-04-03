@@ -7,40 +7,40 @@
     <line x1="72" y1="40" x2="72" y2="546"/>
     <text x="72" y="582" text-anchor="middle" stroke="none">0</text>
     <line x1="232.8" y1="40" x2="232.8" y2="546"/>
-    <text x="232.8" y="582" text-anchor="middle" stroke="none">4.05</text>
+    <text x="232.8" y="582" text-anchor="middle" stroke="none">1.65</text>
     <line x1="393.6" y1="40" x2="393.6" y2="546"/>
-    <text x="393.6" y="582" text-anchor="middle" stroke="none">8.1</text>
+    <text x="393.6" y="582" text-anchor="middle" stroke="none">3.3</text>
     <line x1="554.4" y1="40" x2="554.4" y2="546"/>
-    <text x="554.4" y="582" text-anchor="middle" stroke="none">12.15</text>
+    <text x="554.4" y="582" text-anchor="middle" stroke="none">4.95</text>
     <line x1="715.2" y1="40" x2="715.2" y2="546"/>
-    <text x="715.2" y="582" text-anchor="middle" stroke="none">16.2</text>
+    <text x="715.2" y="582" text-anchor="middle" stroke="none">6.6</text>
     <line x1="876" y1="40" x2="876" y2="546"/>
-    <text x="876" y="582" text-anchor="middle" stroke="none">20.25</text>
+    <text x="876" y="582" text-anchor="middle" stroke="none">8.25</text>
     <line x1="72" y1="546" x2="876" y2="546"/>
-    <text x="64" y="550" text-anchor="end" stroke="none">-80</text>
+    <text x="64" y="550" text-anchor="end" stroke="none">-32</text>
     <line x1="72" y1="444.8" x2="876" y2="444.8"/>
-    <text x="64" y="448.8" text-anchor="end" stroke="none">152</text>
+    <text x="64" y="448.8" text-anchor="end" stroke="none">60.8</text>
     <line x1="72" y1="343.6" x2="876" y2="343.6"/>
-    <text x="64" y="347.6" text-anchor="end" stroke="none">384</text>
+    <text x="64" y="347.6" text-anchor="end" stroke="none">153.6</text>
     <line x1="72" y1="242.4" x2="876" y2="242.4"/>
-    <text x="64" y="246.4" text-anchor="end" stroke="none">616</text>
+    <text x="64" y="246.4" text-anchor="end" stroke="none">246.4</text>
     <line x1="72" y1="141.2" x2="876" y2="141.2"/>
-    <text x="64" y="145.2" text-anchor="end" stroke="none">848</text>
+    <text x="64" y="145.2" text-anchor="end" stroke="none">339.2</text>
     <line x1="72" y1="40" x2="876" y2="40"/>
-    <text x="64" y="44" text-anchor="end" stroke="none">1080</text>
+    <text x="64" y="44" text-anchor="end" stroke="none">432</text>
   </g>
   <text x="474.0" y="596" text-anchor="middle" font-family="sans-serif" font-size="12">Time (s)</text>
   <text x="18" y="293.0" text-anchor="middle" font-family="sans-serif" font-size="12" transform="rotate(-90 18 293)">Value</text>
   <g font-family="sans-serif" font-size="12">
-    <rect x="80" y="48" width="170" height="68" fill="white" fill-opacity="0.9" stroke="#c8c8c8"/>
-    <line x1="90" y1="62" x2="114" y2="62" stroke="#e67e22" stroke-width="2"/>
-    <text x="122" y="66" fill="#333">Velocity (units/s)</text>
-    <line x1="90" y1="82" x2="114" y2="82" stroke="#27ae60" stroke-width="2"/>
-    <text x="122" y="86" fill="#333">Acceleration (units/s²)</text>
-    <line x1="90" y1="102" x2="114" y2="102" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
-    <text x="122" y="106" fill="#333">Target</text>
+    <rect x="698" y="470" width="170" height="68" fill="white" fill-opacity="0.9" stroke="#c8c8c8"/>
+    <line x1="708" y1="484" x2="732" y2="484" stroke="#e67e22" stroke-width="2"/>
+    <text x="740" y="488" fill="#333">Velocity (units/s)</text>
+    <line x1="708" y1="504" x2="732" y2="504" stroke="#27ae60" stroke-width="2"/>
+    <text x="740" y="508" fill="#333">Acceleration (units/s²)</text>
+    <line x1="708" y1="524" x2="732" y2="524" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="740" y="528" fill="#333">Target</text>
   </g>
-  <path d="M 72 511.103 C 75.309 511.103 78.617 510.195 81.926 508.377 C 343.309 364.792 604.691 221.208 866.074 77.623 C 869.383 75.805 872.691 74.897 876 74.897 " fill="none" stroke="#e67e22" stroke-width="2"/>
-  <path d="M 72 511.103 C 75.309 503.833 78.617 496.563 81.926 489.293 C 343.309 489.293 604.691 489.293 866.074 489.293 C 869.383 496.563 872.691 503.833 876 511.103 " fill="none" stroke="#27ae60" stroke-width="2"/>
+  <path d="M 72 511.103 C 80.121 511.103 88.242 508.832 96.364 504.288 C 348.121 363.429 599.879 222.571 851.636 81.712 C 859.758 77.168 867.879 74.897 876 74.897 " fill="none" stroke="#e67e22" stroke-width="2"/>
+  <path d="M 72 511.103 C 80.121 492.928 88.242 474.753 96.364 456.578 C 348.121 456.578 599.879 456.578 851.636 456.578 C 859.758 474.753 867.879 492.928 876 511.103 " fill="none" stroke="#27ae60" stroke-width="2"/>
   <path d="M 72 74.897 C 340 74.897 608 74.897 876 74.897 " fill="none" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
 </svg>
