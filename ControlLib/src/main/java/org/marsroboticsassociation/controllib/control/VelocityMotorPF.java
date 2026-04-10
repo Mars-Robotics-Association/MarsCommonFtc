@@ -40,6 +40,11 @@ public class VelocityMotorPF extends VelocityMotorBase {
         public double kP = 0.0045;
 
         /**
+         * Milliseconds over which kP ramps from 0 to full after profile acceleration reaches 0.
+         */
+        public double kpRampMs = 250;
+
+        /**
          * Static Friction Feedforward.
          * <p>
          * The y-intercept or offset for the velocity feedforward.
@@ -152,6 +157,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
     private double lastTpsSet = 0;
     private double voltage = 12.0;
     private double lastFilteredTps = 0;
+    private double accelZeroElapsedSec = 0;
 
     public VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                            double motorPowerChangeTolerance, VelocityMotorPFConfig config,
@@ -224,7 +230,15 @@ public class VelocityMotorPF extends VelocityMotorBase {
         }
         lastFilteredTps = tpsFiltered;
         double ve = v - tpsFiltered;
-        double kPEffective = _config.kP * Math.max(0, 1.0 - Math.abs(a) / _config.accelMax);
+        if (Math.abs(a) > 1e-6) {
+            accelZeroElapsedSec = 0;
+        } else {
+            accelZeroElapsedSec += dt;
+        }
+        double kpRampSec = _config.kpRampMs / 1000.0;
+        double kPEffective = (kpRampSec < 1e-9)
+                ? (Math.abs(a) < 1e-6 ? _config.kP : 0.0)
+                : _config.kP * MathUtil.clamp(accelZeroElapsedSec / kpRampSec, 0.0, 1.0);
         double power = ff + kPEffective * ve;
 
         if (Math.abs(trajectory.getTarget()) < 1e-6) {

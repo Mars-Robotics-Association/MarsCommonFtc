@@ -203,7 +203,7 @@ class VelocityMotorPFTest {
         }
 
         assertEquals(adapterFF.lastPower, adapterPF.lastPower, 1e-9,
-                "At peak trajectory acceleration kPEffective=0, so both controllers must output identical FF power");
+                "During acceleration phase kP is fully suppressed, so both controllers must output identical FF power");
 
         for (int i = 0; i < 800; i++) {
             timeFF[0] += dt; timePF[0] += dt;
