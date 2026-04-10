@@ -54,19 +54,19 @@
 - Eliminating jerk discontinuities at phase boundaries
 - Comparing S-curve vs. sinusoidal profiles
 
-### Chapter 8: Online Trajectory Generation with Ruckig
+### [Chapter 8: Online Trajectory Generation with Ruckig](chapter-08-ruckig.md)
 - What is online trajectory generation?
 - The Ruckig library overview
 - Multi-DOF real-time planning
 - JNI integration with `RuckigController`
 
-### Chapter 9: Trajectory Management & Replanning
+### [Chapter 9: Trajectory Management & Replanning](chapter-09-trajectory-management.md)
 - `PositionTrajectoryManager` and `VelocityTrajectoryManager`
 - Mid-motion replanning with continuity guarantees
 - Handling disturbances and tracking errors
 - Telemetry and debugging
 
-### Chapter 10: Back-EMF-Aware Profile Tuning
+### [Chapter 10: Back-EMF-Aware Profile Tuning](chapter-10-back-emf-aware-tuning.md)
 - Why back-EMF limits achievable acceleration
 - `findMaxJDec()` and `findMaxAMax()` binary search methods
 - Voltage-constrained acceleration limits
