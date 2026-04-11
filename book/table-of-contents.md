@@ -76,20 +76,20 @@
 
 ## Part III: State-Space Control
 
-### Chapter 11: Linear Algebra for Robotics
+### [Chapter 11: Linear Algebra for Robotics](chapter-11-linear-algebra.md)
 - `Matrix` and `Vector` operations
 - Type-level dimensions with `Nat` and `Num`
 - The Discrete Algebraic Riccati Equation (`DARE`) solver
 - Building and composing linear systems
 
-### Chapter 12: State-Space Fundamentals
+### [Chapter 12: State-Space Fundamentals](chapter-12-state-space-fundamentals.md)
 - Plant models and state-space representation
 - `LinearSystemId` — identifying systems from physical parameters
 - Continuous-to-discrete conversion
 - The `KalmanFilter` observer
 - The `LinearQuadraticRegulator` (LQR)
 
-### Chapter 13: Flywheel State-Space Controller
+### [Chapter 13: Flywheel State-Space Controller](chapter-13-flywheel-state-space.md)
 - `FlywheelStateSpace` — LQR + Kalman observer
 - Handling FTC's non-deterministic loop timing
 - Comparing state-space to PID + feedforward
