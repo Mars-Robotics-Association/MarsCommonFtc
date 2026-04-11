@@ -1,12 +1,12 @@
 # Chapter 2: Motor Abstraction & Hardware Interfaces
 
-This chapter explores the `IMotor` interface — the thin boundary between control algorithms and hardware. You will see how wrapping the FTC SDK's `DcMotorEx` behind a six-method interface enables testing, quantization, multi-motor groups, and battery voltage compensation without changing a single line of controller code.
+This chapter explores the `IMotor` interface — the thin boundary between control algorithms and hardware. You will see how wrapping the FTC SDK's `DcMotorEx` behind a seven-method interface enables testing, quantization, multi-motor groups, and battery voltage compensation without changing a single line of controller code.
 
 ## 2.1 The Problem with DcMotorEx
 
 The FTC SDK provides `DcMotorEx`, an interface with over 60 methods covering power control, velocity control, current sensing, PIDF coefficients, encoder positions, and more. When controller code depends directly on `DcMotorEx`, several problems emerge:
 
-**Testing is impossible.** `DcMotorEx` requires a physical REV Hub connected via USB or I2C. You cannot instantiate it in a JUnit test. Every controller that takes `DcMotorEx` as a parameter is locked to hardware.
+**Testing is impossible.** `DcMotorEx` requires a physical REV Hub connected via USB. You cannot instantiate it in a JUnit test. Every controller that takes `DcMotorEx` as a parameter is locked to hardware.
 
 **The interface is too wide.** A flywheel velocity controller needs `getVelocity()`, `setPower()`, and maybe `setVelocity()`. It does not need `getCurrent()`, `getMotorType()`, or `setPIDFCoefficients()`. When a class depends on 60 methods but uses 3, the dependency is unclear and the class is harder to reason about.
 
@@ -18,11 +18,12 @@ The FTC SDK provides `DcMotorEx`, an interface with over 60 methods covering pow
 
 ## 2.2 The IMotor Interface
 
-`IMotor` defines exactly six methods:
+`IMotor` defines exactly seven methods:
 
 ```java
 public interface IMotor {
     double getVelocity();           // ticks per second
+    double getPosition();           // encoder ticks
     void setPower(double power);    // -1.0 to 1.0
     void setVelocity(double tps);   // ticks per second (closed-loop)
     void setVelocityPIDFCoefficients(double p, double i, double d, double f);
@@ -78,7 +79,7 @@ The key method is `getHubVoltage()`. The REV Hub does not expose battery voltage
 
 ## 2.4 QuantizedPowerMotor: Reducing I2C Traffic
 
-The FTC robot controller runs on an Android phone connected to a REV Expansion Hub via I2C or USB. Every `setPower()` call generates a command frame. If your control loop runs at 50 Hz and the power value changes by 0.0001 each cycle, you are flooding the bus with nearly identical commands.
+The FTC robot controller runs on an Android phone connected to a REV Expansion Hub via USB (UART-over-USB). Every `setPower()` call generates a command frame. (I2C is used on the hub side for sensors like the IMU and color sensors, not for motor commands.) If your control loop runs at 50 Hz and the power value changes by 0.0001 each cycle, you are flooding the bus with nearly identical commands.
 
 `QuantizedPowerMotor` sits between the controller and the hardware, rounding power values to a fixed step and only sending commands when the quantized value actually changes:
 
@@ -237,21 +238,21 @@ The controller at the top does not know or care how many motors are underneath, 
 ```java
 public class FtcMotors {
     public static DCMotor getGoBilda5000(int numMotors) {
-        // WPILib DCMotor model for goBILDA 5000-series (Mabuchi RS-555)
-        // 12V: 5200 RPM free speed, 3.7A stall current, 110 oz-in stall torque
-        return DCMotor.getNeoVortex(numMotors);  // closest WPILib match
+        // goBILDA 5000-series (Mabuchi RS-555)
+        // 12V: 5800 RPM free speed, 9.2A stall, 1.47 kgf-cm stall torque
+        return new DCMotor(12.0, 0.1442, 9.2, 0.25, 607.4, numMotors);
     }
 
     public static double calcJ(DCMotor motor, double kA) {
         // J = kA * kT / R
         // System inertia from characterized acceleration constant
-        return kA * motor.KtNMPerAmp / (1.0 / motor.KvRadPerSecPerVolt);
+        return kA * motor.KtNMPerAmp / motor.rOhms;
     }
 
-    public static double calcB(DCMotor motor, double kV) {
+    public static double calcB(DCMotor motor, double kV, double kE) {
         // b = (kT/R) * (kV - kE)
         // Viscous damping from characterized velocity constant
-        return motor.KtNMPerAmp * (kV - motor.KvRadPerSecPerVolt);
+        return (motor.KtNMPerAmp / motor.rOhms) * (kV - kE);
     }
 }
 ```
@@ -268,11 +269,11 @@ A DC motor obeys:
 
 $$V_{\text{applied}} = IR + k_E \omega$$
 
-Where $V_{\text{applied}}$ is the voltage applied to the motor terminals, $I$ is current, $R$ is winding resistance, $k_E$ is the back-EMF constant, and $\omega$ is angular velocity. The feedforward voltage needed to achieve a target velocity is:
+Where $V_{\text{applied}}$ is the voltage applied to the motor terminals, $I$ is current, $R$ is winding resistance, $k_E$ is the back-EMF constant, and $\omega$ is angular velocity. In practice, the first-principles equation above doesn't capture everything — static friction, Coulomb friction, and other nonlinearities also matter. The empirical feedforward model used in Chapter 3 accounts for these:
 
 $$V_{ff} = k_S \mathop{\text{sign}}(\omega) + k_V \omega + k_A \alpha$$
 
-Where $k_S$ accounts for stiction, $k_V$ for back-EMF, and $k_A$ for acceleration. To convert this voltage to a power command:
+Where $k_S$ absorbs static friction and other nonlinearities the motor equation ignores, $k_V$ approximates $k_E$ (plus any velocity-dependent losses), and $k_A$ captures the inertial term. To convert this voltage to a power command:
 
 $$\text{power} = \frac{V_{ff}}{V_{\text{battery}}}$$
 
@@ -319,13 +320,11 @@ private final SetOnChange<Double> voltageFactor = new SetOnChange<>(0.025);
 @Override
 public void update() {
     double vf = Kv * nominalVoltage / getVoltage();
-    if (voltageFactor.set(vf)) {
-        motor.setVelocityPIDFCoefficients(kP, kI, kD, vf);
-    }
+    voltageFactor.set(vf);  // only writes PIDF coefficients if vf changed beyond threshold
 }
 ```
 
-This avoids redundant I2C writes to the motor controller chip while still tracking voltage changes.
+This avoids redundant USB writes to the hub while still tracking voltage changes.
 
 **FlywheelStateSpace** reads voltage every cycle and clamps the LQR output:
 
@@ -354,51 +353,23 @@ When this returns `true`, the controller is demanding more than 85% of available
 
 ## 2.9 SetOnChange: Avoiding Redundant Writes
 
-`SetOnChange` is a generic utility that tracks a value and reports whether it has changed beyond a threshold. It is used extensively to avoid redundant hardware writes:
+`SetOnChange` is a utility that tracks a value and calls a setter callback only when the value has changed beyond a threshold. It is used extensively to avoid redundant hardware writes:
 
 ```java
-public class SetOnChange<T> {
-    private T value;
-    private final double epsilon;
-
-    public boolean set(T newValue) {
-        if (value == null || hasChanged(value, newValue)) {
-            value = newValue;
-            return true;
-        }
-        return false;
-    }
-
-    private boolean hasChanged(T oldVal, T newVal) {
-        // For Double: Math.abs(newVal - oldVal) > epsilon
-        // For other types: !oldVal.equals(newVal)
-    }
-}
+// Created via static factory methods with a setter callback
+SetOnChange<Double> velocitySetpoint = SetOnChange.ofDouble(1.0, motor::setVelocity);
+SetOnChange<Double> voltageFactor = SetOnChange.ofDouble(0.025, newFactor ->
+    motor.setVelocityPIDFCoefficients(kP, kI, kD, newFactor));
 ```
 
 Usage in `VelocityMotorSdkPidf`:
 
 ```java
-SetOnChange<Double> velocitySetpoint = new SetOnChange<>(1.0);
-SetOnChange<Double> voltageFactor = new SetOnChange<>(0.025);
-SetOnChange<Double> kPCoeff = new SetOnChange<>(0.001);
-
-if (velocitySetpoint.set(targetTps)) {
-    motor.setVelocity(targetTps);
-}
-if (voltageFactor.set(newFactor)) {
-    motor.setVelocityPIDFCoefficients(kP, kI, kD, newFactor);
-}
+velocitySetpoint.set(targetTps);   // only calls motor::setVelocity if changed by > 1.0
+voltageFactor.set(newFactor);      // only calls setPIDFCoefficients if changed by > 0.025
 ```
 
-The `DoubleBackend` variant adds a `snap()` method that zeros values below epsilon, preventing tiny non-zero values from triggering writes:
-
-```java
-DoubleBackend setpoint = new DoubleBackend(1.0);
-setpoint.snap(1.0);  // values < 1.0 become 0.0
-```
-
-This pattern matters because the REV motor controller chip processes every command it receives. Sending the same PIDF coefficient 50 times per second wastes I2C bandwidth and can introduce jitter.
+This pattern matters because the REV Hub firmware processes every command it receives. Sending the same PIDF coefficient 50 times per second wastes USB bandwidth and can introduce jitter.
 
 ## 2.10 Testing with SimMotorAdapter
 
@@ -406,11 +377,10 @@ The `IMotor` interface enables testing controllers without hardware. `SimMotorAd
 
 ```java
 // In TeamCode test
-public class SimMotorAdapter extends EncapsulatedDcMotorEx {
+public class SimMotorAdapter implements IMotor {
     private final FlywheelMotorSim sim;
 
     public SimMotorAdapter(FlywheelMotorSim sim) {
-        super(/* null hardwareMap */, "sim");
         this.sim = sim;
     }
 

@@ -8,9 +8,9 @@ Without a profile, a setpoint change produces a step error. The PID controller r
 
 A motion profile eliminates this problem by generating a setpoint trajectory that respects the mechanism's physical limits. The controller never sees a large error because the setpoint moves gradually. The result is:
 
-- **Reduced mechanical stress** — acceleration and jerk are bounded
+- **Reduced mechanical stress** — acceleration is bounded (jerk bounding requires S-curve profiles, covered in Chapter 6)
 - **Predictable timing** — the profile computes exactly how long the move will take
-- **No overshoot** — the setpoint decelerates to a stop at the target
+- **No overshoot in the profile itself** — the setpoint decelerates to a stop at the target (the physical mechanism won't overshoot if the controller tracks the profile well)
 - **Optimal speed** — the mechanism runs at maximum safe velocity during cruise
 
 ## 5.2 The Trapezoidal Velocity Profile
@@ -36,7 +36,7 @@ Given a distance to travel, the profile computes three phases:
 
 **Phase 2: Cruise** — Velocity is held constant at `maxVelocity`. The duration depends on the total distance minus the acceleration and deceleration distances.
 
-**Phase 3: Deceleration** — Velocity decreases linearly from `maxVelocity` to the goal velocity (usually zero). The duration equals the acceleration duration.
+**Phase 3: Deceleration** — Velocity decreases linearly from `maxVelocity` to the goal velocity (usually zero). The duration equals the acceleration duration when starting and ending at rest; otherwise, the two durations may differ.
 
 The position during each phase is computed by integrating the velocity:
 
@@ -52,7 +52,7 @@ When the distance is too short to reach `maxVelocity`, the profile becomes trian
 
 $$v_{\text{peak}} = \sqrt{d \cdot a_{\max}}$$
 
-The profile detects this case automatically. If the computed "full speed distance" is negative, there is no cruise phase, and the acceleration time is recalculated:
+Note that `d` here is the equivalent full-trapezoid distance (which includes corrections for nonzero initial/final velocities), not the raw displacement. The profile detects the triangular case automatically. If the computed "full speed distance" is negative, there is no cruise phase, and the acceleration time is recalculated:
 
 ```java
 if (fullSpeedDist < 0) {
@@ -96,7 +96,7 @@ This is the sum of acceleration time, cruise time, and deceleration time. It is 
 
 The profile handles non-zero initial and final velocities. This is essential for mid-motion replanning: if the mechanism is already moving when a new target is commanded, the profile starts from the current velocity, not from rest.
 
-The profile also handles **velocity clamping**: if the current velocity exceeds `maxVelocity`, it is clamped to `maxVelocity` and the profile begins decelerating immediately.
+The profile also handles **velocity clamping**: if the current velocity exceeds `maxVelocity`, it is clamped to `maxVelocity` (preserving the sign) and the profile calculates from there. Whether it decelerates depends on the goal — the clamping does not force immediate deceleration.
 
 ### Direction Handling
 
@@ -116,7 +116,7 @@ TrapezoidProfile.State goal = new TrapezoidProfile.State(100, 0);
 double t = 0;
 while (!profile.isFinished(t)) {
     TrapezoidProfile.State state = profile.calculate(t, current, goal);
-    motor.setPower(state.velocity / maxVelocity);  // open-loop velocity command
+    motor.setPower(state.velocity / maxVelocity);  // open-loop only — no feedback
     t += 0.02;  // 50 Hz loop
 }
 ```
@@ -145,7 +145,7 @@ Internally, this does two things:
 // 1. Advance the profiled setpoint
 m_setpoint = m_profile.calculate(getPeriod(), m_setpoint, m_goal);
 
-// 2. PID tracks the profiled setpoint position
+// 2. PID tracks the profiled setpoint position (velocity is not used as feedforward)
 return m_controller.calculate(measurement, m_setpoint.position);
 ```
 
@@ -190,7 +190,7 @@ pid.setGoal(Math.toRadians(359));  // 359 degrees
 
 The trapezoidal profile assumes constant acceleration — a good approximation for many mechanisms, but not physically accurate for DC motors. A DC motor's acceleration is not constant; it decays exponentially due to back-EMF. At full voltage, the motor accelerates quickly at first, then more slowly as velocity increases and back-EMF consumes more of the available voltage.
 
-The `ExponentialProfile` models this physics directly. Instead of constant acceleration, it uses the first-order system dynamics:
+The `ExponentialProfile` models this physics directly. Instead of constant acceleration, it uses the first-order velocity dynamics (first-order in the sense that velocity is the single state variable):
 
 $$\frac{dv}{dt} = Av + Bu$$
 
@@ -253,9 +253,9 @@ These are the exact solutions to the first-order ODE. No numerical integration i
 
 The maximum achievable velocity under constant input is the steady-state velocity:
 
-$$v_{ss} = -\frac{u_{\max} \cdot B}{A} = \frac{u_{\max} - k_S}{k_V}$$
+$$v_{ss} = -\frac{u_{\max} \cdot B}{A} = \frac{u_{\max}}{k_V}$$
 
-This is the same back-EMF ceiling from Chapter 3. The exponential profile respects it naturally — the velocity asymptotically approaches `v_ss` but never exceeds it.
+Note that `ExponentialProfile` does not model static friction ($k_S$), so its steady-state velocity is $u_{\max}/k_V$, slightly higher than the real-world ceiling of $(u_{\max} - k_S)/k_V$ from Chapter 3. The profile respects this ceiling naturally — the velocity asymptotically approaches `v_ss` but never exceeds it.
 
 ### Using ExponentialProfile
 
@@ -281,7 +281,7 @@ The `calculate()` method returns the state at time `t`. The profile also provide
 
 **The mechanism is not back-EMF limited.** An elevator driven by a high-gear-ratio motor, a linear slide, or a mechanism where the acceleration limit is set by structural constraints rather than motor physics. The constant-acceleration assumption is a good approximation.
 
-**You need a specific acceleration limit.** The trapezoidal profile lets you set acceleration independently of velocity. The exponential profile's acceleration is determined by the motor's physical constants — you cannot cap it without modifying the input voltage.
+**You need a specific acceleration limit.** The trapezoidal profile lets you set acceleration independently of velocity. The exponential profile's acceleration is determined by the motor's physical constants. You can reduce `maxInput` below the actual battery voltage to limit acceleration, but this is a coarse mechanism that also reduces the steady-state velocity ceiling.
 
 **You are using ProfiledPIDController.** `ProfiledPIDController` is hardcoded to use `TrapezoidProfile`. There is no `ProfiledPIDController` variant for `ExponentialProfile`.
 
@@ -302,6 +302,8 @@ Both profiles provide methods to compute timing information:
 ```java
 double totalTime = profile.totalTime();
 boolean finished = profile.isFinished(elapsedTime);
+// TrapezoidProfile: timeLeftUntil(double targetPosition)
+// ExponentialProfile: timeLeftUntil(State current, State goal) — different signature
 double timeToTarget = profile.timeLeftUntil(targetPosition);
 ```
 

@@ -34,7 +34,7 @@ $$V_{\text{applied}} = V_{\text{friction}} + V_{\text{back-EMF}} + V_{\text{acce
 
 Each term has a physical meaning:
 
-**$V_{\text{friction}}$ ($k_S$)** — The Coulomb friction voltage: a constant voltage that opposes motion regardless of speed. Empirically, it is the y-intercept of a voltage-vs-velocity linear regression — the voltage the line predicts at zero velocity. Typical values range from 0.3 V to 1.5 V depending on the mechanism.
+**$V_{\text{friction}}$ ($k_S$)** — The Coulomb friction voltage: a constant voltage that opposes motion regardless of speed. Empirically, it is the y-intercept of a voltage-vs-velocity linear regression — the minimum voltage needed to *sustain* motion once already moving. Note that this is different from the static friction (stiction) needed to *start* motion from rest, which is typically higher. Typical values range from 0.3 V to 1.5 V depending on the mechanism.
 
 **$V_{\text{back-EMF}}$ ($k_V \cdot v$)** — The voltage consumed by the back-EMF effect. As the motor spins, the rotating magnets generate a voltage that opposes the applied voltage. This term grows linearly with velocity. The constant $k_V$ (volts per unit velocity) is determined by the motor's magnetic strength and gear ratio.
 
@@ -84,7 +84,7 @@ Where $v_{ss}$ is the steady-state velocity and $v_0$ is the initial velocity. T
 
 $$a(t) = a_0 \cdot e^{-(k_V/k_A) t}$$
 
-This exponential behavior is not a limitation of the controller — it is the physics of the motor itself. No amount of tuning can make a first-order system respond faster than its time constant allows.
+This exponential behavior describes the *open-loop* response — what happens under a constant applied voltage. A closed-loop controller with voltage headroom can drive the system faster than the open-loop time constant by applying more voltage during the transient and backing off as the target is approached. The time constant is a property of the open-loop plant, not a hard speed limit on the closed-loop system.
 
 ## 3.4 SimpleMotorFeedforward
 
@@ -112,7 +112,7 @@ The current `calculateWithVelocities(currentVelocity, nextVelocity)` method uses
 
 ```java
 public double calculateWithVelocities(double currentVelocity, double nextVelocity) {
-    if (kA < 1e-4) {
+    if (kA < 1e-9) {
         // Negligible inertia: fall back to continuous form
         double acceleration = (nextVelocity - currentVelocity) / dt;
         return kS * Math.signum(nextVelocity) + kV * nextVelocity + kA * acceleration;
@@ -125,14 +125,13 @@ public double calculateWithVelocities(double currentVelocity, double nextVelocit
     double Bd = (Ad - 1.0) / A * B;
 
     // Solve for voltage that achieves nextVelocity
-    double u = (nextVelocity - Ad * currentVelocity) / Bd;
-    return MathUtil.clamp(u, -12.0, 12.0);
+    double u = kS * Math.signum(currentVelocity)
+             + 1.0 / Bd * (nextVelocity - Ad * currentVelocity);
+    return u;
 }
 ```
 
-The discrete formulation is more accurate because it respects the system's dynamics over the timestep. It answers the question: "what constant voltage, applied for `dt` seconds, will take the motor from `currentVelocity` to `nextVelocity`?"
-
-Note that the output is clamped to ±12.0 V — a hard-coded nominal voltage. In practice, controllers that use this method divide by the live battery voltage when converting to a power command (see Section 3.8), so the hard-coded clamp serves as a safety bound rather than the compensation mechanism.
+The discrete formulation is more accurate because it respects the system's dynamics over the timestep. It answers the question: "what constant voltage, applied for `dt` seconds, will take the motor from `currentVelocity` to `nextVelocity`?" Note that the $k_S$ term is included in the discrete path (using `signum(currentVelocity)`) and the output is not clamped — controllers that use this method handle voltage limits themselves.
 
 ### Achievable Velocity and Acceleration
 
@@ -187,7 +186,7 @@ This is the same physics model used in `ArmMotorSim` for simulation. The feedfor
 The `maxAchievableVelocity()` and `maxAchievableAcceleration()` methods account for gravity:
 
 ```java
-double maxVel = ff.maxAchievableVelocity(batteryVoltage, angle);
+double maxVel = ff.maxAchievableVelocity(batteryVoltage, angle, acceleration);
 ```
 
 At the horizontal position, gravity consumes $k_G$ volts, leaving less voltage for motion. At the vertical position, gravity is zero and the full voltage budget is available. This is why arm trajectory limits must be angle-dependent — the same velocity that is achievable at the top of the arc may be impossible at the bottom.
@@ -256,13 +255,15 @@ lastPower = MathUtil.clamp(totalVoltage / hubVoltage, -1.0, 1.0);
 double ff = kS * Math.signum(velocity) + kV * velocity + kA * acceleration;
 ff /= voltage;  // battery compensation
 
-double kPEffective = kP * Math.max(0, 1.0 - Math.abs(acceleration) / accelMax);
+double kPEffective = (kpRampSec < 1e-9)
+        ? (Math.abs(acceleration) < 1e-6 ? kP : 0.0)
+        : kP * MathUtil.clamp(accelZeroElapsedSec / kpRampSec, 0.0, 1.0);
 double fb = kPEffective * (targetVelocity - actualVelocity);
 
 motor.setPower(ff + fb);
 ```
 
-At peak acceleration, `kPEffective` is zero — the controller runs on pure feedforward. As acceleration drops to zero, `kPEffective` approaches `kP` and the feedback term engages fully. This prevents the feedback controller from fighting the feedforward during transients, which is a common source of overshoot.
+During any nonzero acceleration, `kPEffective` is zero — the controller runs on pure feedforward. Once acceleration reaches zero, `kPEffective` ramps up to `kP` over a configurable time window (`kpRampSec`). This prevents the feedback controller from fighting the feedforward during transients, which is a common source of overshoot.
 
 ### ArmController
 
@@ -345,7 +346,7 @@ Apply a step power command and measure the velocity over time. The velocity foll
 
 $$v(t) = v_{ss} - (v_{ss} - v_0) \cdot e^{-t/\tau}$$
 
-Taking the natural log:
+Assuming $v_0 = 0$ (starting from rest) and taking the natural log:
 
 $$\ln\left(1 - \frac{v(t)}{v_{ss}}\right) = -\frac{t}{\tau}$$
 
@@ -376,9 +377,9 @@ The results are displayed in copy-paste format for direct use in controller conf
 
 The feedforward gains are unit-dependent. MarsCommonFtc uses two different velocity units:
 
-**TPS (ticks per second)** — Used by flywheel controllers. The encoder ticks per revolution depend on the motor and gear ratio. For a goBILDA 5000-series motor with 1120 CPR at the output shaft:
+**TPS (ticks per second)** — Used by flywheel controllers. The encoder ticks per revolution depend on the motor (28 CPR for a goBILDA 5000-series at the motor shaft). For a bare motor:
 
-$$k_V = \frac{12.5}{2632.1} \text{ V/TPS} \qquad k_A = \frac{12.5}{2087.9} \text{ V/TPS}^2$$
+$$k_V = \frac{12.5}{2632.1} \text{ V/TPS} \qquad k_A = \frac{12.5}{2087.9} \text{ V/(TPS/s)}$$
 
 **rad/s (radians per second)** — Used by arm controllers. This is the output shaft angular velocity in SI units:
 

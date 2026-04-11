@@ -43,15 +43,15 @@ MarsCommonFtc is organized into four modules, each serving a distinct purpose:
 
 A ported subset of WPILib's math library — the standard robotics mathematics library used in FRC. It provides geometry types (`Pose2d`, `Translation2d`, `Rotation2d`), kinematics (`MecanumDriveKinematics`, `DifferentialDriveOdometry`), trajectory generation (`TrapezoidProfile`, `TrajectoryGenerator`), controllers (`PIDController`, `ProfiledPIDController`, `RamseteController`), feedforward models (`SimpleMotorFeedforward`, `ArmFeedforward`, `ElevatorFeedforward`), state estimation (`KalmanFilter`, `ExtendedKalmanFilter`), and linear algebra (`Matrix`, `Vector`, `DARE` solver).
 
-WpiMath depends on EJML 0.44.0 for matrix operations. To prevent classpath conflicts, downstream projects declare it as `compileOnly` — the classes are available at compile time but the actual EJML dependency is provided by the robot controller runtime.
+WpiMath depends on EJML 0.44.0 for matrix operations, declared as an `api` dependency so that downstream modules like ControlLib can see it on their compile classpath. ControlLib's shadow JAR relocates EJML to avoid version conflicts at runtime (see Section 1.5).
 
 ### ControlLib
 
 The core control library. This is where you will spend most of your time. It contains:
 
 - **Motor controllers** — abstract base classes and concrete implementations for arm, flywheel, elevator, and velocity control
-- **Trajectory generators** — S-curve, sinusoidal, trapezoidal, and Ruckig-based jerk-limited profiles
-- **Signal filters** — variable-dt low-pass, biquad, median, and slew rate limiters
+- **Trajectory generators** — S-curve, sinusoidal, and Ruckig-based jerk-limited profiles (trapezoidal profiles live in WpiMath)
+- **Signal filters** — variable-dt low-pass, biquad, and IIR filters (median filter and slew rate limiter live in WpiMath)
 - **Localization** — field pose estimation with latency-compensated Kalman filtering
 - **Simulation** — physics models for flywheels and arms that run on your development machine
 - **Utilities** — lookup tables, interpolation, and change-detection wrappers
@@ -182,12 +182,12 @@ dependencies {
 Note the different configurations:
 
 - `implementation` — the dependency is included in the final APK and available at compile time
-- `compileOnly` — available at compile time but not included in the APK (the robot controller already provides EJML)
+- `compileOnly` — available at compile time but not included in the APK (the ControlLib shadow JAR provides its own relocated copy of EJML at runtime)
 - `configuration: 'shadow'` — consumes the fat JAR output of the Shadow plugin, not the regular JAR
 
 ### Why Shadow JAR?
 
-The shadow JAR solves a real problem: EJML is a large linear algebra library, and different libraries may depend on different versions. If MarsCommonFtc uses EJML 0.44.0 and another library uses EJML 0.39.0, you get a classpath conflict. By relocating EJML to `controllib.shadow.org.ejml` inside the shadow JAR, ControlLib carries its own private copy that cannot conflict with anything else.
+The shadow JAR solves a real problem: EJML is a large linear algebra library, and different libraries may depend on different versions. If MarsCommonFtc uses EJML 0.44.0 and another library uses EJML 0.39.0, the classloader picks one version and the other library may call methods that don't exist in that version — a runtime version mismatch. By relocating EJML to `controllib.shadow.org.ejml` inside the shadow JAR, ControlLib carries its own private copy that cannot conflict with anything else.
 
 ## 1.6 Import Statements and Package Names
 
@@ -205,7 +205,7 @@ import org.marsroboticsassociation.controllib.util.LUT;
 The package structure mirrors the module structure:
 
 - `org.marsroboticsassociation.controllib.*` — classes from ControlLib
-- `org.marsroboticsassociation.wpimath.*` — classes from WpiMath
+- `edu.wpi.first.math.*` — classes from WpiMath (retains the upstream WPILib package namespace)
 - `org.marsroboticsassociation.controllib.sim.*` — simulation classes
 - `org.marsroboticsassociation.controllib.filter.*` — signal filters
 - `org.marsroboticsassociation.controllib.localization.*` — pose estimation

@@ -92,7 +92,7 @@ public void update() {
 }
 ```
 
-The sampling happens first, then the replan. This ordering matters: when `setTarget()` is called, the new target is stored as `pendingTarget` via `SetOnChange`, and `update()` is triggered. The current trajectory is sampled at the current time to get the latest `lastP/lastV/lastA`, and then `changeTrajectory()` creates a new trajectory seeded from that state. This ensures the new trajectory starts exactly where the old one left off.
+The sampling happens first, then the replan. This ordering matters: when `setTarget()` is called, the new target is stored as `pendingTarget` via `SetOnChange`, and `update()` is triggered internally. (Note: since `setTarget()` calls `update()` when the target changes, you do not need to call `update()` again immediately after `setTarget()` — doing so would produce a double-sample for that iteration.) The current trajectory is sampled at the current time to get the latest `lastP/lastV/lastA`, and then `changeTrajectory()` creates a new trajectory seeded from that state. This ensures the new trajectory starts exactly where the old one left off.
 
 ### Clock Management
 
@@ -182,13 +182,13 @@ The key insight: **the new trajectory is seeded from `lastP`, `lastV`, and `last
 - **Position is continuous.** The new trajectory starts at `lastP`, which is where the old trajectory was.
 - **Velocity is continuous.** The new trajectory starts at `lastV`.
 - **Acceleration is continuous.** The new trajectory starts at `lastA`.
-- **Jerk is not continuous.** The new trajectory's a0 prefix starts with jerk = 0 (by design of the S-curve and sinusoidal prefix phases), but the old trajectory's jerk at the replan instant is generally non-zero.
+- **Jerk is not continuous.** The new trajectory picks its own jerk profile from the inherited acceleration, with no attempt to match the old trajectory's jerk.
 
-The jerk discontinuity is small in practice. The a0 prefix in `SCurvePosition` and `SinCurvePosition` ramps acceleration to zero at $j_{\max}$ or with a sinusoidal shape, starting gently from the inherited acceleration. Rapid target changes produce visible acceleration nodes in telemetry, but individual replans are nearly invisible in the position trace.
+The jerk discontinuity is small in practice. The a0 prefix in `SCurvePosition` ramps acceleration to zero at constant $j_{\max}$, while `SinCurvePosition` uses a quarter-cosine shape that starts and ends with zero jerk. Rapid target changes produce visible acceleration kinks in telemetry, but individual replans are nearly invisible in the position trace.
 
 ### Same-Direction Replanning
 
-When the target changes but the direction doesn't (e.g., target changes from 100 to 50 while moving forward), the new trajectory starts from the current velocity and decelerates smoothly. No braking prefix is needed because the velocity is already in the correct direction.
+When the target changes but the direction doesn't (e.g., target changes from 100 to 50 while moving forward), the new trajectory continues from the current velocity toward the new target — accelerating, cruising, or decelerating as needed. No braking prefix is needed because the velocity is already in the correct direction.
 
 ### Direction Reversal
 

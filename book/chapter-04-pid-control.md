@@ -16,7 +16,7 @@ Each term addresses a different aspect of the control problem:
 
 **Derivative (kD * derivative(error))** — Reacts to the rate of change of error. It acts as a damper, reducing output when the error is changing rapidly. This reduces overshoot and smooths the response. Too much kD amplifies sensor noise.
 
-In WpiMath, the implementation computes these terms discretely at each timestep:
+In WpiMath, the implementation computes these terms discretely at each timestep (simplified — IZone and continuous-input handling omitted):
 
 ```java
 public double calculate(double measurement) {
@@ -50,7 +50,7 @@ $$e_{\text{full}} = \frac{1}{k_P}$$
 
 With $k_P$ = 0.010 V/TPS (the `FlywheelSimple` default), an error of 100 TPS produces 1.0 V of feedback. At full battery (12.5 V), the proportional band is 1250 TPS — errors larger than this are saturated.
 
-For `ArmController` with $k_P$ = 15 V/rad, the proportional band is $1/15$ = 0.067 rad = 3.8 degrees. An error larger than 3.8 degrees commands more than 12 V of output.
+For `ArmController` with $k_P$ = 15 V/rad, the proportional band is $1/15$ = 0.067 rad = 3.8 degrees. An error larger than 3.8 degrees produces more than 12 V of raw PID output — though note that `PIDController` itself has no output clamping; saturation depends on whatever clamping the caller applies downstream.
 
 ### When kP Is Too Low
 
@@ -68,13 +68,13 @@ The derivative of error is:
 
 $$\frac{de}{dt} = \frac{e_k - e_{k-1}}{\Delta t}$$
 
-With $k_D$ = 1.0 V/(rad/s) and a velocity error changing at 10 rad/s per cycle, the derivative output is 10 V — a strong damping force.
+With $k_D$ = 1.0 V/(rad/s) and a position error decreasing at 10 rad/s, the derivative output is 10 V — a strong damping force.
 
 ### Derivative on Measurement vs. Derivative on Error
 
 WpiMath's `PIDController` computes the derivative of **error**, not measurement. These are equivalent when the setpoint is constant, but differ when the setpoint changes:
 
-- **Derivative on error**: A step change in setpoint produces an infinite derivative spike (error jumps, previous error does not). This causes a large output spike.
+- **Derivative on error**: A step change in setpoint produces a very large derivative spike in the discrete implementation (`(new_error - old_error) / period`), which is effectively infinite in continuous time. This causes a large output spike.
 - **Derivative on measurement**: The derivative is computed from consecutive measurements, which are continuous. No spike occurs on setpoint changes.
 
 WpiMath uses derivative on error. This is fine when combined with setpoint ramping (ProfiledPIDController), because the setpoint changes smoothly and the error derivative remains bounded.
@@ -124,7 +124,7 @@ m_totalError = MathUtil.clamp(
     m_maximumIntegral / m_ki);
 ```
 
-The maximum integral contribution is `m_ki * m_maximumIntegral`. Setting `m_maximumIntegral = 0.2` ensures the integral term can never produce more than 20% of full output, regardless of how long it has been accumulating.
+The maximum integral contribution is `m_maximumIntegral` directly (since `m_totalError` is clamped to `m_maximumIntegral / m_ki`, and the output is `m_ki * m_totalError`). Setting `m_maximumIntegral = 0.2` caps the integral term's contribution to 0.2 in output units, regardless of kI or how long it has been accumulating.
 
 ## 4.5 Continuous Input
 
@@ -156,7 +156,7 @@ m_setpoint.position = setpointMinDistance + measurement;
 
 ## 4.6 Setpoint Ramping with ProfiledPIDController
 
-A raw PID controller reacts instantly to setpoint changes. If the setpoint jumps from 0 to 1000 TPS, the error is 1000 and the proportional output is `kP * 1000` — likely saturated. The motor slams to full power, overshoots, and oscillates.
+A raw PID controller reacts instantly to setpoint changes. If the setpoint jumps from 0 to 1000 TPS, the error is 1000 and the proportional output is `kP * 1000` — a large step that can cause overshoot and oscillation. The motor slams to full power, overshoots, and oscillates.
 
 `ProfiledPIDController` solves this by ramping the setpoint through a `TrapezoidProfile`:
 
@@ -248,10 +248,12 @@ From the design notes:
 
 ### Reason 3: Adaptive Feedback Gain
 
-`VelocityMotorPF` suppresses the proportional gain during acceleration:
+`VelocityMotorPF` suppresses the proportional gain during acceleration and ramps it back in over a configurable time window:
 
 ```java
-double kPEffective = kP * Math.max(0, 1.0 - Math.abs(acceleration) / accelMax);
+double kPEffective = (kpRampSec < 1e-9)
+        ? (Math.abs(a) < 1e-6 ? kP : 0.0)
+        : kP * MathUtil.clamp(accelZeroElapsedSec / kpRampSec, 0.0, 1.0);
 ```
 
 `PIDController` has no mechanism for varying its gains dynamically. Implementing this with `PIDController` would require manually adjusting kP each cycle, which defeats the purpose of using the class.
@@ -272,7 +274,7 @@ These are not criticisms of `PIDController` — it is a well-designed class that
 
 PID is the right choice when:
 
-**The system is approximately first-order** — A flywheel, a conveyor, a single-speed mechanism. The dynamics are dominated by a single time constant, and a proportional term (plus feedforward) is sufficient.
+**The dominant dynamics are simple** — A flywheel, a conveyor, a single-speed mechanism. Even though a DC motor is technically second-order (electrical + mechanical time constants), the dominant dynamics are well-approximated by a single time constant, and a proportional term (plus feedforward) is sufficient.
 
 **You need simplicity** — PID has three tunable parameters that map intuitively to behavior. Team members who are new to control theory can understand and tune PID. State-space controllers require understanding of linear algebra, observability, and controllability.
 
@@ -284,7 +286,7 @@ PID is the right choice when:
 
 PID is not enough when:
 
-**The system is multi-state** — An arm has position and velocity. A drivetrain has x, y, heading, and wheel velocities. PID treats each state independently, ignoring the coupling between them. State-space control (LQR) handles multi-state systems optimally.
+**The system is multi-state** — An arm has position and velocity. A drivetrain has x, y, heading, and wheel velocities. While PID's derivative term implicitly couples position and velocity, it gives you at most two gain knobs (P for position, D for velocity) and cannot independently weight more than two states or handle cross-coupling between different actuator channels. State-space control (LQR) handles multi-state systems optimally.
 
 **There is significant latency** — The FTC control loop runs at non-deterministic timing, and sensor readings are delayed. PID reacts to the current error, which may be stale. A Kalman filter predicts the current state from delayed measurements, and the controller acts on the prediction.
 
@@ -302,7 +304,7 @@ public double calculate(double measurement, double setpoint) {
 }
 ```
 
-This is not a joke — bang-bang control works surprisingly well for velocity control of high-inertia mechanisms. The motor runs at full power until it approaches the target, then cuts off. The inertia carries it the rest of the way. The key requirement is that the motor controllers are set to **coast** (not brake), so the mechanism coasts to a stop rather than slamming into the setpoint.
+This is not a joke — bang-bang control works surprisingly well for velocity control of high-inertia mechanisms. The controller outputs 1 whenever measurement is below the setpoint, period — it has no notion of "approaching" the target or cutting off early. The reason it works for flywheels is that back-EMF naturally limits the maximum velocity, so overshoot is bounded by physics, not by controller intelligence. The key requirement is that the motor controllers are set to **coast** (not brake).
 
 The asymmetric design (0 or 1, never negative) means it cannot slow down an over-speeding mechanism. It is only suitable for systems where overshoot is naturally limited by back-EMF.
 

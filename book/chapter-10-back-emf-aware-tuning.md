@@ -15,7 +15,7 @@ $$V = k_S \, \text{sign}(v) + k_V \, v + k_A \, a$$
 This says: the voltage applied to the motor is consumed by three things:
 
 1. **Static friction** ($k_S$) — a fixed voltage to overcome friction, in the direction of motion
-2. **Back-EMF** ($k_V \cdot v$) — voltage proportional to speed, opposing the supply
+2. **Back-EMF** ($k_V \cdot v$) — voltage proportional to speed that subtracts from the supply in the winding loop
 3. **Acceleration** ($k_A \cdot a$) — voltage proportional to acceleration, producing torque
 
 Rearranging for the maximum achievable acceleration:
@@ -30,7 +30,7 @@ public double maxAchievableAcceleration(double maxVoltage, double velocity) {
 }
 ```
 
-The key insight: **the maximum achievable acceleration decreases linearly with speed.** At zero speed, the motor can produce maximum torque. At the motor's free speed ($v_{\text{free}} = (V - k_S) / k_V$), there is no voltage left for acceleration — the motor can maintain speed but not increase it.
+The key insight: **the maximum achievable acceleration decreases linearly with speed.** At zero speed, the motor can produce maximum torque. At the motor's free speed ($v_{\text{free}} = (V - k_S) / k_V$ for positive velocity, or $(V + k_S) / k_V$ for negative velocity — the $k_S$ sign flips with direction), there is no voltage left for acceleration — the motor can maintain speed but not increase it.
 
 ### The Voltage Budget Diagram
 
@@ -152,7 +152,7 @@ The algorithm:
 
    $$V_{\text{needed}} = k_S + k_V |v(t)| + k_A \cdot a(t)$$
 
-   Compare against the supply voltage. If $V_{\text{needed}} > V_{\text{supply}}$ at any sample, the trajectory violates the constraint.
+   (This assumes positive velocity throughout the move; for negative velocity, $k_S$ flips sign.) Compare against the supply voltage. If $V_{\text{needed}} > V_{\text{supply}}$ at any sample, the trajectory violates the constraint.
 
 4. **Bisect.** If the candidate violates, search lower. If it's safe, search higher.
 
@@ -188,7 +188,7 @@ public static double findMaxAMax(
 }
 ```
 
-The key difference: the lower bound starts at `motorAMaxAtZero = (voltage - kS) / kA`, which is the maximum acceleration the motor can produce at zero velocity. This is a theoretical maximum — the actual achievable acceleration is lower because the motor isn't at zero velocity for the entire move. The binary search finds the highest `aMax` that works across the entire trajectory.
+The key difference: the search starts at `motorAMaxAtZero = (voltage - kS) / kA`, which is the maximum acceleration the motor can produce at zero velocity. Since the profile's peak acceleration occurs near zero velocity (where the most voltage headroom exists), this value is typically feasible — the acceleration ramps down by the time velocity is high. The binary search finds the highest `aMax` that works across the entire trajectory without violating the voltage constraint at any point.
 
 Note that `findMaxAMax` uses symmetric jerk (`jInc = jDec = jInc`). It also starts from zero initial acceleration (`a0 = 0`), since it's computing a limit for the profile's peak acceleration — not tuning the jerk shape.
 
@@ -222,7 +222,7 @@ for (int i = 0; i <= samples; i++) {
 }
 ```
 
-This is the definitive test: if the trajectory passes at 10,000 samples, it won't violate the voltage constraint at any point between samples (since the violation surface is linear in velocity and the trajectory's acceleration is piecewise-linear in time).
+This is the definitive test: 10,000 samples over a sub-second trajectory is far denser than any feature of the constraint surface, so missing a violation between samples is effectively impossible.
 
 ## 10.5 Per-Move Gravity-Aware Limits
 
@@ -236,7 +236,7 @@ A move from angle `fromRad` to angle `toRad` is split at the midpoint:
 double midRad = (fromRad + toRad) / 2.0;
 ```
 
-The first half constrains acceleration (the arm is speeding up). The second half constrains deceleration (the arm is slowing down). This is a simplification — the actual transition depends on the profile's phase structure — but it's conservative: by computing limits at the worst-case angle in each half, the trajectory is guaranteed to be achievable everywhere.
+The first half constrains acceleration (the arm is speeding up). The second half constrains deceleration (the arm is slowing down). This is a simplification — the actual accel-to-decel transition depends on the profile's phase structure, not the angular midpoint. The approach errs on the side of caution: computing the worst-case angle over a wider range than strictly necessary produces limits that are at least as conservative as the true constraint.
 
 ### Worst-Case Angle
 
@@ -257,6 +257,8 @@ static double worstCaseAngle(double a, double b) {
     }
 
     // Check horizontal crossings: 0 and -π
+    // Note: only checks these two crossings. Arms that sweep through +π
+    // or other multiples of π would need additional crossing checks.
     if (lo <= 0 && hi >= 0) {
         bestAngle = 0;
         bestAbsCos = 1.0;
@@ -408,7 +410,7 @@ Start with limits at 70–80% of the theoretical maximums:
 PARAMS.maxVelRad   = 0.75 * vMaxTheoretical;
 PARAMS.maxAccelRad = 0.75 * aMaxTheoretical;
 PARAMS.maxDecelRad = 0.75 * aMaxTheoretical;
-PARAMS.maxJerkRad  = PARAMS.maxAccelRad * 10;  // jerk = 10× acceleration is a reasonable start
+PARAMS.maxJerkRad  = PARAMS.maxAccelRad * 10;  // ratio of 10 means ~0.1s to ramp from zero to max acceleration
 ```
 
 ### Step 4: Validate with ControlLab

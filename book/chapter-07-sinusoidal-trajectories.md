@@ -77,7 +77,7 @@ The peak instantaneous jerk occurs at $t' = T/2$:
 
 $$j_{\text{peak}} = \frac{A \cdot \pi}{2T} = \frac{\pi}{2} \cdot j_{\max}$$
 
-This is about 57% higher than the constant jerk $j_{\max}$ of the linear S-curve. But the jerk is brief and symmetric — it ramps up smoothly, peaks, and ramps back down. The *average* jerk over the transition is the same as the linear case (the same velocity change happens in the same time), and the *RMS* jerk is lower because the sinusoidal shape distributes the impulse more evenly.
+This is about 57% higher than the constant jerk $j_{\max}$ of the linear S-curve. But the key advantage is not a lower bulk jerk metric — it is that jerk is **continuous** at the phase boundaries. The sinusoidal shape tapers to zero at the edges of each transition, eliminating the jerk discontinuities that cause impulsive loading in the linear S-curve.
 
 ## 7.3 The 7-Phase Structure
 
@@ -134,7 +134,7 @@ The sinusoidal integral constants appear in the onset and offset distance terms:
 
 $$C_{\text{onset}} = \frac{\pi^2 - 4}{4\pi^2} \approx 0.1487 \qquad C_{\text{offset}} = \frac{\pi^2 + 4}{4\pi^2} \approx 0.3513$$
 
-These replace the $\frac{1}{6}$ factor from the cubic polynomial distance formula of the linear S-curve. They arise from integrating the raised-cosine velocity curve over one full transition:
+These replace the $\frac{1}{6}$ (onset) and $\frac{1}{3}$ (offset) factors from the cubic polynomial distance formulas of the linear S-curve. They arise from integrating the raised-cosine velocity curve over one full transition:
 
 $$C_{\text{onset}} = \frac{1}{4} - \frac{1}{\pi^2} \qquad C_{\text{offset}} = \frac{1}{4} + \frac{1}{\pi^2}$$
 
@@ -173,7 +173,7 @@ When the initial acceleration $a_0$ is non-zero, a **quarter-cosine** arc brings
 
 $$a(t') = a_0 \cos\left(\frac{\pi t'}{2 T_{\text{pre}}}\right) \qquad T_{\text{pre}} = \frac{|a_0|}{j_{\max}}$$
 
-At $t' = 0$: $a = a_0$. At $t' = T_{\text{pre}}$: $a = 0$. The jerk at $t' = 0$ is zero (cosine derivative is $-\sin$, which is zero at the origin), so the prefix connects smoothly with whatever came before.
+At $t' = 0$: $a = a_0$. At $t' = T_{\text{pre}}$: $a = 0$. The jerk at $t' = 0$ is zero (cosine derivative is $-\sin$, which is zero at the origin), so acceleration is continuous at the splice — though jerk is generally discontinuous with whatever came before.
 
 Integrating gives velocity and position during the prefix:
 

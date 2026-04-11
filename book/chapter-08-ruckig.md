@@ -10,7 +10,7 @@ The Ruckig library implements this pattern. It computes time-optimal, jerk-limit
 
 The term "online" means the trajectory is computed in real time, as opposed to "offline" where the trajectory is pre-computed before motion begins. The distinction matters for two reasons:
 
-**Reactivity.** An online planner can respond to target changes instantly. If the operator changes the target mid-move, the planner doesn't need to splice two profiles together — it simply plans a new trajectory from the current state to the new target on the next cycle. The result is time-optimal by construction.
+**Reactivity.** An online planner can respond to target changes instantly. If the operator changes the target mid-move, the planner doesn't need to splice two profiles together — it simply plans a new trajectory from the current state to the new target on the next cycle. Each re-plan is time-optimal from the current state to the new target.
 
 **Multi-DOF synchronization.** When multiple axes must arrive simultaneously (e.g., an X-Y gantry or a multi-joint arm), an online planner can compute synchronized profiles that respect independent per-axis limits while coordinating arrival times. The offline profiles in Chapters 5–7 plan each axis independently; synchronization would require post-hoc time scaling.
 
@@ -37,7 +37,7 @@ Ruckig (Real-time Online Trajectory Generation with Kinematic Limits) is an open
 
 The algorithm is based on the same 7-phase S-curve structure described in Chapter 6, but with two key additions:
 
-1. **Closed-form solution.** Where `SCurvePosition` uses binary search to find `vPeak`, Ruckig solves the time-optimal profile analytically. This is faster and avoids the iterative convergence issues that binary search can encounter near edge cases.
+1. **Algebraic solver.** Where `SCurvePosition` uses binary search to find `vPeak`, Ruckig uses algebraic solutions for common profile cases (quartic and lower-degree polynomials), with a Newton-bisection fallback for harder cases. This handles arbitrary initial and final states more directly.
 
 2. **Multi-DOF synchronization.** For $n$ degrees of freedom, Ruckig computes the time-optimal profile for each axis independently, finds the slowest axis, and then stretches the faster axes to match. The result is that all axes arrive simultaneously, each respecting its own limits.
 
@@ -256,7 +256,7 @@ try (RuckigController ruckig = new RuckigController(1, 0.020)) {
 }
 ```
 
-This is a pure feedforward loop — the output of each cycle becomes the input of the next. No sensor feedback is involved. The trajectory is time-optimal by construction and respects the velocity, acceleration, and jerk limits on every cycle.
+This is an open-loop reference generation loop — the output of each cycle becomes the input of the next. No sensor feedback is involved. Each plan is time-optimal from its current state and respects the velocity, acceleration, and jerk limits on every cycle.
 
 ### Changing Targets Mid-Motion
 
@@ -310,7 +310,7 @@ try (RuckigController ruckig = new RuckigController(2, 0.020)) {
 }
 ```
 
-Both axes arrive at their targets at the same time. Ruckig computes the time-optimal profile for each axis independently, identifies the slowest, and stretches the faster axes to match. Each axis still respects its own limits — the slower axis runs at full speed, while the faster axis is slowed down.
+Both axes arrive at their targets at the same time. Ruckig computes the time-optimal profile for each axis independently, identifies the slowest, and stretches the faster axes to match. Each axis still respects its own limits — the limiting axis runs its time-optimal profile, while the other axes are stretched to match its duration.
 
 ## 8.6 Building the Native Library
 
@@ -409,14 +409,14 @@ The S-curve profiles and Ruckig solve the same fundamental problem — time-opti
 
 ### Ruckig's Advantages
 
-- **Closed-form solver.** No binary search for `vPeak`; the solution is computed directly. This avoids the 64-iteration bisection loop and its associated edge cases.
+- **Algebraic solver.** Uses algebraic solutions for common profile cases rather than the 64-iteration bisection loop that `SCurvePosition` uses for `vPeak`.
 - **Multi-DOF synchronization.** Built-in support for coordinating multiple axes. The S-curve profiles would require external time-scaling logic.
 - **Online replanning.** Target changes are handled naturally on each cycle. No need for a separate manager layer to handle replanning.
 
 ### S-Curve Advantages
 
 - **Pure Java.** No native library, no JNI, no NDK dependency. Works on any platform without compilation.
-- **Asymmetric acceleration.** `SCurvePosition` supports independent `aMaxAccel` and `aMaxDecel` limits. Ruckig's community edition uses symmetric acceleration limits.
+- **Asymmetric acceleration.** `SCurvePosition` supports independent `aMaxAccel` and `aMaxDecel` limits. Ruckig supports this via `min_acceleration`, but the MarsCommonFtc JNI wrapper does not currently expose it.
 - **Sinusoidal jerk.** `SinCurvePosition` provides jerk-continuous trajectories with raised-cosine transitions. Ruckig uses piecewise-constant jerk (same as `SCurvePosition`).
 - **Full trajectory access.** The offline profiles expose the complete trajectory function: `getPosition(t)` for any `t ∈ [0, tf]`. Ruckig only reveals one time step at a time.
 - **Exact SVG export.** The polynomial/trigonometric structure enables analytically exact visualization. Ruckig trajectories must be sampled.
@@ -426,7 +426,7 @@ The S-curve profiles and Ruckig solve the same fundamental problem — time-opti
 
 **Use the S-curve profiles (default) when:**
 - You control a single axis (arm, elevator, flywheel)
-- You need asymmetric acceleration or sinusoidal jerk
+- You need asymmetric acceleration (without modifying the JNI wrapper) or sinusoidal jerk
 - You want pure Java with no native dependencies
 - You need full trajectory access for analysis or visualization
 - You need back-EMF-aware limit tuning

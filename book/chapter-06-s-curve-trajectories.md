@@ -1,6 +1,6 @@
 # Chapter 6: S-Curve Jerk-Limited Trajectories
 
-The trapezoidal profile from Chapter 5 bounds velocity and acceleration, but it has a hidden problem: acceleration changes instantaneously at phase boundaries. The derivative of acceleration — called **jerk** — is infinite at these points. Infinite jerk means infinite force rate-of-change, which excites mechanical resonances, causes gear backlash, and produces audible noise. S-curve profiles solve this by bounding jerk explicitly.
+The trapezoidal profile from Chapter 5 bounds velocity and acceleration, but it has a hidden problem: acceleration changes instantaneously at phase boundaries. The derivative of acceleration — called **jerk** — is infinite at these points. Infinite jerk means infinite force rate-of-change, which slams through gear backlash, excites mechanical resonances, and produces audible noise. S-curve profiles solve this by bounding jerk explicitly.
 
 ## 6.1 Why Jerk Matters
 
@@ -55,7 +55,7 @@ The durations of T1, T3, T5, and T7 are determined by the jerk and acceleration 
 
 $$T_1 = T_3 = \frac{a_{\max,\text{accel}}}{j_{\max}} \qquad T_5 = T_7 = \frac{a_{\max,\text{decel}}}{j_{\max}}$$
 
-The durations of T2, T4, and T6 depend on the total distance. If the distance is short, T2, T4, and T6 may be zero — the profile becomes purely triangular in acceleration and velocity.
+These equalities hold when starting from zero acceleration. With a non-zero handoff acceleration from braking, $T_1$ and $T_3$ may differ (see Section 6.3). The durations of T2, T4, and T6 depend on the total distance. If the distance is short, T2, T4, and T6 may be zero — the profile becomes purely triangular in acceleration and velocity.
 
 ### The vPeak Solver
 
@@ -92,7 +92,7 @@ After this phase, acceleration is zero and the main 7-phase profile begins.
 
 ### Helpful Acceleration Preservation
 
-There is an important optimization: if the initial acceleration is already pointing toward the target, it is **helpful** and should not be zeroed. For example, if the arm is moving upward toward its target and accelerating upward, the existing acceleration is useful and the a0 prefix is skipped.
+There is an important optimization: if the velocity is in the **wrong direction** (away from the target) but the acceleration is already pointing toward the target (decelerating the mechanism), that acceleration is **helpful** for braking and should be preserved rather than zeroed.
 
 ```java
 if (vStart * dir < 0 && a0 * dir >= 0) {
@@ -103,15 +103,14 @@ if (vStart * dir < 0 && a0 * dir >= 0) {
 
 ### The Braking Prefix
 
-If the initial velocity is in the **wrong direction** (away from the target), a braking prefix brings velocity to zero before the main profile begins. This is a 3-sub-phase jerk-limited deceleration:
+If the initial velocity is in the **wrong direction** (away from the target), a braking prefix brings velocity to zero before the main profile begins. This is a 2-sub-phase jerk-limited deceleration:
 
 ```
 Phase B1: Apply -jMax to reduce acceleration (if needed)
-Phase B2: Hold constant deceleration
-Phase B3: Apply +jMax to bring acceleration to zero at v=0
+Phase B2: Hold constant deceleration until v=0
 ```
 
-The braking profile can be triangular (no constant-deceleration phase) or trapezoidal, depending on how much velocity needs to be shed.
+The braking prefix intentionally does *not* ramp acceleration back to zero — it hands off a non-zero acceleration (`aBrakeHandoff`) to the main 7-phase profile, which absorbs the residual acceleration in its T1 phase. The braking profile can be triangular (no constant-deceleration phase) or trapezoidal, depending on how much velocity needs to be shed.
 
 ## 6.4 Asymmetric Acceleration and Deceleration
 
@@ -181,7 +180,7 @@ The S-curve profile needs acceleration and jerk limits as inputs. But what are r
 
 ### findMaxAMax
 
-Finds the maximum acceleration achievable from rest (v = 0) given the voltage budget:
+Finds the maximum acceleration achievable for a velocity transition given the voltage budget:
 
 ```java
 double aMax = SCurveVelocity.findMaxAMax(
@@ -265,14 +264,16 @@ double ff = kS * Math.signum(v) + kV * v + kA * a;
 ff /= voltage;  // battery compensation
 ```
 
-The proportional gain is suppressed during high acceleration:
+The proportional gain is suppressed during acceleration and ramps back in after acceleration reaches zero:
 
 ```java
-double kPEffective = kP * Math.max(0, 1.0 - Math.abs(a) / aMax);
+double kPEffective = (kpRampSec < 1e-9)
+        ? (Math.abs(a) < 1e-6 ? kP : 0.0)
+        : kP * MathUtil.clamp(accelZeroElapsedSec / kpRampSec, 0.0, 1.0);
 double power = ff + kPEffective * (v - actualVelocity);
 ```
 
-At peak acceleration, kP is zero and the controller runs on pure feedforward. As acceleration drops to zero, full kP engages.
+During any nonzero acceleration, kP is zero and the controller runs on pure feedforward. Once acceleration reaches zero, kP ramps in over a configurable time window to let the mechanism settle.
 
 ## 6.8 Mid-Motion Replanning
 
@@ -290,7 +291,7 @@ currentTrajectory = factory.create(
     vMax, aMaxAccel, aMaxDecel, jMax);
 ```
 
-The new trajectory starts from the current position, velocity, and acceleration, ensuring **C2 continuity** (position, velocity, and acceleration are continuous; jerk is not). The jerk discontinuity at the replan boundary is an inherent limitation of the piecewise-linear S-curve.
+The new trajectory starts from the current position, velocity, and acceleration, ensuring **C2 continuity at the splice point** (the old and new trajectories share the same position, velocity, and acceleration; jerk is generally discontinuous). The jerk discontinuity at the replan boundary is an inherent limitation of the piecewise-linear S-curve.
 
 ### Replan on Tracking Error
 
