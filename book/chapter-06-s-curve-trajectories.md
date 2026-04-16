@@ -210,7 +210,7 @@ double jDec = SCurveVelocity.findMaxJDec(
 );
 ```
 
-Both methods use 30 iterations of binary search, which gives sufficient precision for any practical mechanism. Chapter 10 covers these methods in the context of automated profile tuning.
+Both methods use 30 iterations of binary search, which gives sufficient precision for any practical mechanism. They handle degenerate inputs safely rather than producing NaN or infinite values — see Chapter 10 for the full list of guard conditions and return values. Chapter 10 also covers these methods in the context of automated profile tuning.
 
 ## 6.7 Using S-Curves in Controllers
 

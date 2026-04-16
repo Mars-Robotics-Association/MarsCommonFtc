@@ -101,6 +101,10 @@ public static double findMaxJDec(
         double voltage, double kS, double kV, double kA,
         int iterations, int samples) {
     if (kA <= 0) return Double.POSITIVE_INFINITY;
+    if (voltage <= kS) return 0.0;
+    if (aMax <= 0 || !Double.isFinite(aMax)) return 0.0;
+    if (jInc <= 0) return 0.0;
+    if (Math.abs(v1 - v0) < 1e-9) return Double.POSITIVE_INFINITY;
 
     double low = 1;
     double high = 5000;
@@ -111,6 +115,10 @@ public static double findMaxJDec(
 
         SCurveVelocity traj = new SCurveVelocity(v0, v1, a0, aMax, jInc, mid);
         double totalTime = traj.getTotalTime();
+        if (!Double.isFinite(totalTime)) {
+            high = mid;
+            continue;
+        }
 
         boolean violates = false;
         for (int i = 0; i <= samples; i++) {
@@ -144,19 +152,26 @@ public static double findMaxJDec(
 
 The algorithm:
 
-1. **Search range.** `jDec` is searched between 1 and 5000 (rad/s³ or equivalent units). The lower bound avoids degenerate zero-jerk trajectories; the upper bound covers any practical FTC mechanism.
+1. **Degenerate input guards.** Before searching, several conditions are checked that would either produce meaningless results or cause NaN/Inf to propagate into the trajectory:
+   - `kA <= 0` — no acceleration constant means no voltage limit on acceleration → `POSITIVE_INFINITY`
+   - `voltage <= kS` — motor can't overcome static friction at any velocity; no `jDec` value is safe → `0.0`
+   - `aMax <= 0` or not finite — a non-positive or infinite `aMax` produces a degenerate trajectory (infinite rise time or NaN timing); typically caused by a bad `findMaxAMax` result → `0.0`
+   - `jInc <= 0` — a zero or negative `jInc` produces a near-infinite acceleration rise time, causing the 1000 samples to cover only the near-zero-velocity start and miss violations → `0.0`
+   - `v0 ≈ v1` — trivial trajectory with zero total time; `jDec` has no effect → `POSITIVE_INFINITY`
 
-2. **Construct candidate.** For each midpoint, construct an `SCurveVelocity` with that `jDec` value. All other parameters (`v0`, `v1`, `a0`, `aMax`, `jInc`) are fixed.
+2. **Search range.** `jDec` is searched between 1 and 5000 (rad/s³ or equivalent units). The lower bound avoids degenerate zero-jerk trajectories; the upper bound covers any practical FTC mechanism.
 
-3. **Sample and check.** Sample the trajectory at 1000 evenly-spaced points. At each point, compute the voltage the motor would need:
+3. **Construct candidate.** For each midpoint, construct an `SCurveVelocity` with that `jDec` value. All other parameters (`v0`, `v1`, `a0`, `aMax`, `jInc`) are fixed. If the resulting `totalTime` is not finite (which can happen if the parameters are near-degenerate despite passing the guards), the candidate is treated as violating.
+
+4. **Sample and check.** Sample the trajectory at 1000 evenly-spaced points. At each point, compute the voltage the motor would need:
 
    $$V_{\text{needed}} = k_S + k_V |v(t)| + k_A \cdot a(t)$$
 
    (This assumes positive velocity throughout the move; for negative velocity, $k_S$ flips sign.) Compare against the supply voltage. If $V_{\text{needed}} > V_{\text{supply}}$ at any sample, the trajectory violates the constraint.
 
-4. **Bisect.** If the candidate violates, search lower. If it's safe, search higher.
+5. **Bisect.** If the candidate violates, search lower. If it's safe, search higher.
 
-5. **Return the best.** After 30 iterations, the search has converged to within $5000 / 2^{30} \approx 5 \times 10^{-6}$ of the true maximum.
+6. **Return the best.** After 30 iterations, the search has converged to within $5000 / 2^{30} \approx 5 \times 10^{-6}$ of the true maximum.
 
 ### Why jDec and Not jMax?
 
@@ -171,6 +186,8 @@ public static double findMaxAMax(
         double v0, double v1, double jInc,
         double voltage, double kS, double kV, double kA) {
     if (kA <= 0) return Double.POSITIVE_INFINITY;
+    if (voltage <= kS) return 0.0;
+    if (jInc <= 0) return 0.0;
 
     double motorAMaxAtZero = (voltage - kS) / kA;
     double low = motorAMaxAtZero;
@@ -188,9 +205,13 @@ public static double findMaxAMax(
 }
 ```
 
-The key difference: the search starts at `motorAMaxAtZero = (voltage - kS) / kA`, which is the maximum acceleration the motor can produce at zero velocity. Since the profile's peak acceleration occurs near zero velocity (where the most voltage headroom exists), this value is typically feasible — the acceleration ramps down by the time velocity is high. The binary search finds the highest `aMax` that works across the entire trajectory without violating the voltage constraint at any point.
+The key difference from `findMaxJDec`: the search starts at `motorAMaxAtZero = (voltage - kS) / kA`, which is the maximum acceleration the motor can produce at zero velocity. Since the profile's peak acceleration occurs near zero velocity (where the most voltage headroom exists), this value is typically feasible — the acceleration ramps down by the time velocity is high. The binary search finds the highest `aMax` that works across the entire trajectory without violating the voltage constraint at any point.
 
-Note that `findMaxAMax` uses symmetric jerk (`jInc = jDec = jInc`). It also starts from zero initial acceleration (`a0 = 0`), since it's computing a limit for the profile's peak acceleration — not tuning the jerk shape.
+`findMaxAMax` uses symmetric jerk (`jInc = jDec`) and zero initial acceleration (`a0 = 0`), since it's computing a limit for the profile's peak acceleration — not tuning the jerk shape.
+
+The degenerate input guards work the same way as `findMaxJDec`, with two cases specific to this function:
+- `voltage <= kS` — if the supply voltage can't overcome static friction, `motorAMaxAtZero` would be negative or zero, and every binary-search candidate would violate. Without the guard, `best` is initialized to that negative value and returned unchanged since no candidate ever passes. The guard returns `0.0` instead.
+- `jInc <= 0` — the search trajectories would have near-infinite rise times, causing samples to cluster at near-zero velocity and miss violations at higher speeds.
 
 ## 10.4 The Voltage Constraint Surface
 

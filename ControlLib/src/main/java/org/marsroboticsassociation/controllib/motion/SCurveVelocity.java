@@ -352,19 +352,36 @@ public class SCurveVelocity implements VelocityTrajectory {
     }
 
     /**
-     * Find the maximum jDec that doesn't violate back-EMF constraints for a given motor.
-     * Uses binary search to find the threshold.
+     * Find the largest jDec (jerk when decreasing acceleration) that keeps a trajectory within
+     * the motor's back-EMF voltage budget. Uses binary search over [1, 5000] and delegates to
+     * the configurable overload with 30 iterations and 1000 samples.
+     *
+     * <p>Degenerate inputs are handled as follows rather than producing NaN or infinite values:
+     * <ul>
+     *   <li>{@code kA <= 0} — no acceleration constant, voltage limit is irrelevant →
+     *       returns {@link Double#POSITIVE_INFINITY}</li>
+     *   <li>{@code voltage <= kS} — motor cannot overcome static friction at any velocity →
+     *       returns {@code 0.0}</li>
+     *   <li>{@code aMax <= 0} or {@code aMax} is not finite — no useful trajectory can be
+     *       constructed; pass the result of {@link #findMaxAMax} here →
+     *       returns {@code 0.0}</li>
+     *   <li>{@code jInc <= 0} — degenerate: acceleration rise time is near-infinite, sampling
+     *       would miss violations → returns {@code 0.0}</li>
+     *   <li>{@code v0 ≈ v1} (within 1e-9) — trivial trajectory, jDec has no effect →
+     *       returns {@link Double#POSITIVE_INFINITY}</li>
+     * </ul>
      *
      * @param v0        Initial velocity
      * @param v1        Target velocity
      * @param a0        Initial acceleration
-     * @param aMax      Maximum acceleration
-     * @param jInc      Jerk when increasing acceleration
-     * @param voltage   Motor voltage (e.g., 12.0)
-     * @param kS        Motor static voltage (V)
-     * @param kV        Motor velocity constant (V/rpm)
-     * @param kA        Motor acceleration constant (V/(units/s^2))
-     * @return          Maximum jDec that stays within back-EMF limits
+     * @param aMax      Maximum acceleration magnitude; use result of {@link #findMaxAMax} if available
+     * @param jInc      Jerk magnitude when increasing acceleration (must be &gt; 0)
+     * @param voltage   Motor supply voltage (e.g. 12.0 V)
+     * @param kS        Motor static feedforward (V); voltage needed to overcome friction
+     * @param kV        Motor velocity feedforward (V per velocity unit)
+     * @param kA        Motor acceleration feedforward (V per acceleration unit); must be &gt; 0
+     * @return          Largest jDec in [1, 5000] that doesn't violate back-EMF limits, or a
+     *                  sentinel as described above for degenerate inputs
      */
     public static double findMaxJDec(double v0, double v1, double a0, double aMax, double jInc,
             double voltage, double kS, double kV, double kA) {
@@ -372,21 +389,34 @@ public class SCurveVelocity implements VelocityTrajectory {
     }
 
     /**
-     * Find the maximum jDec with configurable iterations and samples.
+     * Find the largest jDec with configurable binary-search iterations and sample count.
+     * See {@link #findMaxJDec(double, double, double, double, double, double, double, double, double)}
+     * for full parameter and return-value documentation.
+     *
+     * @param iterations Number of binary-search bisection steps (default 30 gives ~1 part in 10^9 precision)
+     * @param samples    Number of trajectory time points to check per candidate (default 1000)
      */
     public static double findMaxJDec(double v0, double v1, double a0, double aMax, double jInc,
             double voltage, double kS, double kV, double kA, int iterations, int samples) {
         if (kA <= 0) return Double.POSITIVE_INFINITY;
-        
+        if (voltage <= kS) return 0.0;                    // motor can't overcome static friction
+        if (aMax <= 0 || !Double.isFinite(aMax)) return 0.0; // degenerate aMax produces NaN trajectories
+        if (jInc <= 0) return 0.0;                        // degenerate jInc produces near-infinite rise times
+        if (Math.abs(v1 - v0) < 1e-9) return Double.POSITIVE_INFINITY; // trivial trajectory, jDec irrelevant
+
         double low = 1;
         double high = 5000;
         double best = low;
-        
+
         for (int iter = 0; iter < iterations; iter++) {
             double mid = (low + high) / 2;
-            
+
             SCurveVelocity traj = new SCurveVelocity(v0, v1, a0, aMax, jInc, mid);
             double totalTime = traj.getTotalTime();
+            if (!Double.isFinite(totalTime)) {
+                high = mid;
+                continue;
+            }
             
             boolean violates = false;
             for (int i = 0; i <= samples; i++) {
@@ -418,22 +448,45 @@ public class SCurveVelocity implements VelocityTrajectory {
     }
 
     /**
-     * Find the maximum aMax that doesn't violate back-EMF constraints at v=0.
-     * Uses binary search to find the threshold.
+     * Find the largest aMax (peak acceleration) that keeps a trajectory within the motor's
+     * back-EMF voltage budget. The search starts from the theoretical motor maximum at v=0
+     * ({@code (voltage - kS) / kA}) and binary-searches upward to 5000 using 30 iterations
+     * and 1000 samples per candidate. The search uses symmetric jerk ({@code jInc = jDec})
+     * and zero initial acceleration, which is appropriate for finding a conservative peak
+     * acceleration limit independent of jerk shape.
+     *
+     * <p>Degenerate inputs are handled as follows rather than producing NaN or infinite values:
+     * <ul>
+     *   <li>{@code kA <= 0} — no acceleration constant, voltage limit is irrelevant →
+     *       returns {@link Double#POSITIVE_INFINITY}</li>
+     *   <li>{@code voltage <= kS} — motor cannot overcome static friction, so no acceleration
+     *       is safe → returns {@code 0.0}</li>
+     *   <li>{@code jInc <= 0} — degenerate: the search would construct trajectories with
+     *       near-infinite rise times, causing samples to miss violations → returns {@code 0.0}</li>
+     * </ul>
+     *
+     * <p>Typical usage — call this first, then pass the result to {@link #findMaxJDec}:
+     * <pre>
+     *   double aMax = SCurveVelocity.findMaxAMax(0, targetV, jInc, voltage, kS, kV, kA);
+     *   double jDec = SCurveVelocity.findMaxJDec(0, targetV, 0, aMax, jInc, voltage, kS, kV, kA);
+     * </pre>
      *
      * @param v0        Initial velocity
      * @param v1        Target velocity
-     * @param jInc      Jerk when increasing acceleration (also used for jDec in search)
-     * @param voltage   Motor voltage (e.g., 12.0)
-     * @param kS        Motor static voltage (V)
-     * @param kV        Motor velocity constant (V/rpm)
-     * @param kA        Motor acceleration constant (V/(units/s^2))
-     * @return          Maximum aMax that stays within back-EMF limits
+     * @param jInc      Jerk magnitude when increasing acceleration (must be &gt; 0)
+     * @param voltage   Motor supply voltage (e.g. 12.0 V)
+     * @param kS        Motor static feedforward (V); voltage needed to overcome friction
+     * @param kV        Motor velocity feedforward (V per velocity unit)
+     * @param kA        Motor acceleration feedforward (V per acceleration unit); must be &gt; 0
+     * @return          Largest aMax in [{@code (voltage-kS)/kA}, 5000] that doesn't violate
+     *                  back-EMF limits, or a sentinel as described above for degenerate inputs
      */
     public static double findMaxAMax(double v0, double v1, double jInc,
             double voltage, double kS, double kV, double kA) {
         if (kA <= 0) return Double.POSITIVE_INFINITY;
-        
+        if (voltage <= kS) return 0.0;  // motor can't overcome static friction
+        if (jInc <= 0) return 0.0;      // degenerate jInc produces near-infinite rise times
+
         double motorAMaxAtZero = (voltage - kS) / kA;
         double low = motorAMaxAtZero;
         double high = 5000;
