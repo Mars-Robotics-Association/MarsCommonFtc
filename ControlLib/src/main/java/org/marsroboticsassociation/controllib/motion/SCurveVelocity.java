@@ -404,6 +404,25 @@ public class SCurveVelocity implements VelocityTrajectory {
         if (jInc <= 0) return 0.0;                        // degenerate jInc produces near-infinite rise times
         if (Math.abs(v1 - v0) < 1e-9) return Double.POSITIVE_INFINITY; // trivial trajectory, jDec irrelevant
 
+        // Closed-form fast path: when the peak of P(τ) during phase 3 is interior (τ* > 0),
+        // the voltage-budget constraint collapses to a linear equation in jDec:
+        //   jDec = 2·kV·(voltage - kS - kV·|v1|) / kA²
+        // Derivation: at the peak, a(τ*) = kA·jDec/kV and v(τ*) = |v1| - kA²·jDec/(2·kV²);
+        // substituting into kS + kV·v + kA·a = voltage cancels all aPeak terms.
+        // The interior-max condition is τ* > 0, equivalent to kV·aPeak > kA·jDec.
+        double vHead = voltage - kS - kV * Math.abs(v1);
+        if (vHead > 0) {
+            double jDecClosed = 2.0 * kV * vHead / (kA * kA);
+            double dv = Math.abs(v1 - v0);
+            double aPeakSq = 2.0 * dv * jInc * jDecClosed / (jInc + jDecClosed);
+            double aPeak = Math.min(Math.sqrt(aPeakSq), aMax);
+            if (kV * aPeak > kA * jDecClosed && jDecClosed <= 5000) {
+                return jDecClosed;
+            }
+        }
+
+        // Boundary case (low target velocity, aPeak < kA·jDec/kV) or jDec capped:
+        // peak of P(τ) is not interior, so constraint is different. Fall back to binary search.
         double low = 1;
         double high = 5000;
         double best = low;
