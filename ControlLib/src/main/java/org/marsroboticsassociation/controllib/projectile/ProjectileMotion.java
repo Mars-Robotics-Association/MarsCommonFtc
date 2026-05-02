@@ -60,20 +60,25 @@ public final class ProjectileMotion {
 
     /**
      * Computes the motion-compensated launch speed, accounting for robot velocity
-     * along the goal direction.
+     * relative to the goal. Flight time is set by the (unchanged) vertical kinematics, so
+     * the required ball horizontal velocity in robot frame is (d/T − scale·vParallel,
+     * −scale·vPerp); launch speed is its magnitude divided by cos(angle).
      *
      * @param distanceToGoal         Horizontal distance to the goal (inches).
      * @param vParallel              Robot velocity component toward the goal (in/s).
+     * @param vPerp                  Robot velocity component perpendicular to goal direction (in/s).
      * @param launchAngleRad         Launch angle above horizontal (radians).
      * @param heightDiff             Height difference from launcher to target (inches).
      * @param speedCompensationScale Scale factor for velocity compensation (0–1).
      * @return Compensated launch speed (in/s), clamped to >= 0.
      */
-    public static double compensatedLaunchSpeed(double distanceToGoal, double vParallel,
+    public static double compensatedLaunchSpeed(double distanceToGoal, double vParallel, double vPerp,
                                                 double launchAngleRad, double heightDiff,
                                                 double speedCompensationScale) {
         double baseSpeed = getLaunchSpeed(distanceToGoal, launchAngleRad, heightDiff);
         double cosAngle = Math.cos(launchAngleRad);
-        return Math.max(0, baseSpeed - speedCompensationScale * vParallel / cosAngle);
+        double vHx = baseSpeed * cosAngle - speedCompensationScale * vParallel;
+        double vHy = speedCompensationScale * vPerp;
+        return Math.max(0, Math.hypot(vHx, vHy) / cosAngle);
     }
 }
