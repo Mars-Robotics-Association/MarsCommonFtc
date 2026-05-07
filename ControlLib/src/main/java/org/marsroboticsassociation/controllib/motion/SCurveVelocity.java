@@ -353,27 +353,35 @@ public class SCurveVelocity implements VelocityTrajectory {
 
     /**
      * Find the largest jDec (jerk when decreasing acceleration) that keeps a trajectory within
-     * the motor's back-EMF voltage budget. Uses binary search over [1, 5000] and delegates to
-     * the configurable overload with 30 iterations and 1000 samples.
+     * the motor's back-EMF voltage budget.
      *
-     * <p>Degenerate inputs are handled as follows rather than producing NaN or infinite values:
+     * <p>The voltage demand along the trajectory is {@code P(t) = kS + kV·|v(t)| + kA·a(t)}.
+     * Three regimes determine which constraint binds:
+     * <ol>
+     *   <li><b>Interior peak.</b> When the maximum of P during phase 3 is interior
+     *       ({@code kV·aPeak > kA·jDec}), the constraint collapses to
+     *       {@code jDec = 2·kV·(voltage − kS − kV·|v1|) / kA²}.</li>
+     *   <li><b>Boundary peak with {@code aMax} cap.</b> The voltage maximum sits at the start
+     *       of phase 3 and {@code aPeak = aMax}, giving
+     *       {@code jDec = kV·aMax² / (2·(kA·aMax − vHead))}.</li>
+     *   <li><b>Boundary peak with kinematic cap.</b> {@code aPeak < aMax} from short Δv. Solve
+     *       {@code kV·aPeak² + 2·kA·jInc·aPeak − 2·jInc·(vHead + kV·Δv) = 0} for aPeak, then
+     *       {@code jDec = aPeak²·jInc / (2·Δv·jInc − aPeak²)}.</li>
+     * </ol>
+     *
+     * <p>Sentinel return values:
      * <ul>
-     *   <li>{@code kA <= 0} — no acceleration constant, voltage limit is irrelevant →
-     *       returns {@link Double#POSITIVE_INFINITY}</li>
-     *   <li>{@code voltage <= kS} — motor cannot overcome static friction at any velocity →
-     *       returns {@code 0.0}</li>
-     *   <li>{@code aMax <= 0} or {@code aMax} is not finite — no useful trajectory can be
-     *       constructed; pass the result of {@link #findMaxAMax} here →
-     *       returns {@code 0.0}</li>
-     *   <li>{@code jInc <= 0} — degenerate: acceleration rise time is near-infinite, sampling
-     *       would miss violations → returns {@code 0.0}</li>
-     *   <li>{@code v0 ≈ v1} (within 1e-9) — trivial trajectory, jDec has no effect →
-     *       returns {@link Double#POSITIVE_INFINITY}</li>
+     *   <li>{@link Double#POSITIVE_INFINITY} — voltage budget imposes no constraint
+     *       ({@code kA <= 0}, or {@code v0 ≈ v1} within 1e-9 so jDec has no effect).</li>
+     *   <li>{@link Double#NaN} — no jDec satisfies the constraints. Causes are infeasible
+     *       inputs ({@code voltage <= kS}, non-positive or non-finite {@code aMax},
+     *       {@code jInc <= 0}) or a target velocity so high that even the kinematic peak
+     *       cannot fit inside the voltage budget. Callers must check before use.</li>
      * </ul>
      *
      * @param v0        Initial velocity
      * @param v1        Target velocity
-     * @param a0        Initial acceleration
+     * @param a0        Initial acceleration (unused — closed form is independent of a0)
      * @param aMax      Maximum acceleration magnitude; use result of {@link #findMaxAMax} if available
      * @param jInc      Jerk magnitude when increasing acceleration (must be &gt; 0)
      * @param voltage   Motor supply voltage (e.g. 12.0 V)
@@ -381,89 +389,64 @@ public class SCurveVelocity implements VelocityTrajectory {
      * @param kV        Motor velocity feedforward (V per velocity unit)
      * @param kA        Motor acceleration feedforward (V per acceleration unit); must be &gt; 0
      * @return          Largest jDec in [1, 5000] that doesn't violate back-EMF limits, or a
-     *                  sentinel as described above for degenerate inputs
+     *                  sentinel as described above
      */
     public static double findMaxJDec(double v0, double v1, double a0, double aMax, double jInc,
             double voltage, double kS, double kV, double kA) {
-        return findMaxJDec(v0, v1, a0, aMax, jInc, voltage, kS, kV, kA, 30, 1000);
+        if (kA <= 0) return Double.POSITIVE_INFINITY;
+        if (voltage <= kS) return Double.NaN;
+        if (aMax <= 0 || !Double.isFinite(aMax)) return Double.NaN;
+        if (jInc <= 0) return Double.NaN;
+        if (Math.abs(v1 - v0) < 1e-9) return Double.POSITIVE_INFINITY;
+
+        final double JDEC_FLOOR = 1.0;
+        final double JDEC_CAP = 5000.0;
+
+        double dv = Math.abs(v1 - v0);
+        double vHead = voltage - kS - kV * Math.abs(v1);
+
+        // Path A — interior peak of P(τ) during phase 3 (τ* > 0, equivalent to kV·aPeak > kA·jDec).
+        // At the peak, a(τ*) = kA·jDec/kV and v(τ*) = |v1| − kA²·jDec/(2·kV²); substituting into
+        // the voltage budget cancels all aPeak terms and leaves jDec linear in vHead.
+        if (vHead > 0) {
+            double jDecA = 2.0 * kV * vHead / (kA * kA);
+            double aPeakSqA = 2.0 * dv * jInc * jDecA / (jInc + jDecA);
+            double aPeakA = Math.min(Math.sqrt(aPeakSqA), aMax);
+            if (kV * aPeakA > kA * jDecA) {
+                return clamp(jDecA, JDEC_FLOOR, JDEC_CAP);
+            }
+        }
+
+        // Boundary regime: peak of P sits at τ=0 (start of phase 3, end of phase 2). Constraint:
+        //   kA·aPeak − kV·aPeak²/(2·jDec) ≤ vHead
+        // where aPeak = min(√(2·Δv·jInc·jDec/(jInc+jDec)), aMax).
+
+        // Path B — aMax binds (kinematic peak ≥ aMax).
+        double denomB = kA * aMax - vHead;
+        if (denomB <= 0) {
+            // kA·aMax ≤ vHead: boundary constraint slack at any jDec. Return cap.
+            return JDEC_CAP;
+        }
+        double jDecB = kV * aMax * aMax / (2.0 * denomB);
+        double aKinSqB = 2.0 * dv * jInc * jDecB / (jInc + jDecB);
+        if (aKinSqB >= aMax * aMax) {
+            return clamp(jDecB, JDEC_FLOOR, JDEC_CAP);
+        }
+
+        // Path C — kinematic peak binds (aPeak < aMax). Quadratic in aPeak:
+        //   kV·aPeak² + 2·kA·jInc·aPeak − 2·jInc·(vHead + kV·Δv) = 0
+        double disc = kA * kA * jInc * jInc + 2.0 * kV * jInc * (vHead + kV * dv);
+        if (disc < 0) return Double.NaN; // infeasible: no jDec satisfies the constraint
+        double aPeakC = (-kA * jInc + Math.sqrt(disc)) / kV;
+        if (aPeakC <= 0) return Double.NaN;
+        double denomC = 2.0 * dv * jInc - aPeakC * aPeakC;
+        if (denomC <= 0) return JDEC_CAP; // jDec → ∞
+        double jDecC = aPeakC * aPeakC * jInc / denomC;
+        return clamp(jDecC, JDEC_FLOOR, JDEC_CAP);
     }
 
-    /**
-     * Find the largest jDec with configurable binary-search iterations and sample count.
-     * See {@link #findMaxJDec(double, double, double, double, double, double, double, double, double)}
-     * for full parameter and return-value documentation.
-     *
-     * @param iterations Number of binary-search bisection steps (default 30 gives ~1 part in 10^9 precision)
-     * @param samples    Number of trajectory time points to check per candidate (default 1000)
-     */
-    public static double findMaxJDec(double v0, double v1, double a0, double aMax, double jInc,
-            double voltage, double kS, double kV, double kA, int iterations, int samples) {
-        if (kA <= 0) return Double.POSITIVE_INFINITY;
-        if (voltage <= kS) return 0.0;                    // motor can't overcome static friction
-        if (aMax <= 0 || !Double.isFinite(aMax)) return 0.0; // degenerate aMax produces NaN trajectories
-        if (jInc <= 0) return 0.0;                        // degenerate jInc produces near-infinite rise times
-        if (Math.abs(v1 - v0) < 1e-9) return Double.POSITIVE_INFINITY; // trivial trajectory, jDec irrelevant
-
-        // Closed-form fast path: when the peak of P(τ) during phase 3 is interior (τ* > 0),
-        // the voltage-budget constraint collapses to a linear equation in jDec:
-        //   jDec = 2·kV·(voltage - kS - kV·|v1|) / kA²
-        // Derivation: at the peak, a(τ*) = kA·jDec/kV and v(τ*) = |v1| - kA²·jDec/(2·kV²);
-        // substituting into kS + kV·v + kA·a = voltage cancels all aPeak terms.
-        // The interior-max condition is τ* > 0, equivalent to kV·aPeak > kA·jDec.
-        double vHead = voltage - kS - kV * Math.abs(v1);
-        if (vHead > 0) {
-            double jDecClosed = 2.0 * kV * vHead / (kA * kA);
-            double dv = Math.abs(v1 - v0);
-            double aPeakSq = 2.0 * dv * jInc * jDecClosed / (jInc + jDecClosed);
-            double aPeak = Math.min(Math.sqrt(aPeakSq), aMax);
-            if (kV * aPeak > kA * jDecClosed && jDecClosed <= 5000) {
-                return jDecClosed;
-            }
-        }
-
-        // Boundary case (low target velocity, aPeak < kA·jDec/kV) or jDec capped:
-        // peak of P(τ) is not interior, so constraint is different. Fall back to binary search.
-        double low = 1;
-        double high = 5000;
-        double best = low;
-
-        for (int iter = 0; iter < iterations; iter++) {
-            double mid = (low + high) / 2;
-
-            SCurveVelocity traj = new SCurveVelocity(v0, v1, a0, aMax, jInc, mid);
-            double totalTime = traj.getTotalTime();
-            if (!Double.isFinite(totalTime)) {
-                high = mid;
-                continue;
-            }
-            
-            boolean violates = false;
-            for (int i = 0; i <= samples; i++) {
-                double t = totalTime * i / samples;
-                double v = traj.getVelocity(t);
-                double a = traj.getAcceleration(t);
-                
-                double availableVoltage = voltage - kS - kV * Math.abs(v);
-                if (availableVoltage <= 0) {
-                    violates = true;
-                    break;
-                }
-                double motorAMax = availableVoltage / kA;
-                if (a > motorAMax) {
-                    violates = true;
-                    break;
-                }
-            }
-            
-            if (violates) {
-                high = mid;
-            } else {
-                best = mid;
-                low = mid;
-            }
-        }
-        
-        return best;
+    private static double clamp(double x, double lo, double hi) {
+        return Math.max(lo, Math.min(x, hi));
     }
 
     /**
