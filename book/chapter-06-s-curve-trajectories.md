@@ -383,4 +383,4 @@ The key insights are:
 - **Back-EMF-aware binary search** finds the maximum limits that respect the voltage constraint
 - **Mid-motion replanning** seeds new trajectories from the current state for C2 continuity
 
-The next chapter covers sinusoidal trajectories in more depth, and Chapter 8 introduces online trajectory generation with the Ruckig library for real-time multi-DOF planning.
+The next chapter covers sinusoidal trajectories in more depth.
