@@ -87,7 +87,7 @@ public class VelocityMotorSdkPidf extends VelocityMotorBase {
     }
 
     @Override
-    protected void setTPS(double tps) {
+    public void setTPS(double tps) {
         tps = MathUtil.clamp(tps, -config.maxSettableVelocity, config.maxSettableVelocity);
         trajectory.setTarget(tps);
     }

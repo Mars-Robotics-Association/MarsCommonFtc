@@ -40,6 +40,11 @@ public class VelocityMotorPF extends VelocityMotorBase {
         public double kP = 0.0045;
 
         /**
+         * Milliseconds over which kP ramps from 0 to full after profile acceleration reaches 0.
+         */
+        public double kpRampMs = 250;
+
+        /**
          * Static Friction Feedforward.
          * <p>
          * The y-intercept or offset for the velocity feedforward.
@@ -71,7 +76,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
          * {@link #getMaxVelocity()} returns {@code (1 - headroomAllowance)} times
          * the physical max derived from kS, kV, and battery voltage.
          */
-        public double headroomAllowance = 0.2;
+        public double headroomAllowance = 0.1;
 
         /**
          * Maximum Acceleration Constraint.
@@ -152,6 +157,7 @@ public class VelocityMotorPF extends VelocityMotorBase {
     private double lastTpsSet = 0;
     private double voltage = 12.0;
     private double lastFilteredTps = 0;
+    private double accelZeroElapsedSec = 0;
 
     public VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                            double motorPowerChangeTolerance, VelocityMotorPFConfig config,
@@ -163,19 +169,19 @@ public class VelocityMotorPF extends VelocityMotorBase {
     }
 
     /**
-     * Package-private constructor for tests — injects a custom clock.
+     * Public constructor for simulations — injects a custom clock.
      */
-    VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
-                    double motorPowerChangeTolerance, VelocityMotorPFConfig config,
-                    IMotor motor, LongSupplier clock) {
+    public VelocityMotorPF(TelemetryAddData telemetry, double gearRatio, double motorPPR,
+                           double motorPowerChangeTolerance, VelocityMotorPFConfig config,
+                           IMotor motor, LongSupplier clock) {
         super(telemetry, gearRatio, motorPPR, motorPowerChangeTolerance, motor,
                 config.accelMax, config.jerkIncreasing, config.jerkDecreasing, 10.0, clock);
         _config = config;
-        accelLpf = new BiquadLowPassVarDt(_config.accelLpfCutoffHz, 0.5);
+        accelLpf = new BiquadLowPassVarDt(config.accelLpfCutoffHz, 0.5);
     }
 
     @Override
-    protected void setTPS(double tps) {
+    public void setTPS(double tps) {
         if (tps != lastTpsSet) {
             voltage = getVoltage();
             double vmax = getMaxVelocity();
@@ -224,7 +230,15 @@ public class VelocityMotorPF extends VelocityMotorBase {
         }
         lastFilteredTps = tpsFiltered;
         double ve = v - tpsFiltered;
-        double kPEffective = _config.kP * Math.max(0, 1.0 - Math.abs(a) / _config.accelMax);
+        if (Math.abs(a) > 1e-6) {
+            accelZeroElapsedSec = 0;
+        } else {
+            accelZeroElapsedSec += dt;
+        }
+        double kpRampSec = _config.kpRampMs / 1000.0;
+        double kPEffective = (kpRampSec < 1e-9)
+                ? (Math.abs(a) < 1e-6 ? _config.kP : 0.0)
+                : _config.kP * MathUtil.clamp(accelZeroElapsedSec / kpRampSec, 0.0, 1.0);
         double power = ff + kPEffective * ve;
 
         if (Math.abs(trajectory.getTarget()) < 1e-6) {
@@ -258,4 +272,5 @@ public class VelocityMotorPF extends VelocityMotorBase {
         setPower(0);
         lastTpsSet = 0;
     }
+
 }

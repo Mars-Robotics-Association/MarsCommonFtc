@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+  <rect width="100%" height="100%" fill="white"/>
+  <text x="450" y="24" text-anchor="middle" font-family="sans-serif" font-size="18">Trajectory</text>
+  <g font-family="sans-serif" font-size="11" fill="#444" stroke="#d0d0d0" stroke-width="1">
+    <rect x="72" y="40" width="804" height="506" fill="none" stroke="#bdbdbd"/>
+    <line x1="72" y1="40" x2="72" y2="546"/>
+    <text x="72" y="582" text-anchor="middle" stroke="none">0</text>
+    <line x1="232.8" y1="40" x2="232.8" y2="546"/>
+    <text x="232.8" y="582" text-anchor="middle" stroke="none">1.313</text>
+    <line x1="393.6" y1="40" x2="393.6" y2="546"/>
+    <text x="393.6" y="582" text-anchor="middle" stroke="none">2.627</text>
+    <line x1="554.4" y1="40" x2="554.4" y2="546"/>
+    <text x="554.4" y="582" text-anchor="middle" stroke="none">3.94</text>
+    <line x1="715.2" y1="40" x2="715.2" y2="546"/>
+    <text x="715.2" y="582" text-anchor="middle" stroke="none">5.253</text>
+    <line x1="876" y1="40" x2="876" y2="546"/>
+    <text x="876" y="582" text-anchor="middle" stroke="none">6.567</text>
+    <line x1="72" y1="546" x2="876" y2="546"/>
+    <text x="64" y="550" text-anchor="end" stroke="none">-6.44</text>
+    <line x1="72" y1="444.8" x2="876" y2="444.8"/>
+    <text x="64" y="448.8" text-anchor="end" stroke="none">3.536</text>
+    <line x1="72" y1="343.6" x2="876" y2="343.6"/>
+    <text x="64" y="347.6" text-anchor="end" stroke="none">13.512</text>
+    <line x1="72" y1="242.4" x2="876" y2="242.4"/>
+    <text x="64" y="246.4" text-anchor="end" stroke="none">23.488</text>
+    <line x1="72" y1="141.2" x2="876" y2="141.2"/>
+    <text x="64" y="145.2" text-anchor="end" stroke="none">33.464</text>
+    <line x1="72" y1="40" x2="876" y2="40"/>
+    <text x="64" y="44" text-anchor="end" stroke="none">43.44</text>
+  </g>
+  <text x="474.0" y="596" text-anchor="middle" font-family="sans-serif" font-size="12">Time (s)</text>
+  <text x="18" y="293.0" text-anchor="middle" font-family="sans-serif" font-size="12" transform="rotate(-90 18 293)">Value</text>
+  <g font-family="sans-serif" font-size="12">
+    <rect x="80" y="48" width="170" height="88" fill="white" fill-opacity="0.9" stroke="#c8c8c8"/>
+    <line x1="90" y1="62" x2="114" y2="62" stroke="#2e86de" stroke-width="2"/>
+    <text x="122" y="66" fill="#333">Position (units)</text>
+    <line x1="90" y1="82" x2="114" y2="82" stroke="#e67e22" stroke-width="2"/>
+    <text x="122" y="86" fill="#333">Velocity (units/s)</text>
+    <line x1="90" y1="102" x2="114" y2="102" stroke="#27ae60" stroke-width="2"/>
+    <text x="122" y="106" fill="#333">Acceleration (units/s²)</text>
+    <line x1="90" y1="122" x2="114" y2="122" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="122" y="126" fill="#333">Target</text>
+  </g>
+  <path d="M 72 480.67 C 88.325 480.67 104.65 480.904 120.975 478.74 C 155.665 474.141 190.355 459.77 225.046 435.626 C 241.371 424.265 257.695 410.505 274.02 396.98 C 332.518 348.512 391.015 300.045 449.513 251.577 C 455.635 246.505 461.756 241.421 467.878 236.463 C 597.797 131.242 727.716 77.42 857.635 74.998 C 863.756 74.884 869.878 74.897 876 74.897 " fill="none" stroke="#2e86de" stroke-width="2"/>
+  <path d="M 72 480.67 C 80.162 480.67 88.325 480.427 96.487 477.721 C 104.65 475.016 112.812 469.85 120.975 464.439 C 155.665 441.446 190.355 418.452 225.046 395.458 C 233.208 390.048 241.371 384.881 249.533 382.176 C 257.695 379.471 265.858 379.227 274.02 379.227 C 332.518 379.227 391.015 379.227 449.513 379.227 C 455.635 379.227 461.756 379.988 467.878 381.509 C 597.797 413.802 727.716 446.095 857.635 478.388 C 863.756 479.91 869.878 480.67 876 480.67 " fill="none" stroke="#e67e22" stroke-width="2"/>
+  <path d="M 72 480.67 C 76.081 480.67 80.162 476.297 84.244 468.786 C 88.325 461.274 92.406 450.716 96.487 440.093 C 100.569 429.47 104.65 418.912 108.731 411.4 C 112.812 403.889 116.893 399.516 120.975 399.516 C 155.665 399.516 190.355 399.516 225.046 399.516 C 229.127 399.516 233.208 403.889 237.289 411.4 C 241.371 418.912 245.452 429.47 249.533 440.093 C 253.614 450.716 257.695 461.274 261.777 468.786 C 265.858 476.297 269.939 480.67 274.02 480.67 C 332.518 480.67 391.015 480.67 449.513 480.67 C 452.574 480.67 455.635 487.92 458.695 495.887 C 461.756 503.854 464.817 511.103 467.878 511.103 C 597.797 511.103 727.716 511.103 857.635 511.103 C 860.695 511.103 863.756 503.854 866.817 495.887 C 869.878 487.92 872.939 480.67 876 480.67 " fill="none" stroke="#27ae60" stroke-width="2"/>
+  <path d="M 72 74.897 C 340 74.897 608 74.897 876 74.897 " fill="none" stroke="#95a5a6" stroke-width="1.5" stroke-dasharray="6,4"/>
+</svg>

@@ -33,10 +33,14 @@ test {
 }
 
 // ---------------------------------------------------------------------------
-// Desktop build of libruckig_jni (shared library) via the system CMake.
-// The build is skipped gracefully if cmake is not on PATH.
-// On Windows the DLL lands in ruckigBuildDir/out/; on Linux/macOS libfoo.so
-// lands there too because of -DCMAKE_LIBRARY_OUTPUT_DIRECTORY.
+// Desktop build of libruckig_jni (shared library) via CMake.
+//
+// On Windows we use vswhere to locate the Visual Studio installation and
+// wrap all cmake invocations through vcvarsall.bat so that cl.exe, link.exe,
+// rc.exe, etc. are on PATH — even when Gradle is launched from a plain shell.
+//
+// On Linux/macOS the system compiler is used directly (no wrapper needed).
+// The build is skipped gracefully if cmake is not available.
 // ---------------------------------------------------------------------------
 def ruckigBuildDir = "${buildDir}/ruckig_native"
 
@@ -44,28 +48,65 @@ def cmakeOnPath = { ->
     try { ['cmake', '--version'].execute().waitFor() == 0 } catch (e) { false }
 }()
 
+// On Windows, find vcvarsall.bat via vswhere so MSVC tools are available.
+def vcvarsallPath = { ->
+    if (!org.gradle.internal.os.OperatingSystem.current().isWindows()) return null
+    def vswhere = new File("${System.getenv('ProgramFiles(x86)')}/Microsoft Visual Studio/Installer/vswhere.exe")
+    if (!vswhere.exists()) return null
+    def stdout = new ByteArrayOutputStream()
+    try {
+        def proc = [vswhere.absolutePath, '-latest', '-products', '*',
+                     '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+                     '-property', 'installationPath'].execute()
+        proc.consumeProcessOutputStream(stdout)
+        proc.waitFor()
+    } catch (e) { return null }
+    def vsPath = stdout.toString().trim()
+    if (vsPath.isEmpty()) return null
+    def vcvars = new File("${vsPath}/VC/Auxiliary/Build/vcvarsall.bat")
+    return vcvars.exists() ? vcvars.absolutePath : null
+}()
+
+// Helper: build a command line that optionally wraps through vcvarsall on Windows.
+// Returns a list suitable for Exec.commandLine.
+def msvcCmakeCommand = { List<String> cmakeArgs ->
+    if (vcvarsallPath != null) {
+        // cmd /c 'call vcvarsall.bat x64 && cmake <args>'
+        def inner = "call \"${vcvarsallPath}\" x64 && ${cmakeArgs.join(' ')}"
+        return ['cmd', '/c', inner]
+    }
+    return cmakeArgs
+}
+
 task configureRuckigDesktop(type: Exec) {
     onlyIf { cmakeOnPath }
     ignoreExitValue false
-    commandLine 'cmake',
+    def cmakeArgs = ['cmake',
             '-B', ruckigBuildDir,
             '-S', "${project(':RuckigNative').projectDir}",
             "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${ruckigBuildDir}/out",
             "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=${ruckigBuildDir}/out",
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=${ruckigBuildDir}/out",
-            '-DCMAKE_BUILD_TYPE=Release'
+            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE=${ruckigBuildDir}/out",
+            '-DCMAKE_BUILD_TYPE=Release']
+    commandLine msvcCmakeCommand(cmakeArgs)
 }
 
 task buildRuckigDesktop(type: Exec) {
     onlyIf { cmakeOnPath }
     dependsOn configureRuckigDesktop
-    commandLine 'cmake', '--build', ruckigBuildDir,
+    def cmakeArgs = ['cmake', '--build', ruckigBuildDir,
             '--config', 'Release',
-            '--target', 'ruckig_jni'
+            '--target', 'ruckig_jni']
+    commandLine msvcCmakeCommand(cmakeArgs)
 }
 
 run {
     dependsOn buildRuckigDesktop
     systemProperty 'java.library.path', "${ruckigBuildDir}/out"
+}
+
+tasks.named('classes') {
+    dependsOn buildRuckigDesktop
 }
 

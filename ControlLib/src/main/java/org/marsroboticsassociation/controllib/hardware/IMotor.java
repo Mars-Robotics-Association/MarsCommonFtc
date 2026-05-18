@@ -3,6 +3,8 @@ package org.marsroboticsassociation.controllib.hardware;
 public interface IMotor {
     String getName();
 
+    int getPosition(); // encoder ticks
+
     double getVelocity(); // ticks per second
 
     void setPower(double power);

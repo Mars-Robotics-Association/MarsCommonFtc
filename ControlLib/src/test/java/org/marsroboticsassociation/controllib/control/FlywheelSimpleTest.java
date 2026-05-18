@@ -31,7 +31,7 @@ class FlywheelSimpleTest {
     /** Advance clock by a normally-distributed dt (mean 20 ms, σ 4 ms), step controller and plant.
      *  Returns the actual dt in seconds so callers can accumulate real elapsed time. */
     private static double step(FlywheelSimple flywheel, FlywheelTestFixture.SimMotorAdapter adapter,
-                                FlywheelMotorSim sim, double[] timeSecs, Random rng) {
+                               FlywheelMotorSim sim, double[] timeSecs, Random rng) {
         double dt = Math.max(0.001, 0.020 + rng.nextGaussian() * 0.004);
         timeSecs[0] += dt;
         flywheel.update();
@@ -43,16 +43,15 @@ class FlywheelSimpleTest {
 
     @Test
     void testSpinUpConverges() {
-        FlywheelMotorSim                   sim      = makeSim();
-        FlywheelTestFixture.SimMotorAdapter adapter  = new FlywheelTestFixture.SimMotorAdapter(sim);
-        double[]                           timeSecs = { 1.0 };
-        FlywheelSimple                     flywheel = makeSystem(adapter, timeSecs);
+        FlywheelMotorSim sim = makeSim();
+        FlywheelTestFixture.SimMotorAdapter adapter = new FlywheelTestFixture.SimMotorAdapter(sim);
+        double[] timeSecs = {1.0};
+        FlywheelSimple flywheel = makeSystem(adapter, timeSecs);
 
         flywheel.setTps(2000);
         flywheel.update();   // seed lastTimeNanos; returns early
 
         Random rng = FlywheelTestFixture.makeRng();
-        double physicalMaxAccel = (FlywheelTestFixture.HUB_VOLTAGE - FlywheelSimple.PARAMS.kS) / FlywheelSimple.PARAMS.kA;
         double firstReadySeconds = -1, elapsedSeconds = 0;
         double slewTime = 0, approachTime = 0;
         for (int i = 0; i < 800; i++) {
@@ -60,7 +59,9 @@ class FlywheelSimpleTest {
             double dt = step(flywheel, adapter, sim, timeSecs, rng);
             elapsedSeconds += dt;
             if (pv < 2000.0) {
-                if ((2000.0 - pv) / FlywheelSimple.PARAMS.approachTau >= physicalMaxAccel) slewTime += dt;
+                double accelLimit = (FlywheelTestFixture.HUB_VOLTAGE - FlywheelSimple.PARAMS.kS
+                        - FlywheelSimple.PARAMS.kV * pv) / FlywheelSimple.PARAMS.kA;
+                if (FlywheelSimple.PARAMS.maxAccel < accelLimit) slewTime += dt;
                 else approachTime += dt;
             }
             if (firstReadySeconds < 0 && flywheel.isReady()) firstReadySeconds = elapsedSeconds;
@@ -75,10 +76,10 @@ class FlywheelSimpleTest {
 
     @Test
     void testCoastsWhenSetpointZero() {
-        FlywheelMotorSim                   sim      = makeSim();
-        FlywheelTestFixture.SimMotorAdapter adapter  = new FlywheelTestFixture.SimMotorAdapter(sim);
-        double[]                           timeSecs = { 1.0 };
-        FlywheelSimple                     flywheel = makeSystem(adapter, timeSecs);
+        FlywheelMotorSim sim = makeSim();
+        FlywheelTestFixture.SimMotorAdapter adapter = new FlywheelTestFixture.SimMotorAdapter(sim);
+        double[] timeSecs = {1.0};
+        FlywheelSimple flywheel = makeSystem(adapter, timeSecs);
 
         flywheel.setTps(2000);
         flywheel.update();   // seed
@@ -90,15 +91,15 @@ class FlywheelSimpleTest {
         step(flywheel, adapter, sim, timeSecs, rng);
 
         assertEquals(0.0, adapter.lastPower, "motor power should be zero when coasting");
-        assertFalse(flywheel.isReady(),       "isReady() must be false when setpoint is zero");
+        assertFalse(flywheel.isReady(), "isReady() must be false when setpoint is zero");
     }
 
     @Test
     void testSetpointStepDown() {
-        FlywheelMotorSim                   sim      = makeSim();
-        FlywheelTestFixture.SimMotorAdapter adapter  = new FlywheelTestFixture.SimMotorAdapter(sim);
-        double[]                           timeSecs = { 1.0 };
-        FlywheelSimple                     flywheel = makeSystem(adapter, timeSecs);
+        FlywheelMotorSim sim = makeSim();
+        FlywheelTestFixture.SimMotorAdapter adapter = new FlywheelTestFixture.SimMotorAdapter(sim);
+        double[] timeSecs = {1.0};
+        FlywheelSimple flywheel = makeSystem(adapter, timeSecs);
 
         flywheel.setTps(2000);
         flywheel.update();   // seed
@@ -120,11 +121,11 @@ class FlywheelSimpleTest {
 
     @Test
     void testDisturbancePulseAndRecovery() {
-        double                             kS       = FlywheelSimple.PARAMS.kS;
-        FlywheelMotorSim                   sim      = makeSim();
-        FlywheelTestFixture.SimMotorAdapter adapter  = new FlywheelTestFixture.SimMotorAdapter(sim);
-        double[]                           timeSecs = { 1.0 };
-        FlywheelSimple                     flywheel = makeSystem(adapter, timeSecs);
+        double kS = FlywheelSimple.PARAMS.kS;
+        FlywheelMotorSim sim = makeSim();
+        FlywheelTestFixture.SimMotorAdapter adapter = new FlywheelTestFixture.SimMotorAdapter(sim);
+        double[] timeSecs = {1.0};
+        FlywheelSimple flywheel = makeSystem(adapter, timeSecs);
 
         flywheel.setTps(2000);
         flywheel.update();   // seed

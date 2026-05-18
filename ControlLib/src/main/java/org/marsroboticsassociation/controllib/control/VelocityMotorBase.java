@@ -30,8 +30,8 @@ public abstract class VelocityMotorBase extends MotorBase {
         trajectory.updateConfig(aMax, jInc, jDec);
     }
 
-    /** Package-private constructor for tests — injects a custom clock. */
-    VelocityMotorBase(TelemetryAddData telemetry, double gearRatio, double motorPPR,
+    /** Public constructor for simulations — injects a custom clock. */
+    public VelocityMotorBase(TelemetryAddData telemetry, double gearRatio, double motorPPR,
                       double motorPowerChangeTolerance, IMotor motor,
                       double aMax, double jInc, double jDec, double vChangeTolerance,
                       LongSupplier clock) {
@@ -49,7 +49,11 @@ public abstract class VelocityMotorBase extends MotorBase {
         return rpm * gearRatio * motorPPR / 60.0;
     }
 
-    protected abstract void setTPS(double tps);
+    public abstract void setTPS(double tps);
+
+    public double getProfiledVelocity() {
+        return trajectory.getVelocity();
+    }
 
     public void setRPM(double rpm) {
         setTPS(rpmToTps(rpm));

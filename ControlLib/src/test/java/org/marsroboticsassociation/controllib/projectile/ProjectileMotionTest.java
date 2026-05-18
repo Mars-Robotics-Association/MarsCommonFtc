@@ -91,7 +91,7 @@ class ProjectileMotionTest {
         double d = 60.0;
         double base = ProjectileMotion.getLaunchSpeed(d, LAUNCH_ANGLE_RAD, HEIGHT_DIFF);
         assertEquals(base,
-                ProjectileMotion.compensatedLaunchSpeed(d, 0.0,
+                ProjectileMotion.compensatedLaunchSpeed(d, 0.0, 0.0,
                         LAUNCH_ANGLE_RAD, HEIGHT_DIFF, SPEED_COMPENSATION_SCALE), 1e-9,
                 "no robot motion → compensated speed equals base speed");
     }
@@ -100,14 +100,14 @@ class ProjectileMotionTest {
     void testCompensatedSpeedReducedWhenApproaching() {
         double d = 60.0;
         double base = ProjectileMotion.getLaunchSpeed(d, LAUNCH_ANGLE_RAD, HEIGHT_DIFF);
-        assertTrue(ProjectileMotion.compensatedLaunchSpeed(d, 50.0,
+        assertTrue(ProjectileMotion.compensatedLaunchSpeed(d, 50.0, 0.0,
                         LAUNCH_ANGLE_RAD, HEIGHT_DIFF, SPEED_COMPENSATION_SCALE) < base,
                 "approaching the goal → lower launch speed needed");
     }
 
     @Test
     void testCompensatedSpeedClampedAtZero() {
-        assertEquals(0.0, ProjectileMotion.compensatedLaunchSpeed(60.0, 100_000.0,
+        assertEquals(0.0, ProjectileMotion.compensatedLaunchSpeed(60.0, 100_000.0, 0.0,
                         LAUNCH_ANGLE_RAD, HEIGHT_DIFF, SPEED_COMPENSATION_SCALE),
                 "compensated speed is clamped at zero");
     }

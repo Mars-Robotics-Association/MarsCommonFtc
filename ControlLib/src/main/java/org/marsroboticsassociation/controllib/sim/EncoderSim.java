@@ -84,6 +84,12 @@ public class EncoderSim {
         return (buffer[head] - buffer[oldest]) / spanSec;
     }
 
+    public void setState(int position, double fractionalTicks) {
+        this.count = position;
+        this.fractionalTicks = fractionalTicks;
+        // Keep existing buffer history for now
+    }
+
     /** Clears the buffer and resets all state. */
     public void reset() {
         head = 0;
