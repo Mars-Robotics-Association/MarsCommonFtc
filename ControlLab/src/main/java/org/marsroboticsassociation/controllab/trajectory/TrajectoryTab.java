@@ -56,10 +56,6 @@ public class TrajectoryTab extends JPanel {
     private JSlider slAMax, slJInc, slJDec;
     private JLabel lbAMax, lbJInc, lbJDec;
 
-    // Ruckig sliders
-    private JSlider slRVMax, slRAMax, slRJMax;
-    private JLabel lbRVMax, lbRAMax, lbRJMax;
-
     // Back-EMF motor characterization (for SCurveVelocity)
     private EditableParamField efKs, efKv, efKa;
     private JPanel bemfPanel;
@@ -205,31 +201,6 @@ public class TrajectoryTab extends JPanel {
         typeCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
         sidebar.add(typeCombo);
         sidebar.add(Box.createVerticalStrut(12));
-
-        if (!TrajectoryEngine.isRuckigAvailable()) {
-            typeCombo.setRenderer(
-                    new DefaultListCellRenderer() {
-                        @Override
-                        public Component getListCellRendererComponent(
-                                JList<?> list,
-                                Object value,
-                                int index,
-                                boolean sel,
-                                boolean focus) {
-                            JLabel lbl =
-                                    (JLabel)
-                                            super.getListCellRendererComponent(
-                                                    list, value, index, sel, focus);
-                            if (value == TrajectoryType.RUCKIG) {
-                                lbl.setEnabled(false);
-                                lbl.setToolTipText(
-                                        "Ruckig JNI library not built. Run: gradlew"
-                                                + " :ControlLab:buildRuckigDesktop");
-                            }
-                            return lbl;
-                        }
-                    });
-        }
 
         sidebar.add(boldLabel("Limits"));
         sidebar.add(Box.createVerticalStrut(4));
@@ -381,39 +352,6 @@ public class TrajectoryTab extends JPanel {
         stageVelParams();
     }
 
-    private void buildRuckigSlidersIfNeeded() {
-        if (slRVMax != null) return;
-        slRVMax = new JSlider(0, 1000, l2s(10, 0.1, 500));
-        lbRVMax = new JLabel();
-        slRAMax = new JSlider(0, 1000, l2s(5, 0.1, 500));
-        lbRAMax = new JLabel();
-        slRJMax = new JSlider(0, 1000, l2s(50, 1, 5000));
-        lbRJMax = new JLabel();
-
-        slRVMax.addChangeListener(
-                e -> {
-                    updateLabel(lbRVMax, slRVMax, "vMax", 0.1, 500);
-                    stageRuckigParams();
-                    checkBackEmfViolation();
-                });
-        slRAMax.addChangeListener(
-                e -> {
-                    updateLabel(lbRAMax, slRAMax, "aMax", 0.1, 500);
-                    stageRuckigParams();
-                    checkBackEmfViolation();
-                });
-        slRJMax.addChangeListener(
-                e -> {
-                    updateLabel(lbRJMax, slRJMax, "jMax", 1, 5000);
-                    stageRuckigParams();
-                    checkBackEmfViolation();
-                });
-        updateLabel(lbRVMax, slRVMax, "vMax", 0.1, 500);
-        updateLabel(lbRAMax, slRAMax, "aMax", 0.1, 500);
-        updateLabel(lbRJMax, slRJMax, "jMax", 1, 5000);
-        stageRuckigParams();
-    }
-
     private void buildBackEmfPanelIfNeeded() {
         if (efKs != null) return;
         efKs = new EditableParamField("kS", 0.893, "%.3f", 0, 12.0, v -> checkBackEmfViolation());
@@ -439,25 +377,8 @@ public class TrajectoryTab extends JPanel {
                 s2l(slJDec.getValue(), 10, 5000));
     }
 
-    private void stageRuckigParams() {
-        engine.setRuckigParams(
-                s2l(slRVMax.getValue(), 0.1, 500),
-                s2l(slRAMax.getValue(), 0.1, 500),
-                s2l(slRJMax.getValue(), 1, 5000));
-    }
-
     private void onTypeChanged() {
         TrajectoryType sel = (TrajectoryType) typeCombo.getSelectedItem();
-
-        if (sel == TrajectoryType.RUCKIG && !TrajectoryEngine.isRuckigAvailable()) {
-            typeCombo.setSelectedItem(engine.getType());
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Ruckig JNI library not built.\nRun: gradlew :ControlLab:buildRuckigDesktop",
-                    "Ruckig Unavailable",
-                    JOptionPane.WARNING_MESSAGE);
-            return;
-        }
 
         engine.switchType(sel);
         buffer.clear();
@@ -492,15 +413,6 @@ public class TrajectoryTab extends JPanel {
                 double maxV = kv > 0 ? (MOTOR_VOLTAGE - ks) / kv : 6000;
                 updateTargetRange(0, maxV, Math.min(2000, maxV), 0);
                 checkBackEmfViolation();
-                break;
-            case RUCKIG:
-                buildRuckigSlidersIfNeeded();
-                addSliderRow(limitPanel, lbRVMax, slRVMax);
-                addSliderRow(limitPanel, lbRAMax, slRAMax);
-                addSliderRow(limitPanel, lbRJMax, slRJMax);
-                bemfPanel.setVisible(false);
-                btnReset.setVisible(false);
-                updateTargetRange(-200, 200, -100, 100);
                 break;
         }
         limitPanel.revalidate();

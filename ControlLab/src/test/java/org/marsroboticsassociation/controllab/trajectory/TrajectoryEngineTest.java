@@ -3,7 +3,6 @@ package org.marsroboticsassociation.controllab.trajectory;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.marsroboticsassociation.controllib.motion.PolynomialCurveSegment;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class TrajectoryEngineTest {
@@ -185,18 +184,4 @@ class TrajectoryEngineTest {
                         .allMatch(PolynomialCurveSegment.class::isInstance));
     }
 
-    @Test
-    void ruckig_goTo_eventuallyReachesTarget() {
-        boolean available = TrajectoryEngine.isRuckigAvailable();
-        Assumptions.assumeTrue(available, "Ruckig JNI not available; skipping");
-
-        TrajectoryEngine engine = new TrajectoryEngine(TrajectoryType.RUCKIG);
-        engine.setRuckigParams(10, 5, 50);
-        engine.applyParamsAndGoTo(100.0);
-
-        for (int i = 0; i < 1500; i++) engine.tick();
-        assertFalse(engine.isMoving());
-        assertEquals(100.0, engine.getPosition(), 0.5);
-        assertEquals(0.0, engine.getVelocity(), 0.1);
-    }
 }
