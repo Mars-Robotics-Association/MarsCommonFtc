@@ -257,7 +257,7 @@ public class FtcMotors {
 }
 ```
 
-These methods bridge the gap between empirical characterization (finding kS, kV, kA through testing) and physical parameters (inertia J, damping b) needed for state-space models. Chapter 3 covers feedforward characterization in detail; Chapter 12 covers how these physical parameters feed into state-space design.
+These methods bridge the gap between empirical characterization (finding kS, kV, kA through testing) and physical parameters (inertia J, damping b) needed for state-space models. Chapter 3 covers feedforward characterization in detail; Chapter 11 covers how these physical parameters feed into state-space design.
 
 ## 2.8 Battery Voltage Compensation
 

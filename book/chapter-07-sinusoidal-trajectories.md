@@ -403,5 +403,3 @@ In practice, the jerk discontinuity at a replan boundary is small because the a0
 - **Three merging optimizations** — Case A (prefix + braking), Case B (braking + T1 handoff), and midpoint (T3 + T5) eliminate unnecessary acceleration corners
 - **Factory injection** — `SinCurvePosition::new` plugs into `PositionTrajectoryManager` with no other code changes
 - **Replan continuity** — position, velocity, and acceleration are continuous; jerk is not
-
-Chapter 8 introduces online trajectory generation with the Ruckig library, which solves the time-optimal jerk-limited problem in real time for multi-degree-of-freedom systems.

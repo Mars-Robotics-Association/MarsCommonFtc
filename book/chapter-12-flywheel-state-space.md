@@ -1,4 +1,4 @@
-# Chapter 13: Flywheel State-Space Controller
+# Chapter 12: Flywheel State-Space Controller
 
 Chapters 11 and 12 built the theory: plant models, Kalman filters, LQR controllers. This chapter applies all of it to a concrete mechanism — a flywheel shooter controlled by `FlywheelStateSpace`. The system has one state (angular velocity), one input (voltage), and one output (encoder velocity). It's the simplest possible state-space controller, which makes it the ideal place to see every piece working together.
 

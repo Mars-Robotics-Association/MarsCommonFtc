@@ -25,9 +25,7 @@ your-robot-project/
 ├── MarsCommonFtc/             # Git submodule — shared library
 │   ├── WpiMath/               # Ported WPILib math library
 │   ├── ControlLib/            # Motor controllers, trajectories, filters
-│   ├── ControlLab/            # Desktop visualization app
-│   ├── RuckigNative/          # JNI wrapper for Ruckig trajectory library
-│   └── ruckig/                # Nested submodule: C++ Ruckig library
+│   └── ControlLab/            # Desktop visualization app
 ├── settings.gradle            # Gradle project configuration
 ├── build.gradle               # Root build configuration
 └── build.common.gradle        # Shared build settings
@@ -35,9 +33,9 @@ your-robot-project/
 
 The `MarsCommonFtc/` directory is not a copy — it is a **git submodule** pointing to a remote repository. This means the code lives in its own repository with its own version history, and your robot project references a specific commit.
 
-## 1.3 The Four Modules
+## 1.3 The Three Modules
 
-MarsCommonFtc is organized into four modules, each serving a distinct purpose:
+MarsCommonFtc is organized into three modules, each serving a distinct purpose:
 
 ### WpiMath
 
@@ -50,7 +48,7 @@ WpiMath depends on EJML 0.44.0 for matrix operations, declared as an `api` depen
 The core control library. This is where you will spend most of your time. It contains:
 
 - **Motor controllers** — abstract base classes and concrete implementations for arm, flywheel, elevator, and velocity control
-- **Trajectory generators** — S-curve, sinusoidal, and Ruckig-based jerk-limited profiles (trapezoidal profiles live in WpiMath)
+- **Trajectory generators** — S-curve and sinusoidal jerk-limited profiles (trapezoidal profiles live in WpiMath)
 - **Signal filters** — variable-dt low-pass, biquad, and IIR filters (median filter and slew rate limiter live in WpiMath)
 - **Localization** — field pose estimation with latency-compensated Kalman filtering
 - **Simulation** — physics models for flywheels and arms that run on your development machine
@@ -69,12 +67,6 @@ A Swing-based desktop application for testing and visualizing algorithms without
 - **Filter Tab** — load CSV telemetry, apply filters, visualize raw versus filtered signals, and estimate filter lag via cross-correlation
 - **Trajectory Tab** — interactive trajectory visualization with limit sliders and back-EMF violation detection
 - **Flywheel Tab** — real-time flywheel simulation with controller comparison and plant randomization
-
-ControlLab requires CMake on your PATH because it builds the Ruckig JNI library for desktop.
-
-### RuckigNative
-
-A JNI bridge to the Ruckig C++ library for real-time multi-degree-of-freedom jerk-limited trajectory generation. It builds native `.so` libraries for Android (`arm64-v8a` and `armeabi-v7a`) and desktop. The C++ source lives in a nested git submodule at `MarsCommonFtc/ruckig/`.
 
 ## 1.4 Git Submodules: How Shared Code Flows In
 
@@ -151,9 +143,6 @@ project(':ControlLib').projectDir = file('MarsCommonFtc/ControlLib')
 
 include ':ControlLab'
 project(':ControlLab').projectDir = file('MarsCommonFtc/ControlLab')
-
-include ':RuckigNative'
-project(':RuckigNative').projectDir = file('MarsCommonFtc/RuckigNative')
 ```
 
 This pattern tells Gradle: "there is a project called `:ControlLib`, and its source code lives in `MarsCommonFtc/ControlLib/`." The project names are flat top-level names — you reference them as `:ControlLib`, not `:MarsCommonFtc:ControlLib`.
@@ -169,9 +158,6 @@ dependencies {
 
     // WpiMath — compile only, EJML provided by robot controller
     compileOnly project(':WpiMath')
-
-    // RuckigNative — JNI for real-time trajectory generation
-    implementation project(':RuckigNative')
 
     // Test dependencies
     testImplementation project(path: ':ControlLib', configuration: 'shadow')
@@ -241,8 +227,6 @@ ControlLab is a desktop application. Run it with:
 ./gradlew :ControlLab:run
 ```
 
-This requires CMake on your PATH for the Ruckig native build. If CMake is not available, ControlLab will still compile but the Ruckig tab will not function.
-
 ## 1.8 Common Setup Issues
 
 ### Submodule Not Cloned
@@ -263,11 +247,7 @@ Check `settings.gradle` — the `projectDir` paths must point to the correct loc
 
 ### Stale Build Directories
 
-You may find empty directories named `WpiMath/`, `ControlLib/`, `ControlLab/`, or `RuckigNative/` at the project root, containing only `build/` or `.gradle/` subdirectories. These are remnants from a previous configuration before the submodule approach was adopted. They are safe to delete.
-
-### NDK Requirements for RuckigNative
-
-RuckigNative requires Android NDK r25 or later with C++20 support. If you get a CMake error during build, install or update the NDK through Android Studio's SDK Manager or by setting the `ANDROID_NDK_HOME` environment variable.
+You may find empty directories named `WpiMath/`, `ControlLib/`, or `ControlLab/` at the project root, containing only `build/` or `.gradle/` subdirectories. These are remnants from a previous configuration before the submodule approach was adopted. They are safe to delete.
 
 ## 1.9 The Architecture in One Picture
 
@@ -300,15 +280,10 @@ RuckigNative requires Android NDK r25 or later with C++20 support. If you get a 
 │  │Trapezoid │  │Kinematics│  │SimpleMotorFF     │  │
 │  └──────────┘  └──────────┘  └──────────────────┘  │
 │                                                      │
-├─────────────────────────────────────────────────────┤
-│              RuckigNative (JNI)                      │
-│         ┌─────────────────────────────┐             │
-│         │  Ruckig C++ (submodule)     │             │
-│         └─────────────────────────────┘             │
 └─────────────────────────────────────────────────────┘
 ```
 
-TeamCode depends on ControlLib, which depends on WpiMath. RuckigNative sits alongside ControlLib and provides real-time trajectory generation through JNI. ControlLab is a separate desktop application that uses the same ControlLib and WpiMath modules for offline testing.
+TeamCode depends on ControlLib, which depends on WpiMath. ControlLab is a separate desktop application that uses the same ControlLib and WpiMath modules for offline testing.
 
 ## 1.10 Summary
 

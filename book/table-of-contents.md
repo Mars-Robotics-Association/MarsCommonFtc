@@ -54,19 +54,13 @@
 - Eliminating jerk discontinuities at phase boundaries
 - Comparing S-curve vs. sinusoidal profiles
 
-### [Chapter 8: Online Trajectory Generation with Ruckig](chapter-08-ruckig.md)
-- What is online trajectory generation?
-- The Ruckig library overview
-- Multi-DOF real-time planning
-- JNI integration with `RuckigController`
-
-### [Chapter 9: Trajectory Management & Replanning](chapter-09-trajectory-management.md)
+### [Chapter 8: Trajectory Management & Replanning](chapter-08-trajectory-management.md)
 - `PositionTrajectoryManager` and `VelocityTrajectoryManager`
 - Mid-motion replanning with continuity guarantees
 - Handling disturbances and tracking errors
 - Telemetry and debugging
 
-### [Chapter 10: Back-EMF-Aware Profile Tuning](chapter-10-back-emf-aware-tuning.md)
+### [Chapter 9: Back-EMF-Aware Profile Tuning](chapter-09-back-emf-aware-tuning.md)
 - Why back-EMF limits achievable acceleration
 - `findMaxJDec()` and `findMaxAMax()` binary search methods
 - Voltage-constrained acceleration limits
@@ -76,25 +70,25 @@
 
 ## Part III: State-Space Control
 
-### [Chapter 11: Linear Algebra for Robotics](chapter-11-linear-algebra.md)
+### [Chapter 10: Linear Algebra for Robotics](chapter-10-linear-algebra.md)
 - `Matrix` and `Vector` operations
 - Type-level dimensions with `Nat` and `Num`
 - The Discrete Algebraic Riccati Equation (`DARE`) solver
 - Building and composing linear systems
 
-### [Chapter 12: State-Space Fundamentals](chapter-12-state-space-fundamentals.md)
+### [Chapter 11: State-Space Fundamentals](chapter-11-state-space-fundamentals.md)
 - Plant models and state-space representation
 - `LinearSystemId` — identifying systems from physical parameters
 - Continuous-to-discrete conversion
 - The `KalmanFilter` observer
 - The `LinearQuadraticRegulator` (LQR)
 
-### [Chapter 13: Flywheel State-Space Controller](chapter-13-flywheel-state-space.md)
+### [Chapter 12: Flywheel State-Space Controller](chapter-12-flywheel-state-space.md)
 - `FlywheelStateSpace` — LQR + Kalman observer
 - Handling FTC's non-deterministic loop timing
 - Comparing state-space to PID + feedforward
 
-### Chapter 14: Advanced State Estimation
+### Chapter 13: Advanced State Estimation
 - `ExtendedKalmanFilter` for nonlinear systems
 - `UnscentedKalmanFilter` with Merwe sigma points
 - `FlywheelBallTracker` — augmented state with ball-drag disturbance detection
@@ -104,7 +98,7 @@
 
 ## Part IV: Mechanism Control
 
-### Chapter 15: Arm Control: Feedforward + PD + Kalman
+### Chapter 14: Arm Control: Feedforward + PD + Kalman
 - `ArmController` architecture
 - S-curve trajectory generation for arm moves
 - Gravity compensation via feedforward
@@ -113,7 +107,7 @@
 - Per-move gravity-aware trajectory limits
 - Trajectory replanning on tracking error
 
-### Chapter 16: Arm Control: Feedback Linearization + LQR
+### Chapter 15: Arm Control: Feedback Linearization + LQR
 - `VerticalArmController` — the three-layer design
 - Layer 1: Canceling gravity and friction
 - Layer 2: LQR + linear feedforward on the linearized plant
@@ -122,7 +116,7 @@
 - LQR auto-tuning vs. manual PD gains
 - The saturation-estimation coupling constraint
 
-### Chapter 17: Velocity Motor Controllers
+### Chapter 16: Velocity Motor Controllers
 - `VelocityMotorPF` — proportional + feedforward control
   - Acceleration-dependent kP scaling
   - Jerk-limited motion profiling
@@ -135,14 +129,14 @@
 
 ## Part V: Localization & Odometry
 
-### Chapter 18: Robot Kinematics & Odometry
+### Chapter 17: Robot Kinematics & Odometry
 - `ChassisSpeeds` — robot-relative velocities
 - `DifferentialDriveKinematics` — tank/skid-steer
 - `MecanumDriveKinematics` — omni-directional drive
 - `Odometry` and `Odometry3d` — pose tracking from wheel positions
 - Twist2d and differential motion
 
-### Chapter 19: Sensor Fusion & Pose Estimation
+### Chapter 18: Sensor Fusion & Pose Estimation
 - `FieldPoseEstimator` — latency-compensated Kalman filtering
 - `PinpointOdometry` — working with odometry computers
 - `PinpointPoseEstimator` — fusing odometry with vision
@@ -153,7 +147,7 @@
 
 ## Part VI: Utilities & Tooling
 
-### Chapter 20: Signal Filtering
+### Chapter 19: Signal Filtering
 - `IIR1LowPassVarDt` — first-order low-pass with exact discrete-time solution
 - `BiquadLowPassVarDt` — second-order low-pass with matrix exponential discretization
 - `LinearFilter` — FIR filters and moving averages
@@ -161,21 +155,21 @@
 - `SlewRateLimiter` — preventing sudden signal jumps
 - Variable-dt filtering for non-deterministic loops
 
-### Chapter 21: Lookup Tables & Interpolation
+### Chapter 20: Lookup Tables & Interpolation
 - `LUT` — nearest-neighbor lookup with `TreeMap`
 - `LinInterpTable` — linear interpolation between entries
 - `InterpLUT` — monotone cubic Hermite spline interpolation (Fritsch-Carlson)
 - `InterpolatingTreeMap` — automatic interpolation between entries
 - `TimeInterpolatableBuffer` — time-indexed buffered interpolation
 
-### Chapter 22: Projectile Motion
+### Chapter 21: Projectile Motion
 - Fixed-angle launch calculations
 - `getLaunchSpeed()` — solving for required velocity at a given distance
 - `getMaxTrajectoryHeight()` — peak height of the projectile arc
 - Distance-based flywheel RPM correction
 - Motion-compensated shooting while the robot is moving
 
-### Chapter 23: Physics Simulation
+### Chapter 22: Physics Simulation
 - `EncoderSim` — faithful REV Hub encoder ring-buffer model
   - 10 ms sampling, 50 ms velocity window, 20 TPS quantization
 - `FlywheelMotorSim` — first-order linear velocity dynamics with RK4 integration
@@ -183,7 +177,7 @@
 - Disturbance voltage injection for testing
 - Building test fixtures for controller validation
 
-### Chapter 24: Desktop Visualization & Tuning with ControlLab
+### Chapter 23: Desktop Visualization & Tuning with ControlLab
 - The ControlLab Swing application
 - Filter tab: CSV signal analysis, filter application, lag estimation via cross-correlation
 - Trajectory tab: interactive visualization, limit sliders, back-EMF violation detection, SVG export

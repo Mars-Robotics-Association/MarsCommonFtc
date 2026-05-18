@@ -1,4 +1,4 @@
-# Chapter 12: State-Space Fundamentals
+# Chapter 11: State-Space Fundamentals
 
 Chapters 3 and 4 controlled motors with feedforward and PID — scalar gains applied to scalar errors. This works well for simple mechanisms, but it has limits. PID can't optimally trade off between tracking accuracy and control effort. You can add low-pass filters to smooth noisy sensor readings before they reach the PID loop, but that introduces phase lag — the smoother the signal, the more delayed it is. And while you *can* pair a Kalman filter with a PID controller, state-space control integrates estimation and control into a single unified framework.
 
@@ -137,7 +137,7 @@ The characterization-based factories (`identifyVelocitySystem`, `identifyPositio
 
 The state-space equations $\dot{\mathbf{x}} = A\mathbf{x} + B\mathbf{u}$ describe continuous-time dynamics — the state changes smoothly and instantaneously. But a digital controller runs in discrete time: it reads sensors, computes outputs, and applies them at discrete intervals (every 10–30 ms in FTC).
 
-The conversion uses the matrix exponential, as covered in Chapter 11:
+The conversion uses the matrix exponential, as covered in Chapter 10:
 
 $$A_d = e^{A \cdot dt}, \quad \begin{bmatrix} A_d & B_d \\ 0 & I \end{bmatrix} = \exp\left(\begin{bmatrix} A & B \\ 0 & 0 \end{bmatrix} \cdot dt\right)$$
 

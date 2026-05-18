@@ -336,11 +336,11 @@ Chapter 6 addresses this with S-curve profiles that bound jerk explicitly.
 
 Profiles are open-loop. They compute a trajectory assuming the system follows the model exactly. If a disturbance pushes the mechanism off the trajectory, the profile does not react. The feedback controller (PID or LQR) handles disturbance rejection, but the profile itself is blind to it.
 
-Chapter 9 covers trajectory managers that replan mid-motion when tracking errors exceed a threshold.
+Chapter 8 covers trajectory managers that replan mid-motion when tracking errors exceed a threshold.
 
 ### Constant Constraints
 
-Both profiles assume constant constraints throughout the move. They cannot handle velocity limits that vary with position (e.g., a robot that must slow down near a wall). Chapter 18 covers trajectory generation with position-dependent constraints for 2D path following.
+Both profiles assume constant constraints throughout the move. They cannot handle velocity limits that vary with position (e.g., a robot that must slow down near a wall). Chapter 17 covers trajectory generation with position-dependent constraints for 2D path following.
 
 ## 5.9 Summary
 

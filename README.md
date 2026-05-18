@@ -7,9 +7,8 @@ Shared Java modules for MARS Robotics Association FTC teams. This repo is consum
 | Module | Description |
 |--------|-------------|
 | **ControlLib** | Motion profiling, filters, motor controllers, localization utilities, and simulation tools. Publishes a shadow JAR for use in Android projects. |
-| **ControlLab** | Desktop application for testing and visualizing ControlLib algorithms (requires cmake for native ruckig builds). |
+| **ControlLab** | Desktop application for testing and visualizing ControlLib algorithms. |
 | **WpiMath** | Ported subset of WPILib's math library — geometry, kinematics, trajectory generation, and linear algebra. |
-| **RuckigNative** | JNI bridge to the [ruckig](https://github.com/pantor/ruckig) online trajectory generation library (included as a nested submodule). |
 
 ## Quick start
 
@@ -18,7 +17,6 @@ Add MarsCommonFtc as a submodule in your robot project:
 ```bash
 git submodule add https://github.com/Mars-Robotics-Association/MarsCommonFtc.git MarsCommonFtc
 cd MarsCommonFtc && git checkout v1.0.0 && cd ..
-git submodule update --init --recursive
 ```
 
 Then add the module redirects to your `settings.gradle`:
@@ -32,9 +30,6 @@ project(':ControlLib').projectDir = file('MarsCommonFtc/ControlLib')
 
 include ':ControlLab'
 project(':ControlLab').projectDir = file('MarsCommonFtc/ControlLab')
-
-include ':RuckigNative'
-project(':RuckigNative').projectDir = file('MarsCommonFtc/RuckigNative')
 ```
 
 Your existing dependency declarations (e.g. `implementation project(':ControlLib')`) work without changes.

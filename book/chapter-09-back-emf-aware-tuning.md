@@ -1,4 +1,4 @@
-# Chapter 10: Back-EMF-Aware Profile Tuning
+# Chapter 9: Back-EMF-Aware Profile Tuning
 
 Chapters 5–7 built trajectory profiles with user-specified limits: maximum velocity, acceleration, and jerk. But where do those limits come from? A common approach is to set them by feel — start with conservative values, increase until the mechanism shakes or misses targets, then back off. This works, but it leaves performance on the table and gives no principled way to adapt when the battery drains or the load changes.
 

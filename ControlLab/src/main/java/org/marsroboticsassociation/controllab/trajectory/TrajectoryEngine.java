@@ -26,30 +26,6 @@ public class TrajectoryEngine {
     private static final long CYCLE_NS = (long) (CYCLE_S * 1e9);
 
     // ------------------------------------------------------------------
-    // Ruckig availability check (done once at class load)
-    // ------------------------------------------------------------------
-    private static final boolean RUCKIG_AVAILABLE;
-
-    static {
-        boolean ok = false;
-        try {
-            Class.forName("org.marsroboticsassociation.controllib.motion.ruckig.RuckigController");
-            try (var r =
-                    new org.marsroboticsassociation.controllib.motion.ruckig.RuckigController(
-                            1, CYCLE_S)) {
-                ok = true;
-            }
-        } catch (UnsatisfiedLinkError | Exception e) {
-            ok = false;
-        }
-        RUCKIG_AVAILABLE = ok;
-    }
-
-    public static boolean isRuckigAvailable() {
-        return RUCKIG_AVAILABLE;
-    }
-
-    // ------------------------------------------------------------------
     // State
     // ------------------------------------------------------------------
     private TrajectoryType type;
@@ -61,13 +37,6 @@ public class TrajectoryEngine {
     // --- SCurveVelocity ---
     private VelocityTrajectoryManager velManager;
     private double pendingAMax = 1197, pendingJInc = 2669, pendingJDec = 800;
-
-    // --- Ruckig ---
-    private org.marsroboticsassociation.controllib.motion.ruckig.RuckigController ruckig;
-    private org.marsroboticsassociation.controllib.motion.ruckig.RuckigInput rIn;
-    private org.marsroboticsassociation.controllib.motion.ruckig.RuckigOutput rOut;
-    private double pendingRuckigVMax = 10, pendingRuckigAMax = 5, pendingRuckigJMax = 50;
-    private boolean ruckigFinished = true;
 
     // --- Simulated wall clock (nanoseconds) ---
     private long clockNs = 0;
@@ -99,12 +68,6 @@ public class TrajectoryEngine {
         this.pendingJDec = jDec;
     }
 
-    public void setRuckigParams(double vMax, double aMax, double jMax) {
-        this.pendingRuckigVMax = vMax;
-        this.pendingRuckigAMax = aMax;
-        this.pendingRuckigJMax = jMax;
-    }
-
     // ------------------------------------------------------------------
     // Button-press action: apply staged params + command new target
     // ------------------------------------------------------------------
@@ -129,20 +92,6 @@ public class TrajectoryEngine {
                 lastP = 0;
                 lastV = velManager.getVelocity();
                 lastA = velManager.getAcceleration();
-                break;
-            case RUCKIG:
-                if (rIn != null) {
-                    rIn.maxVelocity[0] = pendingRuckigVMax;
-                    rIn.maxAcceleration[0] = pendingRuckigAMax;
-                    rIn.maxJerk[0] = pendingRuckigJMax;
-                    rIn.targetPosition[0] = target;
-                    rIn.targetVelocity[0] = 0;
-                    rIn.targetAcceleration[0] = 0;
-                    ruckigFinished = false;
-                    lastP = rIn.currentPosition[0];
-                    lastV = rIn.currentVelocity[0];
-                    lastA = rIn.currentAcceleration[0];
-                }
                 break;
         }
     }
@@ -188,26 +137,6 @@ public class TrajectoryEngine {
                 lastV = velManager.getVelocity();
                 lastA = velManager.getAcceleration();
                 if (Math.abs(lastV - currentTarget) < 1.0 && Math.abs(lastA) < 1.0) {
-                    moving = false;
-                }
-                break;
-
-            case RUCKIG:
-                if (ruckig == null || ruckigFinished) {
-                    moving = false;
-                    return;
-                }
-                var result = ruckig.update(rIn, rOut);
-                rIn.currentPosition[0] = rOut.newPosition[0];
-                rIn.currentVelocity[0] = rOut.newVelocity[0];
-                rIn.currentAcceleration[0] = rOut.newAcceleration[0];
-                lastP = rOut.newPosition[0];
-                lastV = rOut.newVelocity[0];
-                lastA = rOut.newAcceleration[0];
-                if (result
-                        != org.marsroboticsassociation.controllib.motion.ruckig.RuckigResult
-                                .WORKING) {
-                    ruckigFinished = true;
                     moving = false;
                 }
                 break;
@@ -323,27 +252,10 @@ public class TrajectoryEngine {
                                 pendingAMax, pendingJInc, 1.0, NO_OP, () -> clockNs);
                 velManager.updateConfig(pendingAMax, pendingJInc, pendingJDec);
                 break;
-            case RUCKIG:
-                if (RUCKIG_AVAILABLE) {
-                    ruckig =
-                            new org.marsroboticsassociation.controllib.motion.ruckig
-                                    .RuckigController(1, CYCLE_S);
-                    rIn = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigInput(1);
-                    rOut = new org.marsroboticsassociation.controllib.motion.ruckig.RuckigOutput(1);
-                    rIn.maxVelocity[0] = pendingRuckigVMax;
-                    rIn.maxAcceleration[0] = pendingRuckigAMax;
-                    rIn.maxJerk[0] = pendingRuckigJMax;
-                    ruckigFinished = true;
-                }
-                break;
         }
     }
 
     private void tearDownPlanner() {
-        if (ruckig != null) {
-            ruckig.close();
-            ruckig = null;
-        }
         posManager = null;
         velManager = null;
     }

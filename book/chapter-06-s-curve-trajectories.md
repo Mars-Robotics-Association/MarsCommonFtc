@@ -210,7 +210,7 @@ double jDec = SCurveVelocity.findMaxJDec(
 );
 ```
 
-Both methods use 30 iterations of binary search, which gives sufficient precision for any practical mechanism. They handle degenerate inputs safely rather than producing NaN or infinite values — see Chapter 10 for the full list of guard conditions and return values. Chapter 10 also covers these methods in the context of automated profile tuning.
+Both methods use 30 iterations of binary search, which gives sufficient precision for any practical mechanism. They handle degenerate inputs safely rather than producing NaN or infinite values — see Chapter 9 for the full list of guard conditions and return values. Chapter 9 also covers these methods in the context of automated profile tuning.
 
 ## 6.7 Using S-Curves in Controllers
 
@@ -383,4 +383,4 @@ The key insights are:
 - **Back-EMF-aware binary search** finds the maximum limits that respect the voltage constraint
 - **Mid-motion replanning** seeds new trajectories from the current state for C2 continuity
 
-The next chapter covers sinusoidal trajectories in more depth, and Chapter 8 introduces online trajectory generation with the Ruckig library for real-time multi-DOF planning.
+The next chapter covers sinusoidal trajectories in more depth.
