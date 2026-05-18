@@ -341,7 +341,7 @@ public class FlywheelEngine implements IMotor {
             double v1 = 0.75 * maxVelocity;
             aMax = SCurveVelocity.findMaxAMax(0, v1, jInc, voltage, plantKS, plantKV, plantKA);
             jDec = SCurveVelocity.findMaxJDec(0, v1, 0, aMax, jInc, voltage, plantKS, plantKV, plantKA);
-        } while (jDec < 200);
+        } while (!(jDec >= 200));  // retry if NaN (infeasible) or below threshold
 
         // 3. Rebuild sim with new plant
         this.sim = new FlywheelMotorSim(plantKV, plantKA);

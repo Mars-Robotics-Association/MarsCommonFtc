@@ -147,51 +147,51 @@ class SCurveVelocityTest {
     }
 
     @Test
-    void findMaxJDec_voltageEqualToKs_returnsZero() {
+    void findMaxJDec_voltageEqualToKs_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, 1858, 3000, KS, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_voltageLessThanKs_returnsZero() {
+    void findMaxJDec_voltageLessThanKs_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, 1858, 3000, KS - 1.0, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_aMaxZero_returnsZero() {
+    void findMaxJDec_aMaxZero_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, 0.0, 3000, MOTOR_VOLTAGE, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_aMaxNegative_returnsZero() {
+    void findMaxJDec_aMaxNegative_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, -100.0, 3000, MOTOR_VOLTAGE, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_aMaxInfinity_returnsZero() {
+    void findMaxJDec_aMaxInfinity_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, Double.POSITIVE_INFINITY, 3000, MOTOR_VOLTAGE, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_aMaxNaN_returnsZero() {
+    void findMaxJDec_aMaxNaN_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, Double.NaN, 3000, MOTOR_VOLTAGE, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_jIncZero_returnsZero() {
+    void findMaxJDec_jIncZero_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, 1858, 0.0, MOTOR_VOLTAGE, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
-    void findMaxJDec_jIncNegative_returnsZero() {
+    void findMaxJDec_jIncNegative_returnsNaN() {
         double result = SCurveVelocity.findMaxJDec(0, 2000, 0, 1858, -100.0, MOTOR_VOLTAGE, KS, KV, KA);
-        assertEquals(0.0, result);
+        assertTrue(Double.isNaN(result));
     }
 
     @Test
