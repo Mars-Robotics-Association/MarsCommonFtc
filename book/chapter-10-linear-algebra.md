@@ -1,4 +1,4 @@
-# Chapter 11: Linear Algebra for Robotics
+# Chapter 10: Linear Algebra for Robotics
 
 Parts I and II controlled motors with scalar math: a single voltage, a single velocity, a single acceleration. State-space control replaces these scalars with vectors and matrices. A flywheel's state is a 1×1 vector (velocity). An elevator's state is a 2×1 vector (position and velocity). A differential drivetrain's state is a 2×1 vector (left velocity and right velocity). The matrices that connect these vectors encode the physics of the system — how voltage produces acceleration, how velocity decays due to friction, how sensors observe the hidden state.
 
@@ -338,4 +338,4 @@ The linear algebra layer provides three things:
 
 - **The DARE solver** — the mathematical core of both LQR and Kalman filter gain computation. The Structured Doubling Algorithm converges quadratically, and the precondition checks catch modeling errors early.
 
-With this foundation in place, Chapter 12 introduces the state-space framework that combines these tools into plant models, observers, and controllers.
+With this foundation in place, Chapter 11 introduces the state-space framework that combines these tools into plant models, observers, and controllers.

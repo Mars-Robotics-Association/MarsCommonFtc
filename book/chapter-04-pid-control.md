@@ -83,7 +83,7 @@ WpiMath uses derivative on error. This is fine when combined with setpoint rampi
 
 The derivative term amplifies high-frequency noise. If the sensor reading has 1 tick of noise and the loop runs at 50 Hz, the derivative sees 50 ticks/s of noise. With kD = 0.1, this produces 5 V of noise in the output.
 
-The solution is to filter the measurement before it reaches the PID controller. Chapter 20 covers signal filtering in detail. In practice, a first-order low-pass filter with a cutoff frequency above the system bandwidth but below the noise frequency works well.
+The solution is to filter the measurement before it reaches the PID controller. Chapter 19 covers signal filtering in detail. In practice, a first-order low-pass filter with a cutoff frequency above the system bandwidth but below the noise frequency works well.
 
 ## 4.4 Tuning kI and Integral Windup
 
@@ -292,7 +292,7 @@ PID is not enough when:
 
 **The system is nonlinear** — An arm's gravity torque varies with angle. A flywheel's back-EMF varies with velocity. PID uses constant gains that are tuned for one operating point. Gain scheduling or feedback linearization handles nonlinearity.
 
-**You need optimal performance** — PID tuning is art. LQR tuning is math. You specify how much you care about position error versus control effort (the Q and R matrices), and LQR computes the optimal gains. Chapter 12 covers this in detail.
+**You need optimal performance** — PID tuning is art. LQR tuning is math. You specify how much you care about position error versus control effort (the Q and R matrices), and LQR computes the optimal gains. Chapter 11 covers this in detail.
 
 ## 4.11 The BangBangController
 
@@ -341,4 +341,4 @@ The key insights are:
 - **Use tolerance to detect completion** — both position and velocity
 - **MarsCommonFtc implements feedback manually** in mechanism controllers to integrate with Kalman filters, adaptive gains, and battery compensation
 
-PID gets the job done for many mechanisms. But for multi-state systems, nonlinear dynamics, and optimal performance, state-space control offers a more principled approach. Part III of this book covers state-space control in depth, starting with the linear algebra foundations in Chapter 11.
+PID gets the job done for many mechanisms. But for multi-state systems, nonlinear dynamics, and optimal performance, state-space control offers a more principled approach. Part III of this book covers state-space control in depth, starting with the linear algebra foundations in Chapter 10.

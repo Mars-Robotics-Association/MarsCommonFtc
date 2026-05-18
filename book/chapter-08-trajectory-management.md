@@ -1,4 +1,4 @@
-# Chapter 9: Trajectory Management & Replanning
+# Chapter 8: Trajectory Management & Replanning
 
 The trajectory profiles from Chapters 5–7 are pure math: given initial conditions and a target, they compute the complete time-parameterized path. But a real mechanism needs more than a profile. It needs a clock to convert wall time to trajectory time. It needs to detect when the target changes and create a new profile from the current state. It needs to avoid replanning on noise — tiny target jitters that would produce a flood of unnecessary trajectory recomputes. And it needs telemetry so the driver station shows what the trajectory is doing.
 
@@ -294,7 +294,7 @@ trajectory.updateConfig(limits[0], limits[1], limits[2], PARAMS.maxJerkRad);
 trajectory.setTarget(targetAngleRad);
 ```
 
-Chapter 10 explains how these per-move limits are computed from motor physics.
+Chapter 9 explains how these per-move limits are computed from motor physics.
 
 ## 9.7 VelocityTrajectoryManager
 
@@ -448,7 +448,7 @@ public void setTarget(double angleRad, double hubVoltage) {
 }
 ```
 
-The controller updates the motion limits before each move based on the worst-case gravity torque across the planned sweep. This ensures the trajectory doesn't command accelerations the motor can't achieve (Chapter 10).
+The controller updates the motion limits before each move based on the worst-case gravity torque across the planned sweep. This ensures the trajectory doesn't command accelerations the motor can't achieve (Chapter 9).
 
 ### Per-Loop Update
 
@@ -494,4 +494,4 @@ The trajectory managers wrap the offline profiles from Chapters 5–7 with the b
 - **`updateConfig()`** — runtime limit updates for gravity-aware and voltage-aware per-move tuning
 - **Telemetry** — position, velocity, and acceleration emitted on every `update()` call
 
-Chapter 10 explains how the per-move trajectory limits are computed from motor physics, using the voltage balance equation to ensure the trajectory never commands more acceleration than the motor can deliver.
+Chapter 9 explains how the per-move trajectory limits are computed from motor physics, using the voltage balance equation to ensure the trajectory never commands more acceleration than the motor can deliver.

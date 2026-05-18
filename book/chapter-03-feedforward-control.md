@@ -144,7 +144,7 @@ double maxAccel = ff.maxAchievableAcceleration(batteryVoltage, velocity);
 double minAccel = ff.minAchievableAcceleration(batteryVoltage, velocity);
 ```
 
-These are used by trajectory generators to ensure that motion profiles respect the motor's physical capabilities. Chapter 10 covers this in detail with the back-EMF-aware profile tuning methods.
+These are used by trajectory generators to ensure that motion profiles respect the motor's physical capabilities. Chapter 9 covers this in detail with the back-EMF-aware profile tuning methods.
 
 ### Default Gains
 
@@ -156,7 +156,7 @@ public double kA = 12.5 / 2087.9;   // ~0.00599 V/TPS^2
 public double kS = 0.8931;           // V
 ```
 
-These numbers come from empirical characterization: the motor was tested at various power levels, and the resulting steady-state velocities and step responses were fit to the kS/kV/kA model. Chapter 10 covers the characterization process.
+These numbers come from empirical characterization: the motor was tested at various power levels, and the resulting steady-state velocities and step responses were fit to the kS/kV/kA model. Chapter 9 covers the characterization process.
 
 ## 3.5 ArmFeedforward
 
@@ -318,7 +318,7 @@ double uLqr = lqr.calculate(state, reference).get(0, 0);
 double totalVoltage = uCancel + uFfLinear + uLqr;
 ```
 
-This approach separates concerns cleanly: Layer 1 cancels the nonlinearities, Layer 2 controls the resulting linear system, and Layer 3 (the trajectory manager) generates smooth setpoints. Chapter 16 covers this architecture in detail.
+This approach separates concerns cleanly: Layer 1 cancels the nonlinearities, Layer 2 controls the resulting linear system, and Layer 3 (the trajectory manager) generates smooth setpoints. Chapter 15 covers this architecture in detail.
 
 ## 3.9 Characterizing Your Mechanism
 
@@ -398,7 +398,7 @@ Feedforward works beautifully when the model is accurate and the system is well-
 
 In these cases, feedforward alone produces a steady-state error. The feedback term catches what feedforward misses. The art of controller tuning is balancing the two: enough feedforward to do the heavy lifting, enough feedback to handle the residuals, but not so much feedback that the system becomes oscillatory or unstable.
 
-Chapter 4 covers PID feedback in detail. Chapter 12 introduces state-space control, which unifies feedforward and feedback into a single framework.
+Chapter 4 covers PID feedback in detail. Chapter 11 introduces state-space control, which unifies feedforward and feedback into a single framework.
 
 ## 3.12 Summary
 
