@@ -13,9 +13,8 @@ package org.marsroboticsassociation.controllib.sim;
  *
  * <p>Integrated with 4th-order Runge-Kutta. Hard stops clamp position and zero velocity.
  *
- * <p>Encoder model: an {@link EncoderSim} ring buffer converts true velocity into
- * integer tick positions sampled every 10 ms, faithfully reproducing the REV Hub
- * encoder behavior (6-entry buffer, 20 TPS quantization).
+ * <p>Encoder model: an {@link EncoderSim} provides a live integer tick position, while its
+ * ring buffer models the 50 ms velocity window (6-entry buffer, 20 TPS quantization).
  *
  * <p>Typical use:
  * <pre>

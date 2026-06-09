@@ -18,9 +18,9 @@ import edu.wpi.first.math.system.plant.LinearSystemId;
  * </pre>
  * Integrated with 4th-order Runge-Kutta.
  *
- * <p>Encoder model: an {@link EncoderSim} ring buffer converts true velocity into
- * integer tick positions sampled every 10 ms, faithfully reproducing the REV Hub
- * encoder behavior (5-entry buffer, 20 TPS quantization).
+ * <p>Encoder model: an {@link EncoderSim} provides a live integer tick position, while its
+ * ring buffer models the 50 ms velocity window (6-entry buffer, 20 TPS quantization).
+ * Flywheel control reads only velocity, so the position model does not affect it.
  *
  * <p>Typical use:
  * <pre>

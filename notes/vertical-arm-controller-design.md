@@ -4,7 +4,7 @@
 
 `ArmController` works, but its structure evolved incrementally. The gravity-corrected Kalman input — the most important implementation discovery — was a late fix bolted onto a feedforward + PD design. The gravity subtraction happens at the end of `update()` as a fixup, not as a first-class concept. `VerticalArmController` is a greenfield redesign that makes **feedback linearization** the organizing principle, and replaces hand-tuned PD with **LQR** for automatic gain computation.
 
-The hardware constraints are unchanged: same REV Hub encoder (10 ms sampling, 50 ms velocity window, 20 TPS quantization), same 25-40 ms sensor-to-actuator latency, same variable loop timing (16 ms +/- 5 ms).
+The hardware constraints are unchanged: same REV Hub encoder (live position; 50 ms velocity window refreshed at 100 Hz; 20 TPS quantization), same 25-40 ms sensor-to-actuator latency (dominated by the velocity window, not position), same variable loop timing (16 ms +/- 5 ms).
 
 ## Architecture: Three Layers
 

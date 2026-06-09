@@ -10,9 +10,9 @@ The previous arm controller used simple feedforward (`Ks*sign(v) + Kg*cos(theta)
 - 270 degrees range of motion: 45 degrees below horizontal in front (encoder 0) to 45 degrees below horizontal in back
 - 5 degrees of backlash in the gearbox
 - Motor encoder only (no absolute encoder), measured through the backlash
-- REV Hub encoder: position sampled at 100 Hz, velocity from a 50 ms rolling window quantized to 20 TPS
+- REV Hub encoder: position is a live counter (read at command time, not on a fixed cadence); velocity from a 50 ms rolling window refreshed at 100 Hz, quantized to 20 TPS
 - Control loop ~16 ms with 5 ms std dev jitter, plus occasional 5 ms spikes from I2C sensor reads
-- Encoder samples are asynchronous to the control loop (0-10 ms stale, unknown timestamp)
+- Position reads are live, but the host `System.nanoTime()` stamp doesn't pinpoint the hub's hardware-sample instant; that timing jitter (larger on an Expansion Hub than the Control Hub) is the real uncertainty, not staleness of the value
 
 ## Design Goals
 
@@ -30,13 +30,13 @@ Decision: use WPiLib's `ArmFeedforward` with the RK4-accurate `calculateWithVelo
 
 ### 3. Latency compensation via Kalman filter
 
-The sensor-to-actuator latency is roughly 25-40 ms: up to 10 ms from async encoder sampling, 25 ms center-of-window delay on velocity, and one loop period before the computed voltage is applied. Without compensation, the feedback controller reacts to where the arm was, not where it is.
+The sensor-to-actuator latency is roughly 25-40 ms, dominated by the 25 ms center-of-window delay on `getVelocity()` plus one loop period (~16 ms) before the computed voltage is applied; position itself is live, contributing only bus/transport latency and timestamp jitter. Without compensation, the feedback controller reacts to where the arm was, not where it is.
 
 Decision: a linear Kalman filter on the 2-state motor dynamics model (position, velocity) estimates current state and predicts forward by a configurable latency compensation interval. The linear model does not include gravity — gravity is handled entirely by feedforward (see "Gravity-corrected Kalman input" below).
 
 ### 4. Velocity measurement from `getVelocity()`
 
-During the design discussion, there was initial excitement about the Kalman filter deriving velocity from position measurements using the plant model. However, experience with the flywheel controller showed that `getVelocity()` — despite its 50 ms window, 20 TPS quantization, and 25 ms latency — was unbeatable as a velocity source. The asynchronous sampling (0-10 ms unknown staleness) introduces noise that the Kalman filter cannot model or remove, because the timing uncertainty is not in the measurement but in the timestamp.
+During the design discussion, there was initial excitement about the Kalman filter deriving velocity from position measurements using the plant model. However, experience with the flywheel controller showed that `getVelocity()` — despite its 50 ms window, 20 TPS quantization, and 25 ms latency — was hard to beat from position alone. The noise comes from timestamp jitter: `System.nanoTime()` marks when the value was read, not when the hub sampled the count, so the timing uncertainty is in the timestamp rather than the measurement value, and a Kalman filter on position cannot model or remove it. (Beating it on both noise and lag takes a model driven by the commanded motor input, not position differencing alone.)
 
 Decision: the Kalman filter observes both position and velocity directly from the encoder (C matrix = identity). It does not attempt to derive velocity from position differentiation.
 

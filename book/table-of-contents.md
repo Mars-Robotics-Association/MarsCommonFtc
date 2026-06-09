@@ -171,7 +171,7 @@
 
 ### Chapter 22: Physics Simulation
 - `EncoderSim` — faithful REV Hub encoder ring-buffer model
-  - 10 ms sampling, 50 ms velocity window, 20 TPS quantization
+  - 10 ms ring-buffer step feeding a 50 ms velocity window (100 Hz refresh), 20 TPS quantization
 - `FlywheelMotorSim` — first-order linear velocity dynamics with RK4 integration
 - `ArmMotorSim` — nonlinear arm dynamics with gravity and hard stops
 - Disturbance voltage injection for testing
