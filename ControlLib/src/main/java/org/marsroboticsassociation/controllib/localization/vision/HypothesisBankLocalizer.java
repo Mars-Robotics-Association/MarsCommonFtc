@@ -84,6 +84,12 @@ public final class HypothesisBankLocalizer {
     // this composed with live odometry until vision commits the bank. Null until setPose is called.
     private Pose2d fallbackDatum = null;
 
+    // --- Per-update diagnostics (for logging / debugging; see the last* accessors) ---
+    private VisionFrame lastFrame;          // the frame handed to the most recent update()
+    private double lastYawRateRadPerSec = Double.NaN;
+    private boolean lastFoldedNewFrame = false; // did the last update fold a fresh frame into the bank
+    private Pose2d[] lastBranchPoses;       // the branch field poses that update fed the bank, or null
+
     public HypothesisBankLocalizer(Params params, VisionPoseSolver solver) {
         this.params = params;
         this.solver = solver;
@@ -113,6 +119,11 @@ public final class HypothesisBankLocalizer {
      * @param frame this loop's vision frame (never null; {@code valid=false} means no usable result)
      */
     public void update(long nowNanos, Pose2d odoPose, double yawRateRadPerSec, VisionFrame frame) {
+        lastFrame = frame;
+        lastYawRateRadPerSec = yawRateRadPerSec;
+        lastFoldedNewFrame = false;
+        lastBranchPoses = null;
+
         odometryBuffer.put(nowNanos, odoPose);
         long cutoff = nowNanos - (long) (params.odometryHistorySec * 1e9);
         while (!odometryBuffer.isEmpty() && odometryBuffer.firstKey() < cutoff) {
@@ -154,6 +165,29 @@ public final class HypothesisBankLocalizer {
         return bank;
     }
 
+    /** The {@link VisionFrame} handed to the most recent {@link #update}, or null before any. */
+    public VisionFrame lastFrame() {
+        return lastFrame;
+    }
+
+    /** Whether the most recent {@link #update} folded a fresh valid frame into the bank. */
+    public boolean wasNewFrameFolded() {
+        return lastFoldedNewFrame;
+    }
+
+    /**
+     * The 1–2 branch field poses the most recent {@link #update} fed the bank (best-first), or null
+     * if no frame was folded — the raw multi-hypothesis input, for debugging branch separation.
+     */
+    public Pose2d[] lastBranchPoses() {
+        return lastBranchPoses;
+    }
+
+    /** The yaw rate passed to the most recent {@link #update} (rad/s), or NaN before any. */
+    public double lastYawRateRadPerSec() {
+        return lastYawRateRadPerSec;
+    }
+
     private void serviceHypothesisBank(VisionFrame frame, double yawRate, Pose2d currentOdo) {
         boolean blurOk = Math.abs(yawRate) <= params.maxYawRateRadPerSec;
         if (frame.valid
@@ -179,6 +213,8 @@ public final class HypothesisBankLocalizer {
                 Pose2d odoAtCapture = odometryPoseAt(captureNanos);
                 Pose2d odoForDatum = odoAtCapture != null ? odoAtCapture : currentOdo;
                 bank.observe(branchPoses, branchConf, odoForDatum, spanPx);
+                lastFoldedNewFrame = true;
+                lastBranchPoses = branchPoses;
             }
         }
 

@@ -17,6 +17,12 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Desktop OpenCV for JVM unit tests only. Exposes the same org.opencv.* API as the robot's
+    // OpenCV plus desktop natives (loaded via nu.pattern.OpenCV.loadLocally()), so the vision-replay
+    // and pipeline tests can run the real solvePnPGeneric off-robot. The library itself stays
+    // OpenCV-free — this is testImplementation, never a compile/runtime dependency of ControlLib.
+    testImplementation 'org.openpnp:opencv:4.9.0-0'
 }
 
 test {
