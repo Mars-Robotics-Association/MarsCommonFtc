@@ -340,6 +340,111 @@ public class Matrix<R extends Num, C extends Num>
         return new Matrix<>(this.m_storage.invert());
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Destination-writing (allocation-free) operations.
+    //
+    // These are the low-allocation counterparts of the methods above: instead of returning a new
+    // Matrix (which allocates a SimpleMatrix + DMatrixRMaj + double[] each call), they write the
+    // result into a caller-owned "out" matrix, reusing its storage. The generic bounds still
+    // enforce the shapes at compile time. They reach the backing EJML matrix via
+    // getStorage().getDDRM() and delegate to CommonOps_DDRM. Aliasing rules are documented per
+    // method; where "out may alias" is stated, passing this or an input as out is safe.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Writes the matrix product {@code this · other} into {@code out}, without allocating.
+     *
+     * <p>{@code out} MUST be distinct from both {@code this} and {@code other}: EJML's multiply
+     * cannot write into one of its own operands.
+     *
+     * @param other The matrix to multiply by (with {@code C} rows).
+     * @param out   The destination matrix (shape {@code R} x {@code C2}).
+     * @param <C2>  The number of columns in {@code other} and {@code out}.
+     */
+    public final <C2 extends Num> void multInto(Matrix<C, C2> other, Matrix<R, C2> out) {
+        CommonOps_DDRM.mult(
+                this.m_storage.getDDRM(),
+                Objects.requireNonNull(other).m_storage.getDDRM(),
+                Objects.requireNonNull(out).m_storage.getDDRM());
+    }
+
+    /**
+     * Writes the sum {@code this + other} into {@code out}, without allocating. {@code out} may
+     * alias {@code this} or {@code other}.
+     *
+     * @param other The matrix to add.
+     * @param out   The destination matrix.
+     */
+    public final void plusInto(Matrix<R, C> other, Matrix<R, C> out) {
+        CommonOps_DDRM.add(
+                this.m_storage.getDDRM(),
+                Objects.requireNonNull(other).m_storage.getDDRM(),
+                Objects.requireNonNull(out).m_storage.getDDRM());
+    }
+
+    /**
+     * Writes the difference {@code this - other} into {@code out}, without allocating. {@code out}
+     * may alias {@code this} or {@code other}.
+     *
+     * @param other The matrix to subtract.
+     * @param out   The destination matrix.
+     */
+    public final void minusInto(Matrix<R, C> other, Matrix<R, C> out) {
+        CommonOps_DDRM.subtract(
+                this.m_storage.getDDRM(),
+                Objects.requireNonNull(other).m_storage.getDDRM(),
+                Objects.requireNonNull(out).m_storage.getDDRM());
+    }
+
+    /**
+     * Writes {@code alpha · this} into {@code out}, without allocating. {@code out} may alias
+     * {@code this}.
+     *
+     * @param alpha The scalar to multiply by.
+     * @param out   The destination matrix.
+     */
+    public final void scaleInto(double alpha, Matrix<R, C> out) {
+        CommonOps_DDRM.scale(alpha, this.m_storage.getDDRM(), Objects.requireNonNull(out).m_storage.getDDRM());
+    }
+
+    /**
+     * Writes the transpose {@code thisᵀ} into {@code out}, without allocating. {@code out} MUST be
+     * distinct from {@code this}.
+     *
+     * @param out The destination matrix (shape {@code C} x {@code R}).
+     */
+    public final void transposeInto(Matrix<C, R> out) {
+        CommonOps_DDRM.transpose(this.m_storage.getDDRM(), Objects.requireNonNull(out).m_storage.getDDRM());
+    }
+
+    /**
+     * Writes the inverse {@code this⁻¹} of this square matrix into {@code out}, without allocating.
+     *
+     * @param out The destination matrix (same shape as {@code this}).
+     * @throws org.ejml.data.SingularMatrixException If {@code this} matrix is not invertible.
+     */
+    public final void invertInto(Matrix<R, C> out) {
+        DMatrixRMaj outStorage = Objects.requireNonNull(out).m_storage.getDDRM();
+        // CommonOps_DDRM.invert returns false for the general LU path on a singular matrix, but its
+        // unrolled small-matrix path divides by a zero determinant and yields Inf/NaN while still
+        // returning true. Check for both so this throws on any singular input, matching inv().
+        if (!CommonOps_DDRM.invert(this.m_storage.getDDRM(), outStorage)
+                || MatrixFeatures_DDRM.hasUncountable(outStorage)) {
+            throw new org.ejml.data.SingularMatrixException();
+        }
+    }
+
+    /**
+     * Copies the contents of {@code other} into this matrix, without allocating.
+     *
+     * @param other The matrix to copy from (same shape as {@code this}).
+     */
+    public final void setTo(Matrix<R, C> other) {
+        double[] src = Objects.requireNonNull(other).getData();
+        double[] dst = this.getData();
+        System.arraycopy(src, 0, dst, 0, dst.length);
+    }
+
     /**
      * Returns the solution x to the equation Ax = b, where A is "this" matrix.
      *

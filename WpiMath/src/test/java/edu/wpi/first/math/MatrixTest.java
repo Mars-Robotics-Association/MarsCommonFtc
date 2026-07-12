@@ -130,4 +130,108 @@ class MatrixTest {
             MatBuilder.fill(Nat.N2(), Nat.N2(), 1.01035625, 0.02050912, 0.03076368, 1.04111993),
             1E-8));
   }
+
+  // ------------------------------------------------------------------------------------------------
+  // Destination-writing (allocation-free) operations. Each is checked against its allocating
+  // counterpart, plus the documented aliasing behavior.
+  // ------------------------------------------------------------------------------------------------
+
+  @Test
+  void testMultInto() {
+    var a = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 3.0, 4.0);
+    var b = MatBuilder.fill(Nat.N2(), Nat.N2(), 5.0, 6.0, 7.0, 8.0);
+    Matrix<N2, N2> out = new Matrix<>(Nat.N2(), Nat.N2());
+
+    a.multInto(b, out);
+
+    assertTrue(a.times(b).isEqual(out, 1e-12));
+
+    // Non-square shapes are enforced by the generics; check one at runtime too.
+    var m = MatBuilder.fill(Nat.N2(), Nat.N3(), 1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+    var v = VecBuilder.fill(1.0, 0.0, -1.0);
+    Matrix<N2, N1> outVec = new Matrix<>(Nat.N2(), Nat.N1());
+    m.multInto(v, outVec);
+    assertTrue(m.times(v).isEqual(outVec, 1e-12));
+  }
+
+  @Test
+  void testPlusInto() {
+    var a = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 3.0, 4.0);
+    var b = MatBuilder.fill(Nat.N2(), Nat.N2(), 5.0, 6.0, 7.0, 8.0);
+    Matrix<N2, N2> out = new Matrix<>(Nat.N2(), Nat.N2());
+
+    a.plusInto(b, out);
+    assertTrue(a.plus(b).isEqual(out, 1e-12));
+
+    // out may alias an input.
+    var c = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 3.0, 4.0);
+    c.plusInto(b, c);
+    assertTrue(
+        MatBuilder.fill(Nat.N2(), Nat.N2(), 6.0, 8.0, 10.0, 12.0).isEqual(c, 1e-12));
+  }
+
+  @Test
+  void testMinusInto() {
+    var a = MatBuilder.fill(Nat.N2(), Nat.N2(), 5.0, 6.0, 7.0, 8.0);
+    var b = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 3.0, 4.0);
+    Matrix<N2, N2> out = new Matrix<>(Nat.N2(), Nat.N2());
+
+    a.minusInto(b, out);
+    assertTrue(a.minus(b).isEqual(out, 1e-12));
+
+    // out may alias this.
+    a.minusInto(b, a);
+    assertTrue(
+        MatBuilder.fill(Nat.N2(), Nat.N2(), 4.0, 4.0, 4.0, 4.0).isEqual(a, 1e-12));
+  }
+
+  @Test
+  void testScaleInto() {
+    var a = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 3.0, 4.0);
+    Matrix<N2, N2> out = new Matrix<>(Nat.N2(), Nat.N2());
+
+    a.scaleInto(2.5, out);
+    assertTrue(a.times(2.5).isEqual(out, 1e-12));
+
+    // out may alias this.
+    a.scaleInto(2.0, a);
+    assertTrue(
+        MatBuilder.fill(Nat.N2(), Nat.N2(), 2.0, 4.0, 6.0, 8.0).isEqual(a, 1e-12));
+  }
+
+  @Test
+  void testTransposeInto() {
+    var a = MatBuilder.fill(Nat.N2(), Nat.N3(), 1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+    Matrix<N3, N2> out = new Matrix<>(Nat.N3(), Nat.N2());
+
+    a.transposeInto(out);
+    assertTrue(a.transpose().isEqual(out, 1e-12));
+  }
+
+  @Test
+  void testInvertInto() {
+    var a = MatBuilder.fill(Nat.N2(), Nat.N2(), 4.0, 7.0, 2.0, 6.0);
+    Matrix<N2, N2> out = new Matrix<>(Nat.N2(), Nat.N2());
+
+    a.invertInto(out);
+    assertTrue(a.inv().isEqual(out, 1e-12));
+    // A · A⁻¹ = I
+    assertTrue(Matrix.eye(Nat.N2()).isEqual(a.times(out), 1e-12));
+
+    var singular = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 2.0, 4.0);
+    assertThrows(SingularMatrixException.class, () -> singular.invertInto(out));
+  }
+
+  @Test
+  void testSetTo() {
+    var src = MatBuilder.fill(Nat.N2(), Nat.N2(), 1.0, 2.0, 3.0, 4.0);
+    Matrix<N2, N2> dst = new Matrix<>(Nat.N2(), Nat.N2());
+
+    dst.setTo(src);
+    assertTrue(src.isEqual(dst, 1e-12));
+
+    // A copy, not an alias: mutating src must not touch dst.
+    src.set(0, 0, 99.0);
+    assertEquals(1.0, dst.get(0, 0), 1e-12);
+  }
 }
