@@ -173,16 +173,20 @@ public class ControlLabApp {
                 new org.marsroboticsassociation.controllab.trajectory.TrajectoryTab();
         org.marsroboticsassociation.controllab.flywheel.FlywheelTab flywheelTab =
                 new org.marsroboticsassociation.controllab.flywheel.FlywheelTab();
+        org.marsroboticsassociation.controllab.arm.ArmTab armTab =
+                new org.marsroboticsassociation.controllab.arm.ArmTab();
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Filter",     filterPanel);
         tabs.addTab("Trajectory", trajectoryTab);
         tabs.addTab("Flywheel",   flywheelTab);
+        tabs.addTab("Arm",        armTab);
 
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
                 trajectoryTab.disposeEngine();
                 flywheelTab.dispose();
+                armTab.dispose();
             }
         });
 
