@@ -4,6 +4,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Random;
 import org.junit.Test;
 
 public class CascadedRateLimiterTest {
@@ -265,5 +266,76 @@ public class CascadedRateLimiterTest {
         assertTrue(
                 "did not settle on target under unlimited jerk: " + limiter.getPosition(),
                 Math.abs(limiter.getPosition() - target) < 0.01);
+    }
+
+    /**
+     * Under realistic loop-timing jitter (16 ms ± 4 ms, as in ControlLab), the profile must still
+     * settle to rest on the target without a sustained velocity ring. Regression for the
+     * inverse-dt command path: a short sample inflated {@code error/dt} and {@code (Δ)/dt}, and
+     * the next longer sample integrated that energy past the target.
+     */
+    @Test
+    public void settlesWithoutVelocityRingUnderDtJitter() {
+        final double nominalDt = 0.016;
+        final double jitter = 0.008; // +/- 4 ms
+        final double target = 1.5708;
+        final long seed = 42L;
+
+        CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+        Random rng = new Random(seed);
+
+        // Run long enough to arrive and hold.
+        for (int i = 0; i < 500; i++) {
+            double dt = nominalDt + (rng.nextDouble() - 0.5) * jitter;
+            limiter.update(target, dt);
+        }
+
+        // Hold window: profile must be at rest, not ringing.
+        double maxHoldAbsVel = 0.0;
+        double maxHoldAbsAccel = 0.0;
+        double maxHoldPosError = 0.0;
+        for (int i = 0; i < 200; i++) {
+            double dt = nominalDt + (rng.nextDouble() - 0.5) * jitter;
+            limiter.update(target, dt);
+            maxHoldAbsVel = Math.max(maxHoldAbsVel, Math.abs(limiter.getVelocity()));
+            maxHoldAbsAccel = Math.max(maxHoldAbsAccel, Math.abs(limiter.getAcceleration()));
+            maxHoldPosError =
+                    Math.max(maxHoldPosError, Math.abs(limiter.getPosition() - target));
+        }
+
+        assertTrue(
+                "did not settle on target under dt jitter: error=" + maxHoldPosError,
+                maxHoldPosError < 1e-6);
+        assertTrue(
+                "velocity still ringing under dt jitter: |v|max=" + maxHoldAbsVel,
+                maxHoldAbsVel < 1e-6);
+        assertTrue(
+                "acceleration still dithering under dt jitter: |a|max=" + maxHoldAbsAccel,
+                maxHoldAbsAccel < 1e-6);
+    }
+
+    /**
+     * Extreme short samples (below {@link CascadedRateLimiter#MIN_COMMAND_DT}) must not inflate
+     * landing or discrete-derivative commands into a ring when mixed with longer steps.
+     */
+    @Test
+    public void shortSamplesDoNotInflateCommandsIntoARing() {
+        CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+        double target = 0.5;
+        // Alternating 1 ms and 20 ms steps — worst-case inverse-dt swing before the floor.
+        double[] steps = {0.001, 0.020};
+        for (int i = 0; i < 800; i++) {
+            limiter.update(target, steps[i % 2]);
+        }
+        assertTrue(
+                "did not settle under alternating short/long dt: pos=" + limiter.getPosition(),
+                Math.abs(limiter.getPosition() - target) < 1e-6);
+        assertTrue(
+                "velocity ring under alternating short/long dt: v=" + limiter.getVelocity(),
+                Math.abs(limiter.getVelocity()) < 1e-6);
+        assertTrue(
+                "acceleration dither under alternating short/long dt: a="
+                        + limiter.getAcceleration(),
+                Math.abs(limiter.getAcceleration()) < 1e-6);
     }
 }

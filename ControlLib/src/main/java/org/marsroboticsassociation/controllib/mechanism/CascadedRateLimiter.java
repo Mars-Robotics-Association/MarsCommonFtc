@@ -29,8 +29,21 @@ package org.marsroboticsassociation.controllib.mechanism;
  * transiently exceed its cap by about {@code maxAcceleration^2 / (2*maxJerk)} on the ramp up. Keep
  * the jerk limit comfortably larger than the acceleration limit and it stays small; in closed loop
  * the controller's feedback absorbs it. Near the target the velocity command is additionally capped
- * to {@code error/dt} (the speed that lands exactly on the target this step), so the setpoint
- * settles to rest instead of limit-cycling around the target.
+ * to {@code error/h} (the speed that lands exactly on the target this step, with {@code h} a
+ * jitter-hardened timestep — see below), so the setpoint settles to rest instead of limit-cycling
+ * around the target.
+ *
+ * <p><b>dt jitter hardening.</b> Real control loops are not exactly periodic (FTC is typically ~16
+ * ms ± a few ms). Raw {@code 1/dt} in the landing and discrete-derivative stages turns a short
+ * sample into a large command that the next longer sample then integrates too far, so velocity
+ * rings near the target. This class:
+ *
+ * <ul>
+ *   <li>floors the timestep used for inverse-dt command math at {@link #MIN_COMMAND_DT};
+ *   <li>substeps wall-clock intervals longer than {@link #MAX_INTEGRATION_DT};
+ *   <li>snaps to rest inside a small settle band once error, velocity, and acceleration are all
+ *       negligible relative to the configured limits.
+ * </ul>
  */
 public class CascadedRateLimiter {
 
@@ -41,6 +54,26 @@ public class CascadedRateLimiter {
      * the limiter accepts; any other non-positive value (including {@code NaN}) is rejected.
      */
     public static final double UNLIMITED_JERK = Double.POSITIVE_INFINITY;
+
+    /**
+     * Floor on the timestep used for inverse-dt command math (landing velocity, accel, jerk). Real
+     * loops run near 10–20 ms; a shorter sample inflates {@code error/dt} and {@code (Δ)/dt} into
+     * spikes that ring when the next sample is longer. Flooring prevents that without changing
+     * behavior at normal loop rates.
+     */
+    static final double MIN_COMMAND_DT = 0.005; // 5 ms
+
+    /**
+     * Ceiling on a single integration substep. A late loop is broken into several steps so the
+     * profile does not leap under a command shaped for a shorter prior interval.
+     */
+    static final double MAX_INTEGRATION_DT = 0.025; // 25 ms
+
+    /** Settle velocity as a fraction of {@code maxVelocity} (and a tiny floor when the cap is 0). */
+    private static final double SETTLE_VEL_FRAC = 1e-3;
+
+    /** Settle acceleration as a fraction of the larger of the accel/decel caps. */
+    private static final double SETTLE_ACCEL_FRAC = 1e-3;
 
     private double position;
     private double velocity;
@@ -121,11 +154,38 @@ public class CascadedRateLimiter {
         this.maxJerk = requirePositiveJerk(maxJerk);
     }
 
-    /** Advance the setpoint one step toward the target, respecting the rate limits. */
+    /**
+     * Advance the setpoint one step toward the target, respecting the rate limits.
+     *
+     * @param targetPosition where the setpoint should end up
+     * @param dt wall-clock seconds since the previous call (may be jittery; hardened internally)
+     */
     public void update(double targetPosition, double dt) {
-        if (dt <= 0) {
+        // Reject non-positive and NaN. The !(dt > 0) form catches NaN as well.
+        if (!(dt > 0)) {
             return;
         }
+        // Substep long wall-clock gaps so a late loop cannot integrate one large step under a
+        // command that assumed a shorter interval.
+        double remaining = dt;
+        while (remaining > 0.0) {
+            double step = Math.min(remaining, MAX_INTEGRATION_DT);
+            if (updateStep(targetPosition, step)) {
+                return; // settled on the target
+            }
+            remaining -= step;
+        }
+    }
+
+    /**
+     * One integration substep. Returns {@code true} if the profile has snapped to rest on the
+     * target (caller may stop substepping).
+     */
+    private boolean updateStep(double targetPosition, double dt) {
+        if (trySettle(targetPosition)) {
+            return true;
+        }
+
         double error = targetPosition - position;
         double direction = Math.signum(error);
         // The stopping law assumes braking begins instantly, but if the setpoint is still
@@ -140,12 +200,17 @@ public class CascadedRateLimiter {
                 Math.max(0, towardVelocity + 0.5 * towardAcceleration * swingTime) * swingTime;
         double brakingDistance = Math.max(0, Math.abs(error) - swingDistance);
         double stoppingVelocity = jerkLimitedStoppingVelocity(brakingDistance);
+
+        // Floor the inverse-dt timestep used for landing and discrete derivatives. A short sample
+        // would otherwise inflate error/dt and (Δ)/dt into a spike that rings when the next sample
+        // is longer. Integration still uses the real substep `dt` so wall-clock progress is honest.
+        double h = Math.max(dt, MIN_COMMAND_DT);
         // The stopping-velocity law has unbounded slope at zero distance (its cube-root branch),
         // so on its own it always commands enough speed to overshoot a nearly-reached target
         // within one step, and the setpoint limit-cycles instead of settling. Landing exactly on
-        // the target this step needs only error/dt; capping to it makes the command vanish with
+        // the target this step needs only error/h; capping to it makes the command vanish with
         // the error, so the profile actually comes to rest.
-        double landingVelocity = Math.abs(error) / dt;
+        double landingVelocity = Math.abs(error) / h;
         double velocityCommand =
                 direction * Math.min(maxVelocity, Math.min(stoppingVelocity, landingVelocity));
 
@@ -164,12 +229,39 @@ public class CascadedRateLimiter {
             upperBound = maxAcceleration; // from rest, either direction is speeding up
             lowerBound = -maxAcceleration;
         }
-        double accelCommand = clamp((velocityCommand - velocity) / dt, lowerBound, upperBound);
-        double jerkCommand = clamp((accelCommand - acceleration) / dt, -maxJerk, maxJerk);
+        double accelCommand = clamp((velocityCommand - velocity) / h, lowerBound, upperBound);
+        double jerkCommand = clamp((accelCommand - acceleration) / h, -maxJerk, maxJerk);
 
         acceleration += jerkCommand * dt;
         velocity += acceleration * dt;
         position += velocity * dt;
+
+        // Catch residual chatter after the step so the next loop does not re-excite feedforward.
+        return trySettle(targetPosition);
+    }
+
+    /**
+     * If the setpoint is already effectively at the target with negligible rates, snap exactly to
+     * rest. Thresholds scale with the configured limits so the same code works for radians or
+     * meters without unit-specific constants. Does not teleport when the velocity ceiling is zero
+     * and there is still meaningful error (no authority to close the gap).
+     */
+    private boolean trySettle(double targetPosition) {
+        double error = targetPosition - position;
+        double velScale = Math.max(maxVelocity, 1e-6);
+        double accelScale = Math.max(Math.max(maxAcceleration, maxDeceleration), 1e-6);
+        double settleVel = SETTLE_VEL_FRAC * velScale;
+        double settleAccel = SETTLE_ACCEL_FRAC * accelScale;
+        double settlePos = Math.max(1e-12, settleVel * MIN_COMMAND_DT);
+        if (Math.abs(error) <= settlePos
+                && Math.abs(velocity) <= settleVel
+                && Math.abs(acceleration) <= settleAccel) {
+            position = targetPosition;
+            velocity = 0.0;
+            acceleration = 0.0;
+            return true;
+        }
+        return false;
     }
 
     /**
