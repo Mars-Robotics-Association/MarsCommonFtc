@@ -48,7 +48,7 @@ public class ArmMotorSim {
     private final double minAngleRad;
     private final double maxAngleRad;
 
-    private final EncoderSim encoder;
+    private EncoderSim encoder;
 
     // True state (output shaft, radians from horizontal)
     private double truePositionRad;
@@ -89,13 +89,7 @@ public class ArmMotorSim {
 
         // Seed encoder: set fractionalTicks to initial position, then write enough
         // samples at zero velocity to fill the ring buffer so getPosition/getVelocity work.
-        double initialTicksDouble = (initialAngleRad - encoderZeroOffsetRad) * ticksPerRad;
-        this.encoder = new EncoderSim();
-        this.encoder.setState(0, initialTicksDouble);
-        // Write 6 samples (fills the buffer) at zero velocity, spaced 10ms apart
-        for (int i = 0; i < 6; i++) {
-            this.encoder.advance(0.010, 0.0);
-        }
+        installEncoder(new EncoderSim(), truePositionRad);
     }
 
     /**
@@ -121,6 +115,36 @@ public class ArmMotorSim {
      */
     public void setDisturbanceVoltage(double v) {
         disturbanceVoltage = v;
+    }
+
+    /**
+     * Replaces the encoder model (e.g. {@link EncoderSim#controlHub(long)} or
+     * {@link EncoderSim#expansionHub(long)} for read-timing jitter). Re-seeds the new encoder to the
+     * current position and fills its ring buffer at zero velocity, so {@link #getPositionTicks()} and
+     * {@link #getVelocityTps()} work immediately.
+     *
+     * @param encoder non-null encoder model
+     * @throws IllegalArgumentException if {@code encoder} is null
+     */
+    public void setEncoder(EncoderSim encoder) {
+        installEncoder(encoder, truePositionRad);
+    }
+
+    /**
+     * Install an encoder model seeded at the given output-shaft angle with a full zero-velocity
+     * ring buffer so position and windowed velocity reads work immediately.
+     */
+    private void installEncoder(EncoderSim encoder, double positionRad) {
+        if (encoder == null) {
+            throw new IllegalArgumentException("encoder must not be null");
+        }
+        this.encoder = encoder;
+        double initialTicksDouble = (positionRad - encoderZeroOffsetRad) * ticksPerRad;
+        this.encoder.setState(0, initialTicksDouble);
+        // Write 6 samples (fills the buffer) at zero velocity, spaced 10 ms apart.
+        for (int i = 0; i < 6; i++) {
+            this.encoder.advance(0.010, 0.0);
+        }
     }
 
     /** Returns the most recent integer tick position from the encoder ring buffer. */

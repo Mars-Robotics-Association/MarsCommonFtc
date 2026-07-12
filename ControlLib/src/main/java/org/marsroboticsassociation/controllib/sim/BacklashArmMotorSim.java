@@ -226,8 +226,17 @@ public class BacklashArmMotorSim {
         this.maxInternalDtSec = sec;
     }
 
-    /** Replaces the encoder model (e.g. {@link EncoderSim#expansionHub(long)} for RS485 jitter). */
+    /**
+     * Replaces the encoder model (e.g. {@link EncoderSim#expansionHub(long)} for RS485 jitter).
+     * Re-seeds at the current motor-side angle with a zero-velocity ring buffer.
+     *
+     * @param encoder non-null encoder model
+     * @throws IllegalArgumentException if {@code encoder} is null
+     */
     public void setEncoder(EncoderSim encoder) {
+        if (encoder == null) {
+            throw new IllegalArgumentException("encoder must not be null");
+        }
         this.encoder = encoder;
         double initialTicksDouble = (motorPositionRad - encoderZeroOffsetRad) * ticksPerRad;
         this.encoder.setState(0, initialTicksDouble);
