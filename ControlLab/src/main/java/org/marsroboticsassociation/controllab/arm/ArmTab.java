@@ -8,6 +8,7 @@ import org.knowm.xchart.style.Styler;
 import org.knowm.xchart.style.markers.SeriesMarkers;
 import org.marsroboticsassociation.controllab.flywheel.EditableParamField;
 import org.marsroboticsassociation.controllab.trajectory.RollingBuffer;
+import org.marsroboticsassociation.controllib.mechanism.FeedbackGainSynthesis;
 
 import javax.swing.*;
 import java.awt.*;
@@ -47,6 +48,7 @@ public class ArmTab extends JPanel {
     private EditableParamField efQPos, efQVel, efR;
     private EditableParamField efMkP, efMkI, efMkD, efMkS, efMkV, efMkA, efMkCos, efMkSin;
     private EditableParamField efMvMax, efMaMax, efMjMax;
+    private EditableParamField efOmegaN, efZeta;
     private EditableParamField efFfKs, efFfKg, efFfKv, efFfKa;
 
     // Plant panel
@@ -55,6 +57,7 @@ public class ArmTab extends JPanel {
     private JComboBox<ArmPlantConfig.EncoderKind> encoderCombo;
 
     private JButton sysIdBtn;
+    private JButton suggestPdBtn;
     private Timer simTimer;
 
     public ArmTab() {
@@ -179,6 +182,14 @@ public class ArmTab extends JPanel {
         sysIdBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         sysIdBtn.addActionListener(e -> onRunSysId());
         sidebar.add(sysIdBtn);
+        sidebar.add(Box.createVerticalStrut(4));
+
+        suggestPdBtn = new JButton("Suggest PD from model");
+        suggestPdBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        suggestPdBtn.setToolTipText(
+                "Pole-place mechanism kP/kD from model kV,kA and ωₙ, ζ (after SysID).");
+        suggestPdBtn.addActionListener(e -> onSuggestPd());
+        sidebar.add(suggestPdBtn);
         sidebar.add(Box.createVerticalStrut(10));
 
         sidebar.add(boldLabel("Controller gains"));
@@ -225,8 +236,12 @@ public class ArmTab extends JPanel {
         efMvMax = new EditableParamField("vMax", g.maxVel, "%.2f", 0.1, 50, v -> updateMech());
         efMaMax = new EditableParamField("aMax", g.maxAccel, "%.2f", 0.1, 200, v -> updateMech());
         efMjMax = new EditableParamField("jMax", g.maxJerk, "%.1f", 1, 5000, v -> updateMech());
+        // Design specs for Suggest PD (not controller gains themselves).
+        efOmegaN = new EditableParamField("ωₙ (rad/s)", 4.0, "%.2f", 0.1, 30, v -> {});
+        efZeta = new EditableParamField("ζ damp", 0.8, "%.2f", 0.1, 3.0, v -> {});
         mechPanel = vpanel(efMkP, efMkI, efMkD, efMkS, efMkV, efMkA, efMkCos, efMkSin,
-                efMvMax, efMaMax, efMjMax);
+                efMvMax, efMaMax, efMjMax,
+                boldLabel("PD design (Suggest PD)"), efOmegaN, efZeta);
 
         // Shared feedforward (Lineage A only)
         efFfKs = new EditableParamField("ff kS", engine.getFfKs(), "%.3f", 0, 12, v -> updateFf());
@@ -381,8 +396,50 @@ public class ArmTab extends JPanel {
         lqrPanel.setVisible(t == ArmControllerType.ARM_LQR);
         mechPanel.setVisible(t == ArmControllerType.MECHANISM_PIDF);
         ffPanel.setVisible(t == ArmControllerType.ARM_PD || t == ArmControllerType.ARM_LQR);
+        if (suggestPdBtn != null) {
+            suggestPdBtn.setEnabled(t == ArmControllerType.MECHANISM_PIDF);
+        }
         revalidate();
         repaint();
+    }
+
+    /**
+     * Pole-place mechanism PD from the current model kV/kA (SysID or hand-entered) and the ωₙ, ζ
+     * design fields. Leaves kI unchanged.
+     */
+    private void onSuggestPd() {
+        double kV = efMkV.getValue();
+        double kA = efMkA.getValue();
+        double omegaN = efOmegaN.getValue();
+        double zeta = efZeta.getValue();
+        FeedbackGainSynthesis.PdSuggestion s;
+        try {
+            s = FeedbackGainSynthesis.suggestPd(kV, kA, omegaN, zeta);
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Suggest PD",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String clampNote = s.kDClampedToZero
+                ? "<br><i>kD clamped to 0: plant kV already supplies more damping than 2ζωₙ kA "
+                        + "at this ωₙ — raise ωₙ if you want more derivative authority.</i>"
+                : "";
+        String msg = String.format(
+                "<html>From model kV=%.3f, kA=%.4f and design ωₙ=%.2f rad/s, ζ=%.2f:<br><br>"
+                        + "<code>kP = kA · ωₙ² = %.3f</code> V/rad<br>"
+                        + "<code>kD = 2ζωₙ kA − kV = %.3f</code> V/(rad/s)<br>"
+                        + "%s<br><br>"
+                        + "Apply to mechanism feedback? (kI left unchanged)</html>",
+                s.kV, s.kA, s.omegaN, s.zeta, s.kP, s.kD, clampNote);
+        int choice = JOptionPane.showConfirmDialog(this, msg, "Suggest PD from model",
+                JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION) return;
+
+        efMkP.setValue(s.kP, "%.2f");
+        efMkD.setValue(s.kD, "%.3f");
+        updateMech();
+        buffer.clear();
     }
 
     private void applyTargetRad(double rad, boolean fromSlider) {

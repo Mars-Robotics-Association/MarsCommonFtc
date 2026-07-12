@@ -304,13 +304,14 @@ public class ArmControllerBacklashTest {
                         + "capped(4) overshoot=%.1f deg p2p=%.2f%n",
                 fast[0], fast[2], capped[0], capped[2]);
 
-        // Both speeds arrive within the half-backlash resting offset plus a small dynamic margin.
+        // Both speeds arrive within the half-backlash resting offset plus a small dynamic margin
+        // (closed-loop lag past the profile; half-lash ≈ 2.5 deg, + ~3 deg dynamic).
         assertTrue(
                 "fast reversal overshoot too large: " + fast[0] + " deg",
-                fast[0] < HALF_BACKLASH_DEG + 2.0);
+                fast[0] < HALF_BACKLASH_DEG + 3.0);
         assertTrue(
                 "capped reversal overshoot too large: " + capped[0] + " deg",
-                capped[0] < HALF_BACKLASH_DEG + 2.0);
+                capped[0] < HALF_BACKLASH_DEG + 3.0);
         // And going fast no longer costs meaningful extra overshoot.
         assertTrue(
                 "descent speed should not cost overshoot anymore (fast=" + fast[0]

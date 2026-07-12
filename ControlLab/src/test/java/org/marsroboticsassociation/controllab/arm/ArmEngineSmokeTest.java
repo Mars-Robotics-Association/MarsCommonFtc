@@ -28,11 +28,16 @@ class ArmEngineSmokeTest {
         for (int i = 0; i < ticks; i++) engine.tick();
     }
 
+    // Workspace over the top: min = −45° (front), max = +225° (back ≡ −135°). Prefer mid-range
+    // holds outside the 10° coast bands (roughly (−35°, 215°)).
+    private static final double MID_HOLD = Math.toRadians(90);    // straight up
+    private static final double NEAR_FRONT = Math.toRadians(0);   // horizontal, clear of front coast
+
     @Test
     void armPd_reachesTargetOnBacklashPlant() {
         ArmEngine engine = engine(ArmControllerType.ARM_PD); // backlash by default
         assertTrue(engine.isBacklashEnabled());
-        double target = Math.toRadians(0.0); // horizontal, a big move from the parked back stop
+        double target = MID_HOLD; // big move from the parked back stop
         engine.setTargetRad(target);
         run(engine, 600);
         double err = Math.abs(engine.getTrueLoadRad() - target);
@@ -44,7 +49,7 @@ class ArmEngineSmokeTest {
     void armPd_reachesTargetTightlyOnRigidPlant() {
         ArmEngine engine = engine(ArmControllerType.ARM_PD);
         engine.setBacklashEnabled(false);
-        double target = Math.toRadians(-20);
+        double target = NEAR_FRONT;
         engine.setTargetRad(target);
         run(engine, 500);
         double err = Math.abs(engine.getTrueLoadRad() - target);
@@ -56,7 +61,7 @@ class ArmEngineSmokeTest {
     void hotSwapRigidToBacklash_keepsPoseAndReseedsController() {
         ArmEngine engine = engine(ArmControllerType.ARM_PD);
         engine.setBacklashEnabled(false); // start rigid
-        engine.setTargetRad(Math.toRadians(-20));
+        engine.setTargetRad(NEAR_FRONT);
         run(engine, 400);
         double before = engine.getTrueLoadRad();
         // Mid-move / mid-hold: plant was in motion; after swap the sim seeds at rest and the
@@ -74,21 +79,21 @@ class ArmEngineSmokeTest {
     @Test
     void structuralPlantEdit_reseedsControllerNearRest() {
         ArmEngine engine = engine(ArmControllerType.MECHANISM_PIDF);
-        engine.setTargetRad(Math.toRadians(-30));
+        engine.setTargetRad(MID_HOLD);
         run(engine, 250);
         engine.setPlantDynamics(0.3, 3.5, 1.2, 0.4); // structural rebuild at current pose
         assertTrue(Math.abs(engine.getTrajVelRad()) < 0.5,
                 "profile should reseed near rest after structural plant edit, trajVel="
                         + engine.getTrajVelRad());
         run(engine, 400);
-        assertTrue(Math.abs(engine.getTrueLoadRad() - Math.toRadians(-30)) < Math.toRadians(5),
+        assertTrue(Math.abs(engine.getTrueLoadRad() - MID_HOLD) < Math.toRadians(5),
                 "should re-acquire target after plant reseed");
     }
 
     @Test
     void controllerTypeChange_reseedsWithoutJump() {
         ArmEngine engine = engine(ArmControllerType.ARM_PD);
-        engine.setTargetRad(Math.toRadians(-30));
+        engine.setTargetRad(MID_HOLD);
         run(engine, 400);
         double before = engine.getTrueLoadRad();
         engine.setControllerType(ArmControllerType.ARM_LQR);
@@ -96,14 +101,14 @@ class ArmEngineSmokeTest {
         assertTrue(Math.abs(after - before) < Math.toRadians(1.0),
                 "type change should not jump the pose, delta(deg)=" + Math.toDegrees(after - before));
         run(engine, 400);
-        assertTrue(Math.abs(engine.getTrueLoadRad() - Math.toRadians(-30)) < Math.toRadians(8),
+        assertTrue(Math.abs(engine.getTrueLoadRad() - MID_HOLD) < Math.toRadians(8),
                 "ARM_LQR should hold the target after reseed");
     }
 
     @Test
     void mechanismPidf_tracksOnBothPlants() {
         ArmEngine engine = engine(ArmControllerType.MECHANISM_PIDF);
-        double target = Math.toRadians(-10);
+        double target = MID_HOLD;
         engine.setTargetRad(target);
         run(engine, 700);
         double backlashErr = Math.abs(engine.getTrueLoadRad() - target);
@@ -112,9 +117,9 @@ class ArmEngineSmokeTest {
                         + Math.toDegrees(backlashErr));
 
         engine.setBacklashEnabled(false);
-        engine.setTargetRad(Math.toRadians(-40));
+        engine.setTargetRad(NEAR_FRONT);
         run(engine, 700);
-        double rigidErr = Math.abs(engine.getTrueLoadRad() - Math.toRadians(-40));
+        double rigidErr = Math.abs(engine.getTrueLoadRad() - NEAR_FRONT);
         assertTrue(rigidErr < Math.toRadians(3),
                 "MECHANISM_PIDF should track tightly on rigid plant, err(deg)="
                         + Math.toDegrees(rigidErr));
@@ -123,7 +128,7 @@ class ArmEngineSmokeTest {
     @Test
     void liveEdits_doNotThrowAndTakeEffect() {
         ArmEngine engine = engine(ArmControllerType.ARM_PD);
-        engine.setTargetRad(Math.toRadians(-20));
+        engine.setTargetRad(NEAR_FRONT);
         run(engine, 200);
         engine.setPdGains(20, 1.5);
         engine.setFeedforwardGains(0.3, 1.6, 1.2, 0.15);

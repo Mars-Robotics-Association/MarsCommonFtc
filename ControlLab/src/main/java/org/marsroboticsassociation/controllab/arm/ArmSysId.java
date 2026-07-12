@@ -82,17 +82,23 @@ public final class ArmSysId {
         double ticksPerRad = cfg.ticksPerRad();
         double lo = cfg.minAngleRad, hi = cfg.maxAngleRad, span = hi - lo;
         double bottom = lo + 0.05 * span, top = hi - 0.05 * span, mid = lo + 0.55 * span;
+        // Gravity peaks at horizontals (cos θ = ±1). On an over-the-top workspace those are 0 and
+        // +π, not the span midpoint (often upright). Seed extra runs from every horizontal that
+        // sits clear of the hard stops so kS/kCos stay identifiable.
+        double margin = 0.08 * span;
+        double[] gravityStarts = gravityRichStarts(lo, hi, margin, mid);
 
         List<double[]> rows = new ArrayList<>(); // [sign*Δt, Δθ, Δw, ∫cos, ∫sin]
         List<Double> rhs = new ArrayList<>();    // V*Δt
 
         // Moderate runs (rich angle sweep at near-terminal velocity) in both directions, plus hard
-        // steps from rest whose onset makes Δw large (exciting kA), plus a mid-range pair near
-        // horizontal where gravity torque peaks.
+        // steps from rest whose onset makes Δw large (exciting kA), plus gravity-rich starts.
         for (double p : new double[]{0.45, 0.60, 0.80, 0.95}) runRun(cfg, ticksPerRad, bottom, p, throughBacklash, rows, rhs);
         for (double p : new double[]{-0.45, -0.60, -0.80, -0.95}) runRun(cfg, ticksPerRad, top, p, throughBacklash, rows, rhs);
-        runRun(cfg, ticksPerRad, mid, 0.70, throughBacklash, rows, rhs);
-        runRun(cfg, ticksPerRad, mid, -0.70, throughBacklash, rows, rhs);
+        for (double start : gravityStarts) {
+            runRun(cfg, ticksPerRad, start, 0.70, throughBacklash, rows, rhs);
+            runRun(cfg, ticksPerRad, start, -0.70, throughBacklash, rows, rhs);
+        }
 
         double[][] x = rows.toArray(new double[0][]);
         double[] y = toArray(rhs);
@@ -145,6 +151,25 @@ public final class ArmSysId {
                 rhs.add(v * dtInterval);
             }
         }
+    }
+
+    /**
+     * Start angles that excite gravity for OLS: horizontals in range (cos θ = ±1), plus the span
+     * midpoint as a fallback when neither horizontal is available.
+     */
+    private static double[] gravityRichStarts(double lo, double hi, double margin, double mid) {
+        List<Double> starts = new ArrayList<>();
+        for (double h : new double[]{0.0, Math.PI, -Math.PI}) {
+            if (h > lo + margin && h < hi - margin) {
+                starts.add(h);
+            }
+        }
+        if (starts.isEmpty()) {
+            starts.add(mid);
+        }
+        double[] out = new double[starts.size()];
+        for (int i = 0; i < starts.size(); i++) out[i] = starts.get(i);
+        return out;
     }
 
     /** An interval is usable if velocity keeps one sign (above threshold) and clears the hard stops. */

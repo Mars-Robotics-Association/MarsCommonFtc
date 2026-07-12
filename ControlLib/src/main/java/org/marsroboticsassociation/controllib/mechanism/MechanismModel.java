@@ -120,4 +120,16 @@ public abstract class MechanismModel {
                         - Math.abs(gravityVoltage(position)))
                 / kA;
     }
+
+    public double getKS() {
+        return kS;
+    }
+
+    public double getKV() {
+        return kV;
+    }
+
+    public double getKA() {
+        return kA;
+    }
 }

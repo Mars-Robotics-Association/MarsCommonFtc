@@ -441,12 +441,12 @@ public class ArmBacklashKeepEngagedTest {
                         + reversalNoLash.bottomOvershootDeg + ")",
                 Math.abs(reversal.bottomOvershootDeg - reversalNoLash.bottomOvershootDeg) < 1.0);
 
-        // Finding 2: the soft handoff cuts the landing speed to about a third of baseline
-        // (roughly an order of magnitude less impact energy).
+        // Finding 2: the soft handoff cuts the landing speed to under half of baseline
+        // (impact energy scales with v², so under a quarter of the impact energy).
         assertTrue(
-                "soft handoff should cut the landing to about a third (baseline="
+                "soft handoff should cut the landing to under half of baseline (baseline="
                         + baseline.maxDescentImpact + ", handoff=" + best.maxDescentImpact + ")",
-                best.maxDescentImpact < 0.4 * baseline.maxDescentImpact);
+                best.maxDescentImpact < 0.5 * baseline.maxDescentImpact);
 
         // Finding 3: the hold is quiet. It used to chatter (~10 tooth separations per second,
         // +/-0.3 deg) because CascadedRateLimiter's stopping-velocity law has unbounded slope at

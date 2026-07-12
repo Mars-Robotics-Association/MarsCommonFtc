@@ -73,10 +73,10 @@ public class ArmEngine {
     public ArmEngine(ArmControllerType type, long seed) {
         this.random = new Random(seed);
         this.type = type;
-        this.targetRad = cfg.minAngleRad; // park at the back hard stop
+        this.targetRad = cfg.maxAngleRad; // park at the back hard stop (over-the-top end)
         this.plant = backlashEnabled
-                ? new BacklashArmPlant(cfg, cfg.minAngleRad)
-                : new RigidArmPlant(cfg, cfg.minAngleRad);
+                ? new BacklashArmPlant(cfg, cfg.maxAngleRad)
+                : new RigidArmPlant(cfg, cfg.maxAngleRad);
         buildAdapter();
     }
 
@@ -354,10 +354,10 @@ public class ArmEngine {
     public void reset() {
         elapsedNanos = 0;
         elapsedSec = 0;
-        targetRad = cfg.minAngleRad;
+        targetRad = cfg.maxAngleRad;
         plant = backlashEnabled
-                ? new BacklashArmPlant(cfg, cfg.minAngleRad)
-                : new RigidArmPlant(cfg, cfg.minAngleRad);
+                ? new BacklashArmPlant(cfg, cfg.maxAngleRad)
+                : new RigidArmPlant(cfg, cfg.maxAngleRad);
         buildAdapter();
         metrics.reset();
     }

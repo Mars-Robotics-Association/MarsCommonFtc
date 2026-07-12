@@ -16,8 +16,8 @@ public class CascadedRateLimiterTest {
 
     /**
      * Over a long move that reaches cruise, velocity, acceleration, and jerk must all stay within
-     * their limits. Acceleration and jerk are bounded exactly; velocity is allowed a small
-     * transient over the cap while ramping up (see the class docs).
+     * their limits. Acceleration and jerk are bounded by construction; velocity is held to the cap
+     * by the headroom-aware accel envelope (no residual a²/2j overshoot into cruise).
      */
     @Test
     public void respectsVelocityAccelerationAndJerkLimits() {
@@ -42,12 +42,117 @@ public class CascadedRateLimiterTest {
                 "acceleration exceeded its limit: " + maxAcceleration,
                 maxAcceleration <= A_MAX * 1.001);
         assertTrue("jerk exceeded its limit: " + maxJerk, maxJerk <= J_MAX * 1.001);
-        // Velocity may transiently exceed the cap a touch (aMax^2 / 2jMax) on the ramp.
         assertTrue(
-                "velocity exceeded its limit by too much: " + maxVelocity,
-                maxVelocity <= V_MAX * 1.05);
+                "velocity exceeded its limit: " + maxVelocity, maxVelocity <= V_MAX * 1.000001);
         // It really did reach cruise, so the velocity bound was actually exercised.
         assertTrue("never reached cruise velocity: " + maxVelocity, maxVelocity > 0.9 * V_MAX);
+    }
+
+    /**
+     * With a low jerk limit the residual-accel overshoot would be large (~aMax²/2jMax) without the
+     * headroom envelope. Peak |velocity| must still stay at or under the cap.
+     */
+    @Test
+    public void lowJerkDoesNotOvershootVelocityCap() {
+        double vMax = 5.2;
+        double aMax = 12.0;
+        double jMax = 60.0; // would allow ~1.2 of continuous residual overshoot without the fix
+        CascadedRateLimiter limiter = new CascadedRateLimiter(vMax, aMax, aMax, jMax, 0.0);
+        double peak = 0.0;
+        for (int i = 0; i < 500; i++) {
+            limiter.update(30.0, DT);
+            peak = Math.max(peak, Math.abs(limiter.getVelocity()));
+        }
+        assertTrue(
+                "low-jerk ramp overshot velocity cap: peak=" + peak + " (cap=" + vMax + ")",
+                peak <= vMax * 1.000001);
+        assertTrue("never reached cruise under low jerk: " + peak, peak > 0.9 * vMax);
+    }
+
+    /**
+     * Low-jerk limits used to sail the profile past the target because residual accel lagged the
+     * falling stopping command. Position overshoot must stay tiny.
+     */
+    @Test
+    public void lowJerkDoesNotSailPastTarget() {
+        CascadedRateLimiter limiter =
+                new CascadedRateLimiter(3.0, 6.0, 8.0, 30.0, Math.toRadians(-100));
+        double target = Math.toRadians(30);
+        double maxOvershoot = 0.0;
+        double peakVel = 0.0;
+        for (int i = 0; i < 1000; i++) {
+            limiter.update(target, 0.016);
+            maxOvershoot = Math.max(maxOvershoot, limiter.getPosition() - target);
+            peakVel = Math.max(peakVel, Math.abs(limiter.getVelocity()));
+        }
+        assertTrue(
+                "velocity cap violated under low jerk: " + peakVel, peakVel <= 3.0 * 1.000001);
+        assertTrue(
+                "profile sailed past target: overshootDeg=" + Math.toDegrees(maxOvershoot),
+                maxOvershoot < Math.toRadians(0.5));
+        assertTrue(
+                "did not settle: " + limiter.getPosition(),
+                Math.abs(limiter.getPosition() - target) < 1e-4);
+    }
+
+    /**
+     * Mechanism path: {@code MotorMechanismController} lowers maxAcceleration every loop as
+     * back-EMF eats headroom. A pure cascade keeps the old high residual accel and overshoots the
+     * velocity command/cap while jerk bleeds a down. Peak velocity must stay at or under the cap
+     * even when the accel ceiling collapses mid-ramp.
+     */
+    @Test
+    public void collapsingAccelCapDoesNotOvershootVelocity() {
+        double vMax = 5.0;
+        CascadedRateLimiter limiter = new CascadedRateLimiter(vMax, 20.0, 20.0, 100.0, 0.0);
+        double peak = 0.0;
+        for (int i = 0; i < 200; i++) {
+            // Simulate back-EMF: full accel at rest, nearly none near cruise.
+            double speed = Math.abs(limiter.getVelocity());
+            double aCap = Math.max(0.5, 20.0 * (1.0 - speed / vMax));
+            limiter.setMaxAcceleration(aCap);
+            limiter.setMaxDeceleration(20.0);
+            limiter.update(50.0, 0.016);
+            peak = Math.max(peak, Math.abs(limiter.getVelocity()));
+            assertTrue(
+                    "velocity overshot cap under collapsing accel (v="
+                            + limiter.getVelocity()
+                            + ", aCap="
+                            + aCap
+                            + ", a="
+                            + limiter.getAcceleration()
+                            + ")",
+                    Math.abs(limiter.getVelocity()) <= vMax * 1.000001);
+        }
+        assertTrue("never approached cruise: " + peak, peak > 0.85 * vMax);
+    }
+
+    /**
+     * Full mechanism controller (dynamic back-EMF ceilings) must keep the profile velocity at or
+     * under the configured cap for a long uphill move.
+     */
+    @Test
+    public void mechanismControllerProfileRespectsVelocityCap() {
+        ArmModel model = new ArmModel(0.3, 1.2, 0.35, 3.5, 0.0);
+        double vMax = 8.0;
+        MotorMechanismController controller =
+                new MotorMechanismController(
+                        model, 40.0, 8.0, 1.5, vMax, 12.0, 480.0, 1.5, Math.toRadians(-100));
+        double target = Math.toRadians(30);
+        double peak = 0.0;
+        for (int i = 0; i < 800; i++) {
+            // Perfect tracking isolates the profile.
+            controller.calculate(
+                    target,
+                    controller.getSetpointPosition(),
+                    controller.getSetpointVelocity(),
+                    12.0,
+                    0.016);
+            peak = Math.max(peak, Math.abs(controller.getSetpointVelocity()));
+        }
+        assertTrue(
+                "mechanism profile velocity overshot configured cap: " + peak,
+                peak <= vMax * 1.000001);
     }
 
     /** A point-to-point move settles on the target with only a small transient overshoot. */
@@ -167,7 +272,7 @@ public class CascadedRateLimiterTest {
             limiter.update(30.0, DT);
             maxVelocity = Math.max(maxVelocity, Math.abs(limiter.getVelocity()));
         }
-        assertTrue("ignored the lowered velocity cap: " + maxVelocity, maxVelocity <= 1.0 * 1.05);
+        assertTrue("ignored the lowered velocity cap: " + maxVelocity, maxVelocity <= 1.0 * 1.000001);
     }
 
     /**
@@ -262,7 +367,7 @@ public class CascadedRateLimiterTest {
                 maxAcceleration <= A_MAX * 1.001);
         assertTrue(
                 "velocity exceeded its limit under unlimited jerk: " + maxVelocity,
-                maxVelocity <= V_MAX * 1.05);
+                maxVelocity <= V_MAX * 1.000001);
         assertTrue(
                 "did not settle on target under unlimited jerk: " + limiter.getPosition(),
                 Math.abs(limiter.getPosition() - target) < 0.01);

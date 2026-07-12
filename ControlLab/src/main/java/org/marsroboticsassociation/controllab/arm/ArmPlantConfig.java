@@ -15,10 +15,17 @@ public class ArmPlantConfig {
     public double gearRatio = 100.0;
     /** Angle from horizontal when the encoder reads 0. */
     public double encoderZeroOffsetRad = 0.0;
-    /** Back hard stop (radians from horizontal). */
-    public double minAngleRad = Math.toRadians(-100);
-    /** Front hard stop (radians from horizontal). */
-    public double maxAngleRad = Math.toRadians(45);
+    /**
+     * Front hard stop (radians from horizontal): 45° below horizontal in front. Gravity loads the
+     * arm into this stop.
+     */
+    public double minAngleRad = Math.toRadians(-45);
+    /**
+     * Back hard stop (radians from horizontal), continuous over the top from {@link #minAngleRad}.
+     * +225° is the same ray as −135° principal (45° below horizontal behind). Gravity loads the arm
+     * into this stop. Span is 270° via upright, not the short 90° arc under the robot.
+     */
+    public double maxAngleRad = Math.toRadians(225);
 
     // --- Feedforward / dynamics (structural; matches the "real robot") ---
     // Defaults model a deliberately heavy end-effector: gravity torque (kG) and inertia (kA) are

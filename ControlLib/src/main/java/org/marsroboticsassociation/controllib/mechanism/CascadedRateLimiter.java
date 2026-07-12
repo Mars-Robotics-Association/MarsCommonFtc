@@ -25,13 +25,15 @@ package org.marsroboticsassociation.controllib.mechanism;
  * setpoint can still brake to a stop at the target under the <em>deceleration</em> limit and the
  * jerk limit. That is what keeps the setpoint from running past the target.
  *
- * <p>This is still a setpoint <em>filter</em>, not a full time-optimal planner, so velocity may
- * transiently exceed its cap by about {@code maxAcceleration^2 / (2*maxJerk)} on the ramp up. Keep
- * the jerk limit comfortably larger than the acceleration limit and it stays small; in closed loop
- * the controller's feedback absorbs it. Near the target the velocity command is additionally capped
- * to {@code error/h} (the speed that lands exactly on the target this step, with {@code h} a
- * jitter-hardened timestep — see below), so the setpoint settles to rest instead of limit-cycling
- * around the target.
+ * <p>This is still a setpoint <em>filter</em>, not a full time-optimal planner. Acceleration is
+ * limited by headroom to the <em>velocity command</em> (and the absolute velocity cap) under a
+ * jerk-limited coast-down of acceleration ({@code a·dt + a²/(2j) ≤ headroom}), and residual accel
+ * is clamped to the current hardware accel/decel caps every step. That second clamp matters for
+ * {@code MotorMechanismController}, which rewrites the accel cap from back-EMF headroom every
+ * loop: without it a high accel from earlier keeps integrating into velocity while jerk slowly
+ * bleeds a down — a profile-velocity overshoot on the mechanism path. Near the target the velocity
+ * command is additionally capped to {@code error/h} (with {@code h} a jitter-hardened timestep —
+ * see below), so the setpoint settles to rest instead of limit-cycling around the target.
  *
  * <p><b>dt jitter hardening.</b> Real control loops are not exactly periodic (FTC is typically ~16
  * ms ± a few ms). Raw {@code 1/dt} in the landing and discrete-derivative stages turns a short
@@ -214,30 +216,90 @@ public class CascadedRateLimiter {
         double velocityCommand =
                 direction * Math.min(maxVelocity, Math.min(stoppingVelocity, landingVelocity));
 
-        // Clamp the acceleration command directionally: the acceleration limit applies to
-        // speeding up, the deceleration limit to slowing down. Which bound is which depends
-        // on the sign of the current velocity.
-        double lowerBound;
-        double upperBound;
+        // Hardware accel/decel bounds (direction-dependent). MotorMechanismController rewrites
+        // these every loop from back-EMF headroom, so they can drop sharply as speed rises.
+        double hwLower;
+        double hwUpper;
         if (velocity > 0) {
-            upperBound = maxAcceleration; // faster in +
-            lowerBound = -maxDeceleration; // braking
+            hwUpper = maxAcceleration; // faster in +
+            hwLower = -maxDeceleration; // braking
         } else if (velocity < 0) {
-            upperBound = maxDeceleration; // braking
-            lowerBound = -maxAcceleration; // faster in -
+            hwUpper = maxDeceleration; // braking
+            hwLower = -maxAcceleration; // faster in -
         } else {
-            upperBound = maxAcceleration; // from rest, either direction is speeding up
-            lowerBound = -maxAcceleration;
+            hwUpper = maxAcceleration; // from rest, either direction is speeding up
+            hwLower = -maxAcceleration;
         }
+        // Drop residual accel the model no longer authorizes. Without this, a high accel carried
+        // from earlier (when back-EMF still allowed it) keeps integrating into velocity while jerk
+        // slowly bleeds a down — the mechanism-path velocity overshoot on the profile chart.
+        acceleration = clamp(acceleration, hwLower, hwUpper);
+
+        // Planning bounds: also require that residual accel cannot push past ±maxVelocity or past
+        // the (falling) stopping/landing velocity command. a·dt + a²/(2j) ≤ headroom.
+        double lowerBound = hwLower;
+        double upperBound = hwUpper;
+        upperBound = Math.min(upperBound, maxAccelForVelocityHeadroom(maxVelocity - velocity, dt));
+        lowerBound = Math.max(lowerBound, -maxAccelForVelocityHeadroom(maxVelocity + velocity, dt));
+        upperBound =
+                Math.min(upperBound, maxAccelForVelocityHeadroom(velocityCommand - velocity, dt));
+        lowerBound =
+                Math.max(lowerBound, -maxAccelForVelocityHeadroom(velocity - velocityCommand, dt));
+
         double accelCommand = clamp((velocityCommand - velocity) / h, lowerBound, upperBound);
         double jerkCommand = clamp((accelCommand - acceleration) / h, -maxJerk, maxJerk);
 
         acceleration += jerkCommand * dt;
+        // Hard-respect planning bounds after the jerk step. When headroom collapses (near cruise
+        // or near the stopping curve) this can step accel faster than maxJerk — that is the
+        // emergency brake that prevents the residual-a overshoot the pure cascade allows.
+        acceleration = clamp(acceleration, lowerBound, upperBound);
+
         velocity += acceleration * dt;
-        position += velocity * dt;
+        velocity = clamp(velocity, -maxVelocity, maxVelocity);
+        // Do not run past the velocity command in the direction of residual motion.
+        if (velocity > velocityCommand && acceleration >= 0) {
+            velocity = velocityCommand;
+            acceleration = 0.0;
+        } else if (velocity < velocityCommand && acceleration <= 0) {
+            velocity = velocityCommand;
+            acceleration = 0.0;
+        }
+
+        double nextPosition = position + velocity * dt;
+        // If this step would cross the target, land exactly and stop.
+        if ((targetPosition - position) * (targetPosition - nextPosition) <= 0.0
+                && position != targetPosition) {
+            position = targetPosition;
+            velocity = 0.0;
+            acceleration = 0.0;
+            return true;
+        }
+        position = nextPosition;
 
         // Catch residual chatter after the step so the next loop does not re-excite feedforward.
         return trySettle(targetPosition);
+    }
+
+    /**
+     * Largest |acceleration| that can still be bled off at the jerk limit without |velocity|
+     * changing by more than {@code headroom}. Models one discrete step at that acceleration
+     * followed by a continuous jerk-limited coast of accel down to zero:
+     * {@code a·dt + a²/(2j) ≤ headroom}.
+     */
+    private double maxAccelForVelocityHeadroom(double headroom, double dt) {
+        if (headroom <= 0) {
+            return 0.0;
+        }
+        if (!Double.isFinite(maxJerk)) {
+            // Unlimited jerk: accel can step to zero immediately, so only one step of constant
+            // accel can add speed.
+            return headroom / Math.max(dt, MIN_COMMAND_DT);
+        }
+        // a*dt + a^2/(2j) = headroom  =>  a^2 + 2 j dt a - 2 j headroom = 0
+        // Positive root: a = -j dt + sqrt((j dt)^2 + 2 j headroom)
+        double jDt = maxJerk * dt;
+        return -jDt + Math.sqrt(jDt * jDt + 2.0 * maxJerk * headroom);
     }
 
     /**

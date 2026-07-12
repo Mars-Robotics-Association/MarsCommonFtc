@@ -52,9 +52,30 @@ public class ArmCanvas extends JPanel {
         int py = getHeight() / 2;
         double dx = e.getX() - px;
         double dy = py - e.getY(); // invert: screen y grows downward
-        double angle = Math.atan2(dy, dx);
-        double clamped = Math.max(engine.getMinAngleRad(), Math.min(engine.getMaxAngleRad(), angle));
-        onTargetRad.accept(clamped);
+        // atan2 is in (−π, π]; unwrap into the plant range (which may extend past −π).
+        double angle = unwrapIntoRange(Math.atan2(dy, dx),
+                engine.getMinAngleRad(), engine.getMaxAngleRad());
+        onTargetRad.accept(angle);
+    }
+
+    /**
+     * Map a principal angle into {@code [min, max]} by adding/subtracting 2π, then clamp. Needed
+     * when the hard-stop span goes past −π (e.g. Lineage A −224°…−45°).
+     */
+    static double unwrapIntoRange(double principalRad, double minRad, double maxRad) {
+        double mid = 0.5 * (minRad + maxRad);
+        double best = principalRad;
+        double bestDist = Math.abs(principalRad - mid);
+        for (int k = -1; k <= 1; k++) {
+            if (k == 0) continue;
+            double cand = principalRad + k * 2.0 * Math.PI;
+            double dist = Math.abs(cand - mid);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = cand;
+            }
+        }
+        return Math.max(minRad, Math.min(maxRad, best));
     }
 
     @Override
