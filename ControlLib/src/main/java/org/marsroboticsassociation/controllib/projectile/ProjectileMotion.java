@@ -77,8 +77,11 @@ public final class ProjectileMotion {
                                                 double speedCompensationScale) {
         double baseSpeed = getLaunchSpeed(distanceToGoal, launchAngleRad, heightDiff);
         double cosAngle = Math.cos(launchAngleRad);
-        double vHx = baseSpeed * cosAngle - speedCompensationScale * vParallel;
+        // Parallel ball velocity needed in robot frame. If the robot approaches so fast that this
+        // goes negative, the ball would have to travel backward toward the goal, which is impossible;
+        // clamp it to zero so the compensated speed floors out rather than growing again.
+        double vHx = Math.max(0, baseSpeed * cosAngle - speedCompensationScale * vParallel);
         double vHy = speedCompensationScale * vPerp;
-        return Math.max(0, Math.hypot(vHx, vHy) / cosAngle);
+        return Math.hypot(vHx, vHy) / cosAngle;
     }
 }
