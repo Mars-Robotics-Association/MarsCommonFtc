@@ -18,6 +18,11 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
+    // JUnit 4 tests (moved in from the teamcode `blending` package) run on the JUnit 5
+    // platform via the vintage engine, so they need no rewriting.
+    testImplementation 'junit:junit:4.13.2'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.13.4'
+
     // Desktop OpenCV for JVM unit tests only. Exposes the same org.opencv.* API as the robot's
     // OpenCV plus desktop natives (loaded via nu.pattern.OpenCV.loadLocally()), so the vision-replay
     // and pipeline tests can run the real solvePnPGeneric off-robot. The library itself stays

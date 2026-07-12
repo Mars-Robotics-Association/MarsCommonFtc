@@ -1,0 +1,269 @@
+package org.marsroboticsassociation.controllib.mechanism;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
+
+public class CascadedRateLimiterTest {
+
+    private static final double V_MAX = 5.2;
+    private static final double A_MAX = 12.0;
+    private static final double J_MAX = 480.0;
+    private static final double DT = 0.02; // realistic 50 Hz loop
+
+    /**
+     * Over a long move that reaches cruise, velocity, acceleration, and jerk must all stay within
+     * their limits. Acceleration and jerk are bounded exactly; velocity is allowed a small
+     * transient over the cap while ramping up (see the class docs).
+     */
+    @Test
+    public void respectsVelocityAccelerationAndJerkLimits() {
+        CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+        double target = 30.0; // far enough to spend time at cruise
+
+        double previousAcceleration = 0.0;
+        double maxVelocity = 0.0;
+        double maxAcceleration = 0.0;
+        double maxJerk = 0.0;
+
+        for (int i = 0; i < 200; i++) {
+            limiter.update(target, DT);
+            double jerk = Math.abs((limiter.getAcceleration() - previousAcceleration) / DT);
+            previousAcceleration = limiter.getAcceleration();
+            maxVelocity = Math.max(maxVelocity, Math.abs(limiter.getVelocity()));
+            maxAcceleration = Math.max(maxAcceleration, Math.abs(limiter.getAcceleration()));
+            maxJerk = Math.max(maxJerk, jerk);
+        }
+
+        assertTrue(
+                "acceleration exceeded its limit: " + maxAcceleration,
+                maxAcceleration <= A_MAX * 1.001);
+        assertTrue("jerk exceeded its limit: " + maxJerk, maxJerk <= J_MAX * 1.001);
+        // Velocity may transiently exceed the cap a touch (aMax^2 / 2jMax) on the ramp.
+        assertTrue(
+                "velocity exceeded its limit by too much: " + maxVelocity,
+                maxVelocity <= V_MAX * 1.05);
+        // It really did reach cruise, so the velocity bound was actually exercised.
+        assertTrue("never reached cruise velocity: " + maxVelocity, maxVelocity > 0.9 * V_MAX);
+    }
+
+    /** A point-to-point move settles on the target with only a small transient overshoot. */
+    @Test
+    public void convergesToTargetWithSmallOvershoot() {
+        CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+        double target = 1.5708;
+
+        double maxOvershoot = 0.0;
+        for (int i = 0; i < 400; i++) { // 8 seconds
+            limiter.update(target, DT);
+            maxOvershoot = Math.max(maxOvershoot, limiter.getPosition() - target);
+        }
+
+        assertTrue(
+                "did not settle on target: " + limiter.getPosition(),
+                Math.abs(limiter.getPosition() - target) < 0.01);
+        assertTrue("overshoot too large: " + maxOvershoot, maxOvershoot < 0.15 * target);
+    }
+
+    /** Braking uses the deceleration limit, which can be larger than the acceleration limit. */
+    @Test
+    public void brakingUsesADifferentLimitThanAcceleration() {
+        double accel = 5.0;
+        double decel = 20.0;
+        double jerk = 10000.0;
+        CascadedRateLimiter limiter =
+                new CascadedRateLimiter(/* maxVelocity= */ 30.0, accel, decel, jerk, 0.0);
+        double target = 40.0;
+
+        double maxSpeedingUpAccel = 0.0;
+        double maxBrakingAccel = 0.0;
+        for (int i = 0; i < 400; i++) {
+            limiter.update(target, DT);
+            double v = limiter.getVelocity();
+            double a = limiter.getAcceleration();
+            if (Math.abs(v) > 0.05) {
+                if (a * v >= 0) {
+                    maxSpeedingUpAccel = Math.max(maxSpeedingUpAccel, Math.abs(a));
+                } else {
+                    maxBrakingAccel = Math.max(maxBrakingAccel, Math.abs(a));
+                }
+            }
+            // Stop at first arrival, before any tiny settling oscillation muddies the
+            // speeding-up-versus-braking classification near the velocity zero-crossing.
+            if (Math.abs(target - limiter.getPosition()) < 0.5 && Math.abs(v) < 1.0) {
+                break;
+            }
+        }
+
+        assertTrue(
+                "speeding-up exceeded the accel limit: " + maxSpeedingUpAccel,
+                maxSpeedingUpAccel <= accel * 1.05);
+        assertTrue(
+                "braking did not use the larger decel limit: " + maxBrakingAccel,
+                maxBrakingAccel > accel * 1.2);
+        assertTrue(
+                "braking exceeded the decel limit: " + maxBrakingAccel,
+                maxBrakingAccel <= decel * 1.05);
+    }
+
+    /**
+     * A faster velocity cap must not cost extra overshoot past the target. Regression test for the
+     * stopping law that assumed braking could begin instantly: when the setpoint is still
+     * accelerating toward the target, its acceleration must first swing to the braking side at the
+     * jerk limit, and that swing distance was not charged against the stopping distance, so braking
+     * began one accel-reversal too late. The setpoint then sailed past the target by an amount that
+     * grew with speed. Here a long move under a high cap stays on the accelerating ramp when
+     * braking must begin, while the same move under a lower cap reaches cruise (acceleration back
+     * to zero) first; before the fix the high-cap run overshot ~0.063 rad and the capped run not at
+     * all.
+     */
+    @Test
+    public void fasterCapDoesNotCostExtraOvershoot() {
+        double start = 0.5;
+        double target = -1.0; // a 1.5 rad move, long enough for the low cap to reach cruise
+
+        double fastOvershoot = reversalOvershoot(/* maxVelocity= */ 8.0, start, target);
+        double cappedOvershoot = reversalOvershoot(/* maxVelocity= */ 4.0, start, target);
+
+        // Going fast no longer costs meaningful extra overshoot (the bug's signature).
+        assertTrue(
+                "faster cap overshot more than the capped move (fast="
+                        + fastOvershoot
+                        + ", capped="
+                        + cappedOvershoot
+                        + ")",
+                fastOvershoot < cappedOvershoot + 0.01);
+        // And the fast move settles close on the target rather than sailing past it.
+        assertTrue(
+                "faster cap overshot the target: " + fastOvershoot + " rad", fastOvershoot < 0.02);
+    }
+
+    /**
+     * Run a from-rest move from {@code start} to {@code target}, returning the max overshoot past
+     * the target (in the direction of travel).
+     */
+    private double reversalOvershoot(double maxVelocity, double start, double target) {
+        CascadedRateLimiter limiter =
+                new CascadedRateLimiter(maxVelocity, A_MAX, A_MAX, J_MAX, start);
+        double direction = Math.signum(target - start);
+        double maxOvershoot = 0.0;
+        for (int i = 0; i < 400; i++) { // 8 seconds, long enough to settle
+            limiter.update(target, DT);
+            maxOvershoot = Math.max(maxOvershoot, direction * (limiter.getPosition() - target));
+        }
+        return maxOvershoot;
+    }
+
+    /** A lowered velocity cap (as the controller does for back-EMF) is honored. */
+    @Test
+    public void honorsADynamicallyLoweredVelocityCap() {
+        CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+        limiter.setMaxVelocity(1.0);
+        double maxVelocity = 0.0;
+        for (int i = 0; i < 200; i++) {
+            limiter.update(30.0, DT);
+            maxVelocity = Math.max(maxVelocity, Math.abs(limiter.getVelocity()));
+        }
+        assertTrue("ignored the lowered velocity cap: " + maxVelocity, maxVelocity <= 1.0 * 1.05);
+    }
+
+    /**
+     * A non-positive jerk limit is rejected rather than silently freezing the profile: a zero jerk
+     * limit would clamp every acceleration change to nothing, so the setpoint could never move.
+     * {@code NaN} is rejected too, since it would poison the profile. Callers who genuinely want no
+     * jerk limit must ask for it explicitly with {@link CascadedRateLimiter#UNLIMITED_JERK}.
+     */
+    @Test
+    public void rejectsNonPositiveJerkLimit() {
+        for (double badJerk : new double[] {0.0, -1.0, Double.NaN}) {
+            assertThrows(
+                    "constructor accepted invalid maxJerk " + badJerk,
+                    IllegalArgumentException.class,
+                    () -> new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, badJerk, 0.0));
+            CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+            assertThrows(
+                    "setMaxJerk accepted invalid maxJerk " + badJerk,
+                    IllegalArgumentException.class,
+                    () -> limiter.setMaxJerk(badJerk));
+        }
+    }
+
+    /**
+     * Velocity, acceleration, and deceleration limits reject negatives and {@code NaN} rather than
+     * silently clamping them to zero, so a bad limit surfaces at its source. Zero itself is
+     * allowed: the controller lowers these ceilings to zero when the back-EMF headroom runs out.
+     */
+    @Test
+    public void rejectsNegativeOrNaNMotionLimits() {
+        for (double bad : new double[] {-1.0, Double.NaN}) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new CascadedRateLimiter(bad, A_MAX, A_MAX, J_MAX, 0.0));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new CascadedRateLimiter(V_MAX, bad, A_MAX, J_MAX, 0.0));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new CascadedRateLimiter(V_MAX, A_MAX, bad, J_MAX, 0.0));
+            CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+            assertThrows(IllegalArgumentException.class, () -> limiter.setMaxVelocity(bad));
+            assertThrows(IllegalArgumentException.class, () -> limiter.setMaxAcceleration(bad));
+            assertThrows(IllegalArgumentException.class, () -> limiter.setMaxDeceleration(bad));
+        }
+        // Zero ceilings are accepted (constructor and setters do not throw).
+        CascadedRateLimiter zeroed = new CascadedRateLimiter(0.0, 0.0, 0.0, J_MAX, 0.0);
+        zeroed.setMaxVelocity(0.0);
+        zeroed.setMaxAcceleration(0.0);
+        zeroed.setMaxDeceleration(0.0);
+    }
+
+    /**
+     * A zero deceleration ceiling (which the controller can set when the braking headroom runs out)
+     * must not poison the profile with NaN. With no braking authority the setpoint simply holds its
+     * approach speed instead of dividing by zero in the stopping law.
+     */
+    @Test
+    public void zeroDecelerationCeilingDoesNotProduceNaN() {
+        CascadedRateLimiter limiter = new CascadedRateLimiter(V_MAX, A_MAX, A_MAX, J_MAX, 0.0);
+        limiter.setMaxDeceleration(0.0);
+        for (int i = 0; i < 100; i++) {
+            limiter.update(30.0, DT);
+            assertFalse(
+                    "zero deceleration ceiling produced NaN",
+                    Double.isNaN(limiter.getVelocity()) || Double.isNaN(limiter.getPosition()));
+        }
+    }
+
+    /**
+     * {@link CascadedRateLimiter#UNLIMITED_JERK} disables the jerk limit: the acceleration may step
+     * straight to its limit, but velocity and acceleration limits still hold and the profile
+     * settles on the target without producing NaN.
+     */
+    @Test
+    public void unlimitedJerkStillRespectsVelocityAndAcceleration() {
+        CascadedRateLimiter limiter =
+                new CascadedRateLimiter(
+                        V_MAX, A_MAX, A_MAX, CascadedRateLimiter.UNLIMITED_JERK, 0.0);
+        double target = 30.0;
+        double maxVelocity = 0.0;
+        double maxAcceleration = 0.0;
+        for (int i = 0; i < 400; i++) {
+            limiter.update(target, DT);
+            maxVelocity = Math.max(maxVelocity, Math.abs(limiter.getVelocity()));
+            maxAcceleration = Math.max(maxAcceleration, Math.abs(limiter.getAcceleration()));
+            assertFalse(
+                    "profile went NaN under unlimited jerk", Double.isNaN(limiter.getPosition()));
+        }
+        assertTrue(
+                "acceleration exceeded its limit under unlimited jerk: " + maxAcceleration,
+                maxAcceleration <= A_MAX * 1.001);
+        assertTrue(
+                "velocity exceeded its limit under unlimited jerk: " + maxVelocity,
+                maxVelocity <= V_MAX * 1.05);
+        assertTrue(
+                "did not settle on target under unlimited jerk: " + limiter.getPosition(),
+                Math.abs(limiter.getPosition() - target) < 0.01);
+    }
+}
