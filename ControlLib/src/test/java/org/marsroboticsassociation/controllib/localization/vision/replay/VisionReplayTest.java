@@ -11,16 +11,20 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.marsroboticsassociation.controllib.localization.vision.HypothesisBankLocalizer;
+import org.marsroboticsassociation.controllib.localization.vision.Transform3D;
 import org.marsroboticsassociation.controllib.localization.vision.VisionFrame;
 import org.marsroboticsassociation.controllib.localization.vision.VisionFrameCsv;
+import org.marsroboticsassociation.controllib.localization.vision.VisionPoseSolver;
 import org.marsroboticsassociation.controllib.localization.vision.VisionPoseSolverConfig;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tests the replay contract end to end: (1) the {@link VisionFrameCsv} schema round-trips a frame
@@ -32,6 +36,39 @@ import java.util.List;
 class VisionReplayTest {
 
     private static final double TOL = 1e-9;
+
+    /**
+     * Curiosity DECODE competition geometry (fixture only — not a library default): that robot's
+     * Limelight mount plus the DECODE goal-tag map. Used so replay tests that touch the vision
+     * chain have a consistent, documented solver.
+     */
+    private static VisionPoseSolver fixtureSolver() {
+        Map<Integer, Transform3D> tags = new HashMap<>();
+        // ftc2025DECODE.fmap tags 20 / 24
+        tags.put(
+                20,
+                VisionPoseSolverConfig.fromRowMajor4x4(
+                        new double[] {
+                            0.5877852522924731, -0.8090169943749473, 0, -1.4827,
+                            0.8090169943749473, 0.5877852522924731, 0, -1.4133,
+                            0, 0, 1, 0.7493,
+                            0, 0, 0, 1
+                        }));
+        tags.put(
+                24,
+                VisionPoseSolverConfig.fromRowMajor4x4(
+                        new double[] {
+                            0.5877852522924731, 0.8090169943749473, 0, -1.4827,
+                            -0.8090169943749473, 0.5877852522924731, 0, 1.4133,
+                            0, 0, 1, 0.7493,
+                            0, 0, 0, 1
+                        }));
+        return new VisionPoseSolverConfig(
+                        VisionPoseSolverConfig.robotFromCameraFromLimelightRs(
+                                0.0816, -0.0400, 0.3835, 180.0, 0.23, -0.78),
+                        tags)
+                .solver();
+    }
 
     /** A frame carrying the replay-relevant fields, for the round-trip assertions. */
     private static VisionFrame sampleFrame() {
@@ -154,7 +191,7 @@ class VisionReplayTest {
 
         BankReplay replay =
                 new BankReplay(
-                        new HypothesisBankLocalizer.Params(), new VisionPoseSolverConfig().solver());
+                        new HypothesisBankLocalizer.Params(), fixtureSolver());
         BankReplay.Result a = replay.replay(csvPath);
         BankReplay.Result b = replay.replay(csvPath);
 
@@ -187,9 +224,10 @@ class VisionReplayTest {
         String path = System.getProperty("bank.replay.csv");
         assumeTrue(path != null && !path.isBlank(), "set -Dbank.replay.csv to run");
 
+        // External CSVs are robot-specific: pass the mount that matches the recording (Curiosity
+        // fixture below is the historical DECODE competition mount; swap for other robots).
         BankReplay replay =
-                new BankReplay(
-                        new HypothesisBankLocalizer.Params(), new VisionPoseSolverConfig().solver());
+                new BankReplay(new HypothesisBankLocalizer.Params(), fixtureSolver());
         BankReplay.Result r = replay.replay(Path.of(path));
         assertTrue(r.rows > 0, "recording had rows");
 
