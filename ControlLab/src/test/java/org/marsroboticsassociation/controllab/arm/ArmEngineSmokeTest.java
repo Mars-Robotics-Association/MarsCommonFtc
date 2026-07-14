@@ -46,6 +46,35 @@ class ArmEngineSmokeTest {
     }
 
     @Test
+    void armPd_reachesTargetOnFlexPlant() {
+        ArmEngine engine = engine(ArmControllerType.ARM_PD);
+        engine.setPlantKind(ArmEngine.PlantKind.FLEX);
+        double target = MID_HOLD;
+        engine.setTargetRad(target);
+        run(engine, 600);
+        double err = Math.abs(engine.getTrueLoadRad() - target);
+        assertTrue(err < Math.toRadians(8),
+                "ARM_PD tip should reach target through lash + flex, err(deg)=" + Math.toDegrees(err));
+    }
+
+    @Test
+    void hotSwapToFlex_keepsPoseAndReseedsController() {
+        ArmEngine engine = engine(ArmControllerType.ARM_PD);
+        engine.setPlantKind(ArmEngine.PlantKind.RIGID);
+        engine.setTargetRad(NEAR_FRONT);
+        run(engine, 400);
+        double before = engine.getTrueLoadRad();
+        engine.setPlantKind(ArmEngine.PlantKind.FLEX);
+        double after = engine.getTrueLoadRad();
+        assertTrue(Math.abs(after - before) < Math.toRadians(1.0),
+                "hot-swap to flex should not jump the pose, delta(deg)=" + Math.toDegrees(after - before));
+        assertTrue(Math.abs(engine.getTrajVelRad()) < 0.5,
+                "controller profile should reseed near rest after plant swap, trajVel="
+                        + engine.getTrajVelRad());
+        run(engine, 300); // keeps running without throwing
+    }
+
+    @Test
     void armPd_reachesTargetTightlyOnRigidPlant() {
         ArmEngine engine = engine(ArmControllerType.ARM_PD);
         engine.setBacklashEnabled(false);
@@ -136,6 +165,9 @@ class ArmEngineSmokeTest {
         engine.setDisturbanceVoltage(-1.0);
         engine.setContact(400, 3);
         engine.setEncoderKind(ArmPlantConfig.EncoderKind.EXPANSION_HUB);
+        run(engine, 300);
+        engine.setPlantKind(ArmEngine.PlantKind.FLEX);
+        engine.setFlexParams(2.5, 0.05);
         run(engine, 300);
         assertTrue(engine.getMetrics().pctEngaged() >= 0);
     }

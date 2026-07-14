@@ -46,6 +46,12 @@ public class ArmPlantConfig {
     public double loadViscousFriction = 0.0;  // V per (rad/s) at the load bearing
     public double loadStaticFriction = 0.0;   // V at the load bearing
 
+    // --- Arm structural flex (live-settable; used by the flex plant only) ---
+    // A long heavy FTC arm's first bending mode: a few Hz, nearly undamped. This is what makes the
+    // arm bouncy on the way down — the mode lives behind the lash where nothing can damp it.
+    public double flexHz = 3.0;     // tip-on-spring natural frequency
+    public double flexZeta = 0.03;  // structural damping ratio
+
     // --- Disturbance (live-settable) ---
     public double disturbanceVoltage = 0.0;
 

@@ -37,7 +37,7 @@ public class ArmTab extends JPanel {
     private JLabel metricsLabel;
 
     private JComboBox<ArmControllerType> typeCombo;
-    private JCheckBox backlashCheck;
+    private JComboBox<ArmEngine.PlantKind> plantCombo;
     private JSlider targetSlider;
     private JLabel targetLabel;
     private boolean updatingSlider = false;
@@ -54,6 +54,7 @@ public class ArmTab extends JPanel {
     // Plant panel
     private EditableParamField efPlantKs, efPlantKg, efPlantKv, efPlantKa;
     private EditableParamField efBacklash, efContactK, efContactC, efLoadVisc, efLoadStat, efDisturb;
+    private EditableParamField efFlexHz, efFlexZeta;
     private JComboBox<ArmPlantConfig.EncoderKind> encoderCombo;
 
     private JButton sysIdBtn;
@@ -147,10 +148,13 @@ public class ArmTab extends JPanel {
         sidebar.add(typeCombo);
         sidebar.add(Box.createVerticalStrut(8));
 
-        backlashCheck = new JCheckBox("Backlash plant", engine.isBacklashEnabled());
-        backlashCheck.setAlignmentX(LEFT_ALIGNMENT);
-        backlashCheck.addActionListener(e -> engine.setBacklashEnabled(backlashCheck.isSelected()));
-        sidebar.add(backlashCheck);
+        sidebar.add(boldLabel("Plant model"));
+        plantCombo = new JComboBox<>(ArmEngine.PlantKind.values());
+        plantCombo.setSelectedItem(engine.getPlantKind());
+        plantCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        plantCombo.addActionListener(e ->
+                engine.setPlantKind((ArmEngine.PlantKind) plantCombo.getSelectedItem()));
+        sidebar.add(plantCombo);
         sidebar.add(Box.createVerticalStrut(8));
 
         // Target slider (degrees).
@@ -268,6 +272,10 @@ public class ArmTab extends JPanel {
                 v -> engine.setLoadFriction(engine.getLoadViscous(), v));
         efDisturb = new EditableParamField("Disturbance (V)", engine.getDisturbanceVoltage(), "%.2f", -12, 12,
                 v -> engine.setDisturbanceVoltage(v));
+        efFlexHz = new EditableParamField("Flex ωₙ (Hz)", engine.getFlexHz(), "%.2f", 0.2, 30,
+                v -> engine.setFlexParams(v, engine.getFlexZeta()));
+        efFlexZeta = new EditableParamField("Flex ζ", engine.getFlexZeta(), "%.3f", 0.001, 1.0,
+                v -> engine.setFlexParams(engine.getFlexHz(), v));
 
         encoderCombo = new JComboBox<>(ArmPlantConfig.EncoderKind.values());
         encoderCombo.setSelectedItem(engine.getEncoderKind());
@@ -284,6 +292,8 @@ public class ArmTab extends JPanel {
         sidebar.add(efContactC);
         sidebar.add(efLoadVisc);
         sidebar.add(efLoadStat);
+        sidebar.add(efFlexHz);
+        sidebar.add(efFlexZeta);
         sidebar.add(efDisturb);
         sidebar.add(new JLabel("Encoder:"));
         sidebar.add(encoderCombo);
@@ -317,7 +327,7 @@ public class ArmTab extends JPanel {
             sysIdBtn.setEnabled(false);
             sysIdBtn.setText("Running SysID…");
         }
-        final boolean throughBacklash = engine.isBacklashEnabled();
+        final ArmEngine.PlantKind plantKind = engine.getPlantKind();
         final double plantKs = engine.getPlantKs();
         final double plantKv = engine.getPlantKv();
         final double plantKa = engine.getPlantKa();
@@ -333,7 +343,7 @@ public class ArmTab extends JPanel {
             protected void done() {
                 try {
                     ArmSysId.Result r = get();
-                    presentSysIdResult(r, throughBacklash, plantKs, plantKv, plantKa, plantKg);
+                    presentSysIdResult(r, plantKind, plantKs, plantKv, plantKa, plantKg);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException ex) {
@@ -352,10 +362,11 @@ public class ArmTab extends JPanel {
         worker.execute();
     }
 
-    private void presentSysIdResult(ArmSysId.Result r, boolean throughBacklash,
+    private void presentSysIdResult(ArmSysId.Result r, ArmEngine.PlantKind plantKind,
                                     double plantKs, double plantKv, double plantKa, double plantKg) {
-        String plant = throughBacklash
-                ? "backlash plant (motor-side encoder)" : "rigid plant";
+        String plant = plantKind == ArmEngine.PlantKind.RIGID
+                ? "rigid plant"
+                : plantKind.toString().toLowerCase() + " plant (motor-side encoder)";
         String msg = String.format(
                 "<html>Identified through the %s (R² = %.4f, %d samples):<br><br>"
                         + "<table cellpadding=3>"

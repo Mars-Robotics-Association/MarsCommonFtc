@@ -1,17 +1,19 @@
 package org.marsroboticsassociation.controllab.arm;
 
 /**
- * Uniform view over the two arm plant simulations so the renderer, engine, and metrics do not care
- * which one is live. Both {@link org.marsroboticsassociation.controllib.sim.ArmMotorSim} (rigid) and
- * {@link org.marsroboticsassociation.controllib.sim.BacklashArmMotorSim} (two-inertia) are hidden
- * behind this.
+ * Uniform view over the arm plant simulations so the renderer, engine, and metrics do not care
+ * which one is live. {@link org.marsroboticsassociation.controllib.sim.ArmMotorSim} (rigid),
+ * {@link org.marsroboticsassociation.controllib.sim.BacklashArmMotorSim} (two-inertia), and
+ * {@link org.marsroboticsassociation.controllib.sim.FlexArmMotorSim} (three-inertia, backlash +
+ * structural flex) are all hidden behind this.
  *
  * <p>All angles are output-shaft radians measured from horizontal (positive = above horizontal),
  * matching the controllers and sims.
  *
  * <p>The rigid plant reports {@code motorPos == loadPos} and {@code isEngaged == true} so the arm
- * renderer can always draw both a load link and a motor-side link uniformly; only the backlash
- * plant makes them diverge.
+ * renderer can always draw both a load link and a motor-side link uniformly; only the lashy plants
+ * make them diverge. The flex plant reports the <em>tip</em> as the true load — the thing that
+ * visibly bounces.
  */
 public interface ArmPlant {
 

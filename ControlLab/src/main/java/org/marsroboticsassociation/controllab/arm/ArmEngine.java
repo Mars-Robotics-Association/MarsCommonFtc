@@ -11,11 +11,11 @@ import java.util.Random;
  * advances the clock, runs the controller (which reads the plant and stashes power), then steps the
  * plant with that power.
  *
- * <p>The backlash plant is selected by default even though none of the controllers model backlash;
- * the rigid/backlash toggle hot-swaps the plant mid-run (seeding the new plant from the current load
- * pose) so the degradation is visible instantly. Structural plant edits and plant swaps also rebuild
- * the controller adapter so the estimator/profile cannot keep flying with a plant that was just
- * reseeded at rest.
+ * <p>The backlash plant is selected by default even though none of the controllers model backlash
+ * (or flex); the {@link PlantKind} selector hot-swaps the plant mid-run (seeding the new plant from
+ * the current load pose) so the degradation is visible instantly. Structural plant edits and plant
+ * swaps also rebuild the controller adapter so the estimator/profile cannot keep flying with a
+ * plant that was just reseeded at rest.
  *
  * <p><b>Lineage A params lock.</b> {@link ArmController#PARAMS} and {@link
  * VerticalArmController#PARAMS} are process-wide static bags. All Lineage A configure/build/tick
@@ -24,6 +24,22 @@ import java.util.Random;
  * #ArmEngine(ArmControllerType, long) RNG seed} in tests for reproducibility under dt jitter.
  */
 public class ArmEngine {
+
+    /** Which plant simulation is live. The controllers/estimators never know which one they face. */
+    public enum PlantKind {
+        /** Single rigid inertia ({@code ArmMotorSim}). */
+        RIGID("Rigid"),
+        /** Two inertias across the gear-tooth dead band ({@code BacklashArmMotorSim}). */
+        BACKLASH("Backlash"),
+        /** Backlash plus a structural flex mode behind the lash ({@code FlexArmMotorSim}). */
+        FLEX("Backlash + flex");
+
+        private final String label;
+
+        PlantKind(String label) { this.label = label; }
+
+        @Override public String toString() { return label; }
+    }
 
     public static final double HUB_VOLTAGE = 12.0;
     private static final double NOMINAL_DT = 0.016; // 16 ms loop, like FlywheelEngine
@@ -38,7 +54,7 @@ public class ArmEngine {
     private final Random random;
 
     private final ArmPlantConfig cfg = new ArmPlantConfig();
-    private boolean backlashEnabled = true;
+    private PlantKind plantKind = PlantKind.BACKLASH;
 
     private ArmPlant plant;
     private ArmControllerType type;
@@ -74,9 +90,7 @@ public class ArmEngine {
         this.random = new Random(seed);
         this.type = type;
         this.targetRad = cfg.maxAngleRad; // park at the back hard stop (over-the-top end)
-        this.plant = backlashEnabled
-                ? new BacklashArmPlant(cfg, cfg.maxAngleRad)
-                : new RigidArmPlant(cfg, cfg.maxAngleRad);
+        this.plant = buildPlant(cfg.maxAngleRad);
         buildAdapter();
     }
 
@@ -186,17 +200,33 @@ public class ArmEngine {
 
     public ArmControllerType getControllerType() { return type; }
 
-    /** Hot-swap rigid <-> backlash, seeding the new plant from the current load pose (no jump). */
-    public void setBacklashEnabled(boolean enabled) {
-        if (enabled == backlashEnabled) return;
-        backlashEnabled = enabled;
+    private ArmPlant buildPlant(double initialAngleRad) {
+        switch (plantKind) {
+            case RIGID:    return new RigidArmPlant(cfg, initialAngleRad);
+            case FLEX:     return new FlexArmPlant(cfg, initialAngleRad);
+            case BACKLASH:
+            default:       return new BacklashArmPlant(cfg, initialAngleRad);
+        }
+    }
+
+    /** Hot-swap the plant simulation, seeding the new plant from the current load pose (no jump). */
+    public void setPlantKind(PlantKind kind) {
+        if (kind == plantKind) return;
+        plantKind = kind;
         // The sims seed at rest, so the pose is preserved but velocity resets to zero on swap.
-        double loadRad = plant.getTruePositionRad();
-        plant = enabled ? new BacklashArmPlant(cfg, loadRad) : new RigidArmPlant(cfg, loadRad);
+        plant = buildPlant(plant.getTruePositionRad());
         reseedAdapterFromPlant();
     }
 
-    public boolean isBacklashEnabled() { return backlashEnabled; }
+    public PlantKind getPlantKind() { return plantKind; }
+
+    /** Legacy rigid/backlash toggle; {@link #setPlantKind} supersedes it. */
+    public void setBacklashEnabled(boolean enabled) {
+        setPlantKind(enabled ? PlantKind.BACKLASH : PlantKind.RIGID);
+    }
+
+    /** True when the live plant has a gearbox dead band (backlash or flex). */
+    public boolean isBacklashEnabled() { return plantKind != PlantKind.RIGID; }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Targets
@@ -292,6 +322,13 @@ public class ArmEngine {
         plant.applyLiveParams();
     }
 
+    /** Arm structural flex mode (used by the flex plant only; harmless to set on the others). */
+    public void setFlexParams(double hz, double zeta) {
+        cfg.flexHz = hz;
+        cfg.flexZeta = zeta;
+        plant.applyLiveParams();
+    }
+
     public void setDisturbanceVoltage(double v) {
         cfg.disturbanceVoltage = v;
         plant.applyLiveParams();
@@ -316,13 +353,14 @@ public class ArmEngine {
     // ─────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Run the simulated sysid against the currently-selected plant. With backlash enabled it
-     * identifies through the motor-side encoder of the two-inertia plant — the realistic case for a
-     * real robot with an unavoidable lashy gearbox. The routine's steady one-directional runs keep
-     * the gear teeth engaged, so the motor encoder sees the full coupled inertia and gravity.
+     * Run the simulated sysid against the currently-selected plant. On the backlash and flex plants
+     * it identifies through the motor-side encoder — the realistic case for a real robot with an
+     * unavoidable lashy (and flexy) drivetrain. The routine's steady one-directional runs keep the
+     * gear teeth engaged and the flex spring quasi-static, so the motor encoder sees the full
+     * coupled inertia and gravity.
      */
     public ArmSysId.Result runSysId() {
-        return ArmSysId.characterize(cfg, backlashEnabled);
+        return ArmSysId.characterize(cfg, plantKind);
     }
 
     /**
@@ -355,9 +393,7 @@ public class ArmEngine {
         elapsedNanos = 0;
         elapsedSec = 0;
         targetRad = cfg.maxAngleRad;
-        plant = backlashEnabled
-                ? new BacklashArmPlant(cfg, cfg.maxAngleRad)
-                : new RigidArmPlant(cfg, cfg.maxAngleRad);
+        plant = buildPlant(cfg.maxAngleRad);
         buildAdapter();
         metrics.reset();
     }
@@ -410,6 +446,8 @@ public class ArmEngine {
     public double getContactDamping()   { return cfg.contactDamping; }
     public double getLoadViscous()      { return cfg.loadViscousFriction; }
     public double getLoadStatic()       { return cfg.loadStaticFriction; }
+    public double getFlexHz()           { return cfg.flexHz; }
+    public double getFlexZeta()         { return cfg.flexZeta; }
     public double getDisturbanceVoltage() { return cfg.disturbanceVoltage; }
     public ArmPlantConfig.EncoderKind getEncoderKind() { return cfg.encoderKind; }
 }

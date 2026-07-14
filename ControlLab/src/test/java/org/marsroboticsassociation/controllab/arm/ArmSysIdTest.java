@@ -67,6 +67,27 @@ class ArmSysIdTest {
     }
 
     @Test
+    void recoversThroughFlexFromTheMotorEncoder() {
+        // Arm structural flex on top of the lash. The steady one-directional runs keep the flex
+        // spring at its quasi-static deflection, so kV and kA (what the model-based controller
+        // needs for damping/inertia) still come out usable. But the encoder measures the MOTOR
+        // angle while gravity acts on the tip hanging a flex-deflection (~3 deg here) plus the
+        // lash below it: the gravity regressor is angle-shifted, so kCos is underestimated and the
+        // direction-dependent part of the shift is misattributed to kS. That bias is real — a
+        // robot with a flexy arm biases its sysid the same way — so this asserts the honest
+        // envelope rather than tight recovery.
+        ArmPlantConfig cfg = new ArmPlantConfig(); // kA=0.35, kG=3.5, flex 3 Hz zeta 0.03
+        ArmSysId.Result r = ArmSysId.characterize(cfg, ArmEngine.PlantKind.FLEX);
+        System.out.printf("sysid(flex 3Hz): kS=%.3f kV=%.3f kA=%.3f kCos=%.3f R2=%.4f%n",
+                r.kS, r.kV, r.kA, r.kCos, r.rSquared);
+        assertTrue(r.rSquared > 0.99, "fit through flex should still be strong, R2=" + r.rSquared);
+        assertEquals(1.2, r.kV, 1.2 * 0.15, "kV recovered through flex within 15%");
+        assertEquals(0.35, r.kA, 0.35 * 0.20, "kA recovered through flex within 20%");
+        assertEquals(3.5, r.kCos, 3.5 * 0.25,
+                "gravity through flex is underestimated by the tip deflection but stays in the ballpark");
+    }
+
+    @Test
     void engineSysIdUsesTheBacklashPlantWhenEnabled() {
         // With backlash on (the default), the engine identifies through the motor-side encoder and
         // still corrects the mechanism model's inertia.

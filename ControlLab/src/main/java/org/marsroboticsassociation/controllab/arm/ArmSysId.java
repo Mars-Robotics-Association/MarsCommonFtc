@@ -3,6 +3,7 @@ package org.marsroboticsassociation.controllab.arm;
 import org.marsroboticsassociation.controllib.sim.ArmMotorSim;
 import org.marsroboticsassociation.controllib.sim.BacklashArmMotorSim;
 import org.marsroboticsassociation.controllib.sim.EncoderSim;
+import org.marsroboticsassociation.controllib.sim.FlexArmMotorSim;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,12 +35,13 @@ import java.util.List;
  * stops, so {@code sign(w)} is constant and no contact force pollutes the samples.
  *
  * <p><b>Plant choice.</b> {@link #characterize(ArmPlantConfig)} uses a rigid {@link ArmMotorSim}.
- * {@link #characterize(ArmPlantConfig, boolean) characterize(cfg, true)} uses the two-inertia
- * {@link BacklashArmMotorSim} and logs its <em>motor-side</em> encoder — the realistic case for a
- * robot with an unavoidable lashy gearbox. Steady one-directional runs keep the teeth engaged, so
- * the motor encoder still sees the coupled inertia and gravity and the fit holds. Identified {@code
- * kA} is what the model-based controller needs when the true plant is heavier or lashier than the
- * hand-tuned model.
+ * {@link #characterize(ArmPlantConfig, ArmEngine.PlantKind)} selects the two-inertia
+ * {@link BacklashArmMotorSim} or the three-inertia {@link FlexArmMotorSim} and logs the
+ * <em>motor-side</em> encoder — the realistic case for a robot with an unavoidable lashy (and
+ * flexy) drivetrain. Steady one-directional runs keep the teeth engaged and the flex spring
+ * quasi-static, so the motor encoder still sees the coupled inertia and gravity and the fit holds.
+ * Identified {@code kA} is what the model-based controller needs when the true plant is heavier or
+ * lashier than the hand-tuned model.
  */
 public final class ArmSysId {
 
@@ -79,6 +81,17 @@ public final class ArmSysId {
      * @param throughBacklash true to identify through the backlash plant's motor encoder
      */
     public static Result characterize(ArmPlantConfig cfg, boolean throughBacklash) {
+        return characterize(cfg,
+                throughBacklash ? ArmEngine.PlantKind.BACKLASH : ArmEngine.PlantKind.RIGID);
+    }
+
+    /**
+     * Run the characterization against the given plant kind built from {@code cfg}, logging the
+     * motor-side encoder (the only thing a real robot exposes).
+     *
+     * @param kind which plant simulation to identify through
+     */
+    public static Result characterize(ArmPlantConfig cfg, ArmEngine.PlantKind kind) {
         double ticksPerRad = cfg.ticksPerRad();
         double lo = cfg.minAngleRad, hi = cfg.maxAngleRad, span = hi - lo;
         double bottom = lo + 0.05 * span, top = hi - 0.05 * span, mid = lo + 0.55 * span;
@@ -93,11 +106,11 @@ public final class ArmSysId {
 
         // Moderate runs (rich angle sweep at near-terminal velocity) in both directions, plus hard
         // steps from rest whose onset makes Δw large (exciting kA), plus gravity-rich starts.
-        for (double p : new double[]{0.45, 0.60, 0.80, 0.95}) runRun(cfg, ticksPerRad, bottom, p, throughBacklash, rows, rhs);
-        for (double p : new double[]{-0.45, -0.60, -0.80, -0.95}) runRun(cfg, ticksPerRad, top, p, throughBacklash, rows, rhs);
+        for (double p : new double[]{0.45, 0.60, 0.80, 0.95}) runRun(cfg, ticksPerRad, bottom, p, kind, rows, rhs);
+        for (double p : new double[]{-0.45, -0.60, -0.80, -0.95}) runRun(cfg, ticksPerRad, top, p, kind, rows, rhs);
         for (double start : gravityStarts) {
-            runRun(cfg, ticksPerRad, start, 0.70, throughBacklash, rows, rhs);
-            runRun(cfg, ticksPerRad, start, -0.70, throughBacklash, rows, rhs);
+            runRun(cfg, ticksPerRad, start, 0.70, kind, rows, rhs);
+            runRun(cfg, ticksPerRad, start, -0.70, kind, rows, rhs);
         }
 
         double[][] x = rows.toArray(new double[0][]);
@@ -109,26 +122,45 @@ public final class ArmSysId {
 
     /** One constant-power run: log position, then stack one integrated-dynamics equation per interval. */
     private static void runRun(ArmPlantConfig cfg, double ticksPerRad, double startRad, double power,
-                               boolean throughBacklash, List<double[]> rows, List<Double> rhs) {
+                               ArmEngine.PlantKind kind, List<double[]> rows, List<Double> rhs) {
         int n = RUN_STEPS;
         double[] theta = new double[n];
-        if (throughBacklash) {
-            BacklashArmMotorSim sim = new BacklashArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
-                    cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
-                    cfg.minAngleRad, cfg.maxAngleRad, startRad, cfg.backlashRad);
-            sim.setEncoder(new EncoderSim()); // clean encoder: isolate the backlash effect
-            for (int i = 0; i < n; i++) {
-                sim.step(DT, power, HUB);
-                theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
+        // Clean encoders throughout: isolate the plant (lash/flex) effect from read-timing jitter.
+        switch (kind) {
+            case FLEX: {
+                FlexArmMotorSim sim = new FlexArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
+                        cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
+                        cfg.minAngleRad, cfg.maxAngleRad, startRad, cfg.backlashRad,
+                        cfg.flexHz, cfg.flexZeta);
+                sim.setEncoder(new EncoderSim());
+                for (int i = 0; i < n; i++) {
+                    sim.step(DT, power, HUB);
+                    theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
+                }
+                break;
             }
-        } else {
-            ArmMotorSim sim = new ArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
-                    cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
-                    cfg.minAngleRad, cfg.maxAngleRad, startRad);
-            sim.setEncoder(new EncoderSim());
-            for (int i = 0; i < n; i++) {
-                sim.step(DT, power, HUB);
-                theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
+            case BACKLASH: {
+                BacklashArmMotorSim sim = new BacklashArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
+                        cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
+                        cfg.minAngleRad, cfg.maxAngleRad, startRad, cfg.backlashRad);
+                sim.setEncoder(new EncoderSim());
+                for (int i = 0; i < n; i++) {
+                    sim.step(DT, power, HUB);
+                    theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
+                }
+                break;
+            }
+            case RIGID:
+            default: {
+                ArmMotorSim sim = new ArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
+                        cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
+                        cfg.minAngleRad, cfg.maxAngleRad, startRad);
+                sim.setEncoder(new EncoderSim());
+                for (int i = 0; i < n; i++) {
+                    sim.step(DT, power, HUB);
+                    theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
+                }
+                break;
             }
         }
         // Endpoint velocities from a local linear/quadratic fit of the (clean, live) position signal.
