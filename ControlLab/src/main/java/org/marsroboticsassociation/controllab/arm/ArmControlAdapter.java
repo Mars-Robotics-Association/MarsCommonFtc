@@ -41,6 +41,12 @@ public interface ArmControlAdapter {
     /** The controller's trajectory/profile setpoint velocity (rad/s). */
     double trajVelRad();
 
+    /**
+     * The controller's profile setpoint acceleration (rad/s²), for setpoint-smoothness metrics.
+     * NaN when the wrapped controller does not expose one (Lineage A).
+     */
+    default double trajAccelRad() { return Double.NaN; }
+
     /** Short human-readable mode/type label for the metrics readout. */
     String modeLabel();
 }

@@ -3,6 +3,7 @@ package org.marsroboticsassociation.controllab.arm;
 import org.marsroboticsassociation.controllib.mechanism.ArmModel;
 import org.marsroboticsassociation.controllib.mechanism.MotorMechanismController;
 import org.marsroboticsassociation.controllib.mechanism.MotorMechanismEkf;
+import org.marsroboticsassociation.controllib.mechanism.RuckigProfiler;
 
 /**
  * Lineage B adapter: wraps {@link MotorMechanismController} (pure {@code calculate(...)->voltage})
@@ -33,6 +34,12 @@ class MechanismArmAdapter implements ArmControlAdapter {
         double positionStdDev = 0.003;
         double velocityStdDev = 0.1;
         double positionTimingJitterStdDev = 0.0;
+        /**
+         * Profile the setpoint with {@link RuckigProfiler} (planned, clamp-free stops) instead of
+         * the default {@link org.marsroboticsassociation.controllib.mechanism.CascadedRateLimiter}.
+         * Ruckig runs with conservative braking (decel ceiling at zero speed) per the port plan §7.
+         */
+        boolean useRuckigProfiler = false;
     }
 
     private final Gains gains;
@@ -63,10 +70,20 @@ class MechanismArmAdapter implements ArmControlAdapter {
     /** (Re)build the model, controller, and EKF seeded from the given pose. */
     private void build(double initialPosRad) {
         model = new ArmModel(gains.kS, gains.kV, gains.kA, gains.kCos, gains.kSin);
-        controller = new MotorMechanismController(
-                model, gains.kP, gains.kI, gains.kD,
-                gains.maxVel, gains.maxAccel, gains.maxJerk,
-                gains.feedbackVoltageMargin, initialPosRad);
+        if (gains.useRuckigProfiler) {
+            controller = new MotorMechanismController(
+                    model, gains.kP, gains.kI, gains.kD,
+                    gains.maxVel, gains.maxAccel,
+                    gains.feedbackVoltageMargin,
+                    new RuckigProfiler(gains.maxVel, gains.maxAccel, gains.maxAccel,
+                            gains.maxJerk, initialPosRad),
+                    true /* conservative braking: planner-safe decel ceiling */);
+        } else {
+            controller = new MotorMechanismController(
+                    model, gains.kP, gains.kI, gains.kD,
+                    gains.maxVel, gains.maxAccel, gains.maxJerk,
+                    gains.feedbackVoltageMargin, initialPosRad);
+        }
         ekf = new MotorMechanismEkf(
                 model, gains.velocityLagSec, gains.modelAccelStdDev,
                 gains.positionStdDev, gains.velocityStdDev,
@@ -104,7 +121,10 @@ class MechanismArmAdapter implements ArmControlAdapter {
     @Override public double estimatedVelRad() { return ekf.getVelocity(); }
     @Override public double trajPosRad()      { return controller.getSetpointPosition(); }
     @Override public double trajVelRad()      { return controller.getSetpointVelocity(); }
-    @Override public String modeLabel()       { return "MECHANISM_PIDF"; }
+    @Override public double trajAccelRad()    { return controller.getSetpointAcceleration(); }
+    @Override public String modeLabel() {
+        return gains.useRuckigProfiler ? "MECHANISM_PIDF (Ruckig)" : "MECHANISM_PIDF";
+    }
 
     private double currentMeasuredPosRad() {
         return ticksToRad(plant.getPositionTicks());

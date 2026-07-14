@@ -294,6 +294,21 @@ public class ArmEngine {
         }
     }
 
+    /**
+     * Choose the mechanism controller's setpoint profiler: Ruckig OTG (planned, clamp-free stops,
+     * conservative braking) or the default cascaded rate limiter. Rebuilds the adapter, reseeding
+     * controller + EKF from the current pose.
+     */
+    public void setMechanismProfiler(boolean useRuckig) {
+        if (mechGains.useRuckigProfiler == useRuckig) return;
+        mechGains.useRuckigProfiler = useRuckig;
+        if (type == ArmControllerType.MECHANISM_PIDF) {
+            ((MechanismArmAdapter) adapter).rebuild();
+        }
+    }
+
+    public boolean isMechanismRuckig() { return mechGains.useRuckigProfiler; }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // Live plant-param edits
     // ─────────────────────────────────────────────────────────────────────────────
@@ -421,6 +436,8 @@ public class ArmEngine {
     public double getEstimatedVelRad()     { return adapter.estimatedVelRad(); }
     public double getTrajPosRad()          { return adapter.trajPosRad(); }
     public double getTrajVelRad()          { return adapter.trajVelRad(); }
+    public double getTrajAccelRad()        { return adapter.trajAccelRad(); }
+    public double getCommandedPower()      { return adapter.commandedPower(); }
     public String getModeLabel()           { return adapter.modeLabel(); }
 
     public ArmMetrics getMetrics()         { return metrics; }

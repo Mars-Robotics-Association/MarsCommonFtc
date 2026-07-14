@@ -243,7 +243,12 @@ public class ArmTab extends JPanel {
         // Design specs for Suggest PD (not controller gains themselves).
         efOmegaN = new EditableParamField("ωₙ (rad/s)", 4.0, "%.2f", 0.1, 30, v -> {});
         efZeta = new EditableParamField("ζ damp", 0.8, "%.2f", 0.1, 3.0, v -> {});
-        mechPanel = vpanel(efMkP, efMkI, efMkD, efMkS, efMkV, efMkA, efMkCos, efMkSin,
+        JCheckBox ruckigCheck = new JCheckBox("Ruckig OTG profiler", engine.isMechanismRuckig());
+        ruckigCheck.setToolTipText(
+                "Profile the setpoint with per-loop Ruckig replanning (planned, clamp-free stops)"
+                        + " instead of the cascaded rate limiter.");
+        ruckigCheck.addActionListener(e -> engine.setMechanismProfiler(ruckigCheck.isSelected()));
+        mechPanel = vpanel(ruckigCheck, efMkP, efMkI, efMkD, efMkS, efMkV, efMkA, efMkCos, efMkSin,
                 efMvMax, efMaMax, efMjMax,
                 boldLabel("PD design (Suggest PD)"), efOmegaN, efZeta);
 
