@@ -49,5 +49,7 @@ captures/
 .externalNativeBuild
 .cxx/
 
-# Vendored third-party trees checked out locally for experiments (not part of the product)
-ruckig/
+# Vendored third-party trees checked out locally for experiments (not part of the product).
+# Anchored to the repo root: an unanchored ruckig/ also swallows Java package
+# directories like RuckigJava/src/main/java/com/ruckig/.
+/ruckig/

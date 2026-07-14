@@ -1,0 +1,28 @@
+{
+  "version": "0.17.3",
+  "suite": "m0_sample",
+  "cases": [
+    {
+      "id": "rest_to_rest_1dof",
+      "dofs": 1,
+      "input": {
+        "current_position": [0.0],
+        "current_velocity": [0.0],
+        "current_acceleration": [0.0],
+        "target_position": [1.0],
+        "target_velocity": [0.0],
+        "target_acceleration": [0.0],
+        "max_velocity": [2.0],
+        "max_acceleration": [2.0],
+        "max_jerk": [4.0]
+      },
+      "result": 0,
+      "duration": 2.0,
+      "samples": [
+        {"t": 0.0, "p": [0.0], "v": [0.0], "a": [0.0]},
+        {"t": 1.0, "p": [0.5], "v": [1.0], "a": [0.0]},
+        {"t": 2.0, "p": [1.0], "v": [0.0], "a": [0.0]}
+      ]
+    }
+  ]
+}
