@@ -8,8 +8,9 @@ package org.marsroboticsassociation.controllib.mechanism;
  * <p>Each loop it does four things:
  *
  * <ol>
- *   <li><b>Profiles the target</b> through a {@link CascadedRateLimiter}, so the setpoint it chases
- *       has bounded velocity, acceleration, and jerk.
+ *   <li><b>Profiles the target</b> through a {@link SetpointProfile} (a {@link
+ *       CascadedRateLimiter} by default, or a {@link RuckigProfiler} for planned stops), so the
+ *       setpoint it chases has bounded velocity, acceleration, and jerk.
  *   <li><b>Feeds forward</b> the voltage the model says the motion needs (the F in PIDF), including
  *       the back-EMF term.
  *   <li><b>Corrects with PID</b> on the gap between the profile and the filter's estimate.
@@ -44,7 +45,8 @@ public class MotorMechanismController {
     private final double configuredMaxVelocity;
     private final double configuredMaxAcceleration;
 
-    private final CascadedRateLimiter profile;
+    private final SetpointProfile profile;
+    private final boolean conservativeBraking;
     private double integral = 0.0;
     private double lastVoltage = 0.0;
 
@@ -71,6 +73,45 @@ public class MotorMechanismController {
             double maxJerk,
             double feedbackVoltageMargin,
             double initialPosition) {
+        this(
+                model,
+                kP,
+                kI,
+                kD,
+                maxVelocity,
+                maxAcceleration,
+                feedbackVoltageMargin,
+                new CascadedRateLimiter(
+                        maxVelocity, maxAcceleration, maxAcceleration, maxJerk, initialPosition),
+                false);
+    }
+
+    /**
+     * Construct with a caller-supplied setpoint profiler, e.g. a {@link RuckigProfiler} for
+     * planned (clamp-free) stops instead of the default {@link CascadedRateLimiter}.
+     *
+     * @param profile the setpoint profiler, already configured with its jerk limit and initial
+     *     position; this controller rewrites its velocity/acceleration/deceleration caps from
+     *     back-EMF headroom every loop
+     * @param conservativeBraking when true, the braking ceiling is evaluated at zero speed rather
+     *     than at the profile's current speed. Back-EMF aids braking, so the model's deceleration
+     *     ceiling shrinks as a stop progresses; a planner like {@link RuckigProfiler} assumes its
+     *     limits hold for the whole remaining move, so feeding it the instantaneous (higher)
+     *     ceiling is optimistic and re-creates late braking. Zero speed is a lower bound on the
+     *     braking authority available anywhere in the remaining stop. Leave false for the
+     *     one-step {@link CascadedRateLimiter}, which re-reads the instantaneous ceiling each
+     *     step by construction.
+     */
+    public MotorMechanismController(
+            MechanismModel model,
+            double kP,
+            double kI,
+            double kD,
+            double maxVelocity,
+            double maxAcceleration,
+            double feedbackVoltageMargin,
+            SetpointProfile profile,
+            boolean conservativeBraking) {
         this.model = model;
         this.kP = kP;
         this.kI = kI;
@@ -78,9 +119,8 @@ public class MotorMechanismController {
         this.feedbackVoltageMargin = feedbackVoltageMargin;
         this.configuredMaxVelocity = maxVelocity;
         this.configuredMaxAcceleration = maxAcceleration;
-        this.profile =
-                new CascadedRateLimiter(
-                        maxVelocity, maxAcceleration, maxAcceleration, maxJerk, initialPosition);
+        this.profile = profile;
+        this.conservativeBraking = conservativeBraking;
     }
 
     /** Restart the profile from a known position at rest and clear the integrator. */
@@ -131,9 +171,12 @@ public class MotorMechanismController {
         profile.setMaxAcceleration(
                 Math.min(configuredMaxAcceleration, Math.max(0, backEmfAccelLimit)));
 
+        // Conservative braking (for planner-style profiles): evaluate the braking ceiling at zero
+        // speed, the low point of the speed range the remaining stop will pass through.
+        double brakingVelocity = conservativeBraking ? 0.0 : profileVelocity;
         double backEmfDecelLimit =
                 model.maxSustainableDeceleration(
-                        availableVoltage, profilePosition, profileVelocity);
+                        availableVoltage, profilePosition, brakingVelocity);
         profile.setMaxDeceleration(
                 Math.min(configuredMaxAcceleration, Math.max(0, backEmfDecelLimit)));
 

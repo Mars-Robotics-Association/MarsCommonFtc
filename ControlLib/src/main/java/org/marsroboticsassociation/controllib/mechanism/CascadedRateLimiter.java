@@ -47,7 +47,7 @@ package org.marsroboticsassociation.controllib.mechanism;
  *       negligible relative to the configured limits.
  * </ul>
  */
-public class CascadedRateLimiter {
+public class CascadedRateLimiter implements SetpointProfile {
 
     /**
      * Pass as {@code maxJerk} to disable the jerk limit: acceleration may then step straight to its

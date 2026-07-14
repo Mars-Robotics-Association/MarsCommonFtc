@@ -14,6 +14,7 @@ repositories {
 
 dependencies {
     implementation project(':WpiMath')   // also brings in EJML transitively
+    implementation project(':RuckigJava') // OTG backing RuckigProfiler / RuckigPositionTrajectory
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -46,6 +47,9 @@ shadowJar {
     // EJML references cover the entire EJML footprint, so no further excludes needed
     minimize {
         exclude(project(':WpiMath'))
+        // Keep the full com.ruckig API so TeamCode can drive the OTG directly
+        // (nonzero target velocity, multi-DoF sync) without going through ControlLib.
+        exclude(project(':RuckigJava'))
     }
 }
 
