@@ -46,6 +46,8 @@ public class MotorMechanismController {
     private final double configuredMaxAcceleration;
 
     private final SetpointProfile profile;
+    /** Non-null when {@link #profile} computes its own ceilings (it then only needs voltage). */
+    private final ModelAwareSetpointProfile modelAwareProfile;
     private final boolean conservativeBraking;
     private double integral = 0.0;
     private double lastVoltage = 0.0;
@@ -91,8 +93,10 @@ public class MotorMechanismController {
      * planned (clamp-free) stops instead of the default {@link CascadedRateLimiter}.
      *
      * @param profile the setpoint profiler, already configured with its jerk limit and initial
-     *     position; this controller rewrites its velocity/acceleration/deceleration caps from
-     *     back-EMF headroom every loop
+     *     position. If it implements {@link ModelAwareSetpointProfile} (e.g. {@link
+     *     ModelAwareRuckigProfiler}), it computes its own back-EMF ceilings at plan time and this
+     *     controller only forwards the available voltage each loop; otherwise the controller
+     *     rewrites its velocity/acceleration/deceleration caps from back-EMF headroom every loop.
      * @param conservativeBraking when true, the braking ceiling is evaluated at zero speed rather
      *     than at the profile's current speed. Back-EMF aids braking, so the model's deceleration
      *     ceiling shrinks as a stop progresses; a planner like {@link RuckigProfiler} assumes its
@@ -100,7 +104,8 @@ public class MotorMechanismController {
      *     ceiling is optimistic and re-creates late braking. Zero speed is a lower bound on the
      *     braking authority available anywhere in the remaining stop. Leave false for the
      *     one-step {@link CascadedRateLimiter}, which re-reads the instantaneous ceiling each
-     *     step by construction.
+     *     step by construction. Ignored for a {@link ModelAwareSetpointProfile}, which brakes
+     *     conservatively by design.
      */
     public MotorMechanismController(
             MechanismModel model,
@@ -120,6 +125,10 @@ public class MotorMechanismController {
         this.configuredMaxVelocity = maxVelocity;
         this.configuredMaxAcceleration = maxAcceleration;
         this.profile = profile;
+        this.modelAwareProfile =
+                profile instanceof ModelAwareSetpointProfile
+                        ? (ModelAwareSetpointProfile) profile
+                        : null;
         this.conservativeBraking = conservativeBraking;
     }
 
@@ -148,41 +157,50 @@ public class MotorMechanismController {
             double dt) {
         // Voltage available to the feedforward, leaving a margin for the PID to correct with.
         double availableVoltage = Math.max(0.0, busVoltage - feedbackVoltageMargin);
-        // The ceilings below are evaluated at the profile's current state, before update() steps
-        // it forward, and on purpose. The acceleration ceiling depends on velocity, but the
-        // post-update velocity is itself the result of applying that ceiling, so evaluating after
-        // update() would be an algebraic loop. Using the profile's own state (not the noisy
-        // estimate) also keeps the setpoint trajectory self-consistent and noise-independent. The
-        // one-step lag this leaves is bounded and absorbed by the voltage margin and the clamp.
-        double profilePosition = profile.getPosition();
-        double profileVelocity = profile.getVelocity();
+        // Externally-rewritten ceilings (the else branch) are evaluated at the profile's current
+        // state, before update() steps it forward, and on purpose. The acceleration ceiling
+        // depends on velocity, but the post-update velocity is itself the result of applying that
+        // ceiling, so evaluating after update() would be an algebraic loop. Using the profile's
+        // own state (not the noisy estimate) also keeps the setpoint trajectory self-consistent
+        // and noise-independent. The one-step lag this leaves is bounded and absorbed by the
+        // voltage margin and the clamp.
+        if (modelAwareProfile != null) {
+            // The profile computes its own ceilings from the shared model at plan time — at its
+            // own state, with lookahead — which removes the pre-update-state lag entirely. It
+            // only needs to know how much voltage this loop has.
+            modelAwareProfile.setAvailableVoltage(availableVoltage);
+        } else {
+            double profilePosition = profile.getPosition();
+            double profileVelocity = profile.getVelocity();
 
-        // The direction the setpoint is travelling. The acceleration and velocity ceilings charge
-        // gravity along it, so descending (where gravity aids the motion) gets more headroom than
-        // the worst case would allow.
-        double travelDirection = targetPosition - profilePosition;
+            // The direction the setpoint is travelling. The acceleration and velocity ceilings
+            // charge gravity along it, so descending (where gravity aids the motion) gets more
+            // headroom than the worst case would allow.
+            double travelDirection = targetPosition - profilePosition;
 
-        // Back-EMF ceilings: acceleration headroom shrinks with speed (back-EMF opposes it),
-        // braking headroom grows with speed (back-EMF aids it). The velocity ceiling, where
-        // acceleration headroom reaches zero, is kept as a backstop.
-        double backEmfAccelLimit =
-                model.maxSustainableAcceleration(
-                        availableVoltage, profilePosition, profileVelocity, travelDirection);
-        profile.setMaxAcceleration(
-                Math.min(configuredMaxAcceleration, Math.max(0, backEmfAccelLimit)));
+            // Back-EMF ceilings: acceleration headroom shrinks with speed (back-EMF opposes it),
+            // braking headroom grows with speed (back-EMF aids it). The velocity ceiling, where
+            // acceleration headroom reaches zero, is kept as a backstop.
+            double backEmfAccelLimit =
+                    model.maxSustainableAcceleration(
+                            availableVoltage, profilePosition, profileVelocity, travelDirection);
+            profile.setMaxAcceleration(
+                    Math.min(configuredMaxAcceleration, Math.max(0, backEmfAccelLimit)));
 
-        // Conservative braking (for planner-style profiles): evaluate the braking ceiling at zero
-        // speed, the low point of the speed range the remaining stop will pass through.
-        double brakingVelocity = conservativeBraking ? 0.0 : profileVelocity;
-        double backEmfDecelLimit =
-                model.maxSustainableDeceleration(
-                        availableVoltage, profilePosition, brakingVelocity);
-        profile.setMaxDeceleration(
-                Math.min(configuredMaxAcceleration, Math.max(0, backEmfDecelLimit)));
+            // Conservative braking (for planner-style profiles): evaluate the braking ceiling at
+            // zero speed, the low point of the speed range the remaining stop will pass through.
+            double brakingVelocity = conservativeBraking ? 0.0 : profileVelocity;
+            double backEmfDecelLimit =
+                    model.maxSustainableDeceleration(
+                            availableVoltage, profilePosition, brakingVelocity);
+            profile.setMaxDeceleration(
+                    Math.min(configuredMaxAcceleration, Math.max(0, backEmfDecelLimit)));
 
-        double backEmfVelocityLimit =
-                model.maxSustainableVelocity(availableVoltage, profilePosition, travelDirection);
-        profile.setMaxVelocity(Math.min(configuredMaxVelocity, Math.max(0, backEmfVelocityLimit)));
+            double backEmfVelocityLimit =
+                    model.maxSustainableVelocity(availableVoltage, profilePosition, travelDirection);
+            profile.setMaxVelocity(
+                    Math.min(configuredMaxVelocity, Math.max(0, backEmfVelocityLimit)));
+        }
 
         profile.update(targetPosition, dt);
         double setpointPosition = profile.getPosition();

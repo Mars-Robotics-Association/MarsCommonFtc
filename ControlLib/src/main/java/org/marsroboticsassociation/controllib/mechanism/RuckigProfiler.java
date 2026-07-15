@@ -18,13 +18,17 @@ import com.ruckig.Trajectory;
  * acceleration over a freshly lowered cap) are absorbed by Ruckig's brake pre-trajectory rather
  * than clamped.
  *
- * <p><b>Limit-frame mapping.</b> This class takes travel-frame limits like the cascade
- * (acceleration = speeding up, deceleration = braking); Ruckig's are signed. Each replan maps by
- * the direction of travel: moving in +, {@code max_acceleration = maxAcceleration} and
- * {@code min_acceleration = -maxDeceleration}; flipped for a − move. A single plan containing a
- * direction reversal (brake, then proceed the other way) gets the accel/decel roles swapped on
- * one segment; per-loop replanning refreshes the mapping, so the executed slice of each plan is
- * correct. This is the deliberate trade documented in the port plan (§7).
+ * <p><b>Limit-frame mapping.</b> This class takes motion-frame limits like the cascade
+ * (acceleration = speeding up, deceleration = braking, relative to the actual motion); Ruckig's
+ * are signed. Each replan maps by the sign of the current velocity — moving in +,
+ * {@code max_acceleration = maxAcceleration} and {@code min_acceleration = -maxDeceleration};
+ * flipped when moving in −; the direction of travel decides only at rest. Mapping by velocity
+ * sign (not travel direction) matters for wrong-way motion: pushing back toward the target is
+ * physically braking and must get the braking authority. A single plan containing a direction
+ * reversal still holds its bounds constant through the reversal, so its post-reversal segment
+ * carries the pre-reversal mapping; per-loop replanning refreshes the mapping, so the executed
+ * slice of each plan always uses the physically correct authority. This is the deliberate trade
+ * documented in the port plan (§7).
  *
  * <p><b>Back-EMF braking caveat.</b> A plan assumes its limits hold for the whole remaining move,
  * but {@link MechanismModel#maxSustainableDeceleration} shrinks as speed drops. Feeding this
@@ -131,10 +135,16 @@ public class RuckigProfiler implements SetpointProfile {
             return; // settled; nothing to plan
         }
 
-        // Travel-frame -> signed-frame limit mapping by direction of travel. At zero error the
-        // move is pure braking of residual motion; take the direction that motion points.
+        // Motion-frame -> signed-frame limit mapping, by the sign of the current velocity (the
+        // SetpointProfile contract: acceleration limits speeding up, deceleration limits braking,
+        // relative to the actual motion — the same frame CascadedRateLimiter's bounds use). Only
+        // at rest, where nothing is being braked, does the direction of travel decide. Mapping by
+        // travel direction instead deadlocks on wrong-way motion: pushing back toward the target
+        // is physically braking (back-EMF aids it), but a travel-frame map hands that push the
+        // acceleration authority — which a back-EMF ceiling drives to zero exactly when the
+        // mechanism is moving fast the wrong way.
         double travel = targetPosition - position;
-        boolean movingPositive = travel > 0 || (travel == 0 && velocity >= 0);
+        boolean movingPositive = velocity != 0 ? velocity > 0 : travel >= 0;
         double accelCap = Math.max(movingPositive ? maxAcceleration : maxDeceleration, MIN_LIMIT);
         double decelCap = Math.max(movingPositive ? maxDeceleration : maxAcceleration, MIN_LIMIT);
 

@@ -1,9 +1,9 @@
 package org.marsroboticsassociation.controllab.arm;
 
 import org.marsroboticsassociation.controllib.mechanism.ArmModel;
+import org.marsroboticsassociation.controllib.mechanism.ModelAwareRuckigProfiler;
 import org.marsroboticsassociation.controllib.mechanism.MotorMechanismController;
 import org.marsroboticsassociation.controllib.mechanism.MotorMechanismEkf;
-import org.marsroboticsassociation.controllib.mechanism.RuckigProfiler;
 
 /**
  * Lineage B adapter: wraps {@link MotorMechanismController} (pure {@code calculate(...)->voltage})
@@ -35,9 +35,9 @@ class MechanismArmAdapter implements ArmControlAdapter {
         double velocityStdDev = 0.1;
         double positionTimingJitterStdDev = 0.0;
         /**
-         * Profile the setpoint with {@link RuckigProfiler} (planned, clamp-free stops) instead of
+         * Profile the setpoint with {@link ModelAwareRuckigProfiler} (planned, clamp-free stops;
+         * computes its own back-EMF ceilings at plan time with conservative braking) instead of
          * the default {@link org.marsroboticsassociation.controllib.mechanism.CascadedRateLimiter}.
-         * Ruckig runs with conservative braking (decel ceiling at zero speed) per the port plan §7.
          */
         boolean useRuckigProfiler = false;
     }
@@ -75,9 +75,9 @@ class MechanismArmAdapter implements ArmControlAdapter {
                     model, gains.kP, gains.kI, gains.kD,
                     gains.maxVel, gains.maxAccel,
                     gains.feedbackVoltageMargin,
-                    new RuckigProfiler(gains.maxVel, gains.maxAccel, gains.maxAccel,
+                    new ModelAwareRuckigProfiler(model, gains.maxVel, gains.maxAccel,
                             gains.maxJerk, initialPosRad),
-                    true /* conservative braking: planner-safe decel ceiling */);
+                    false /* ignored: the model-aware profiler brakes conservatively itself */);
         } else {
             controller = new MotorMechanismController(
                     model, gains.kP, gains.kI, gains.kD,
