@@ -237,6 +237,8 @@ voltage
 
 The inflection point is the velocity at which the input must switch sign to reach the goal with zero velocity. It is found by solving a transcendental equation that equates the forward exponential curve (from the current state under `+u`) with the backward exponential curve (from the goal state under `-u`).
 
+This "ride one limit, then switch to the other" structure is not a heuristic — it is guaranteed optimal for this class of system, and it generalizes far beyond flywheels. Section 5.9 places it in its proper context.
+
 ### Analytical Solution
 
 The velocity under constant input $u$ follows an exponential approach to steady-state:
@@ -340,9 +342,49 @@ Chapter 8 covers trajectory managers that replan mid-motion when tracking errors
 
 ### Constant Constraints
 
-Both profiles assume constant constraints throughout the move. They cannot handle velocity limits that vary with position (e.g., a robot that must slow down near a wall). Chapter 17 covers trajectory generation with position-dependent constraints for 2D path following.
+Both profiles assume constant constraints throughout the move. They cannot handle velocity limits that vary with position (e.g., a robot that must slow down near a wall). Chapter 17 covers trajectory generation with position-dependent constraints for 2D path following, and Section 5.9 introduces the general framework (TOPP) for state-dependent limits.
 
-## 5.9 Summary
+## 5.9 The Bigger Picture: Time-Optimal Control and TOPP
+
+The two profiles in this chapter look like separate tools, but they are the same idea evaluated at two points on a spectrum. Seeing the spectrum explains why each works, what lives between them, and why the S-curve profiles of Chapter 6 are qualitatively harder.
+
+### Bang-Bang Is a Theorem, Not a Trick
+
+For any system where the control input enters the dynamics linearly and is bounded — a voltage-limited motor is exactly this — **Pontryagin's minimum principle** says the time-optimal control always sits on a boundary: full effort one way, full effort the other way, or riding along a state constraint. The optimal trajectory is *bang-bang* with a small number of switches. This is why both profiles have the same skeleton: push as hard as allowed, switch at exactly the right moment, brake as hard as allowed, land at rest. The trapezoid is bang-bang in acceleration; the exponential profile is bang-bang in voltage. Neither shape was designed — both are forced by the optimality principle.
+
+### The Phase Plane and TOPP
+
+The general recipe for finding the switch points is the **phase-plane construction**, known in the robotics literature as **Time-Optimal Path Parameterization (TOPP)**. Plot velocity against position rather than against time. Three curves matter:
+
+1. the **velocity limit curve** $\bar{v}(x)$ — the highest speed sustainable at each position (for a motor: where back-EMF plus gravity consume the whole voltage budget);
+2. the **forward extremal** — integrate maximum acceleration from the start state;
+3. the **backward extremal** — integrate maximum deceleration backward from the goal state.
+
+The time-optimal trajectory is the lower envelope of the three. This construction handles acceleration limits that depend on state, because the true motor constraint is not a box:
+
+$$\left| k_S \cdot \text{sign}(v) + k_V v + k_A a + k_G(\theta) \right| \le V_{\max}$$
+
+so the feasible acceleration interval shrinks as speed rises and shifts with gravity. Under this constraint the "trapezoid" deforms: the acceleration ramp becomes an exponential (Section 5.5's curve is precisely the maximum-acceleration extremal of the pure motor model), the cruise becomes a ride along a position-dependent $\bar{v}(x)$, and the braking arc gains authority with speed because back-EMF aids the brake. A trapezoid is what TOPP degenerates to when the limits are constant; the exponential profile is what it degenerates to when the *only* limit is the motor model. For a single mechanism, the whole construction is two ODE integrations and an intersection — cheap enough to replan every control loop.
+
+### Why a Jerk Limit Breaks the Elegance
+
+Add a jerk bound and three things compound:
+
+- **The phase plane gains a dimension.** The state is now $(x, v, a)$; the geometric construction of intersecting curves becomes intersecting surfaces.
+- **The switching structure explodes.** Bang-bang in jerk means up to seven segments per move (plus brake prefixes for states outside the limits), and *which* seven is not known in advance — a solver must enumerate candidate sequences and check each one. This is what the Ruckig algorithm (the `RuckigJava` port in this repo) does, and why it is a candidate-enumeration machine over quartic root-solving rather than twenty lines of algebra.
+- **State-dependent limits destroy the closed forms.** Ruckig's segments are cubic polynomials in time *because* its limits are constant boxes. Make the acceleration bound a function of velocity and each segment becomes a nonlinear ODE — the exact third-order, model-aware problem has no practical closed-form solver.
+
+Practical systems therefore pick two of the three properties {jerk-exact, model-exact, closed-form} and approximate the third. `ControlLib` picks jerk-exact and closed-form: `RuckigProfiler` replans a constant-box jerk-limited profile every loop while `MotorMechanismController` refreshes the boxes from the back-EMF model at the current state (Chapter 9). Each plan is only executed for one control period before being replaced, so the constant-limit assumption only has to hold for ~16 ms — a receding-horizon argument. The one asymmetry: the *braking* box is evaluated at zero speed, the minimum of the braking authority over any stop, so a plan never promises a stop the end of the stop cannot deliver.
+
+### Further Reading
+
+- **Pontryagin's minimum principle and bang-bang control**: D. E. Kirk, *Optimal Control Theory: An Introduction* (Dover) — the accessible classic.
+- **The original phase-plane TOPP papers**: J. E. Bobrow, S. Dubowsky, J. S. Gibson, "Time-Optimal Control of Robotic Manipulators Along Specified Paths" (*IJRR*, 1985); and K. Shin, N. McKay, "Minimum-Time Control of Robotic Manipulators with Geometric Path Constraints" (*IEEE TAC*, 1985).
+- **Modern TOPP**: H. Pham, Q.-C. Pham, "A New Approach to Time-Optimal Path Parameterization Based on Reachability Analysis" (*IEEE T-RO*, 2018) — the TOPP-RA algorithm, today's standard formulation.
+- **Jerk-limited online trajectory generation**: L. Berscheid, T. Kröger, "Jerk-limited Real-time Trajectory Generation with Arbitrary Target States" (*RSS*, 2021) — the Ruckig paper; the constant-box third-order problem and its candidate enumeration.
+- **Profiles in depth**: L. Biagiotti, C. Melchiorri, *Trajectory Planning for Automatic Machines and Robots* (Springer, 2008) — the reference text on motion profiles, S-curves included.
+
+## 5.10 Summary
 
 Motion profiles transform step setpoint changes into smooth, physically achievable trajectories. `TrapezoidProfile` uses constant acceleration for simplicity and predictability. `ExponentialProfile` uses first-order system dynamics for physical accuracy and time-optimality. Both are available in WpiMath and serve as the foundation for higher-level controllers.
 
@@ -352,6 +394,7 @@ The key insights are:
 - **Trapezoidal = constant acceleration** — intuitive parameters, good for most mechanisms
 - **Exponential = back-EMF physics** — accurate for flywheels and velocity systems
 - **ProfiledPIDController integrates profile + PID** — the profile generates the setpoint, PID tracks it
+- **Both profiles are bang-bang time-optimal solutions** — degenerate cases of the phase-plane / TOPP construction (Section 5.9)
 - **Both profiles have jerk discontinuities** — addressed by S-curve profiles in Chapter 6
 
 Profiles are the first step toward sophisticated motion control. The next chapter introduces S-curve jerk-limited profiles that eliminate acceleration discontinuities entirely.
