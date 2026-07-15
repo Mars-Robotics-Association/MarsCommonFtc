@@ -31,6 +31,16 @@ public class ArmTab extends JPanel {
     private final ArmEngine engine = new ArmEngine(ArmControllerType.ARM_PD);
     private final RollingBuffer buffer = new RollingBuffer(WINDOW_SECS, BUFFER_POINTS, NUM_STREAMS);
 
+    {
+        // Flight recorder: every GUI session logs per-tick state + session events to CSV, so an
+        // anomaly observed live can be reconstructed offline afterward.
+        java.nio.file.Path log = engine.startFlightRecorder(
+                java.nio.file.Paths.get("controllab-logs"));
+        if (log != null) {
+            System.out.println("Arm tab flight recorder: " + log.toAbsolutePath());
+        }
+    }
+
     private XYChart chart;
     private XChartPanel<XYChart> chartPanel;
     private ArmCanvas canvas;

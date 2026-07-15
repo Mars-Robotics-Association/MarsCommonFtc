@@ -66,6 +66,9 @@ public class ArmEngine {
 
     private final ArmMetrics metrics = new ArmMetrics();
 
+    /** Optional per-tick CSV log (GUI sessions only; headless tests leave it null). */
+    private ArmFlightRecorder recorder;
+
     // --- Lineage A controller gains (editable) ---
     // Feedforward defaults match the (heavy) plant so the controllers know the model; the visible
     // ranking then comes from feedback structure, not model error.
@@ -123,6 +126,43 @@ public class ArmEngine {
 
         metrics.update(elapsedSec, plant.getTruePositionRad(), plant.getTrueVelocityRadPerSec(),
                 plant.getMotorPositionRad(), plant.isEngaged());
+
+        if (recorder != null) {
+            recorder.tick(elapsedSec, dt, targetRad,
+                    adapter.trajPosRad(), adapter.trajVelRad(), adapter.trajAccelRad(),
+                    adapter.estimatedPosRad(), adapter.estimatedVelRad(),
+                    plant.getTruePositionRad(), plant.getTrueVelocityRadPerSec(),
+                    plant.getMotorPositionRad(), plant.isEngaged(), adapter.commandedPower());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Flight recorder (per-tick CSV log for offline analysis of live observations)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Start logging every tick (plus session events) to a timestamped CSV in {@code dir}.
+     * Intended for GUI sessions; headless tests should not enable it.
+     *
+     * @return the log file path, or {@code null} if the recorder could not be created
+     */
+    public java.nio.file.Path startFlightRecorder(java.nio.file.Path dir) {
+        try {
+            recorder = ArmFlightRecorder.createIn(dir);
+            recordEvent("session start: controller=" + type + " plant=" + plantKind
+                    + " mode=" + adapter.modeLabel());
+            return recorder.getFile();
+        } catch (java.io.IOException e) {
+            System.err.println("Flight recorder unavailable: " + e);
+            recorder = null;
+            return null;
+        }
+    }
+
+    private void recordEvent(String description) {
+        if (recorder != null) {
+            recorder.event(description);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -196,6 +236,7 @@ public class ArmEngine {
         if (newType == type) return;
         this.type = newType;
         buildAdapter(); // reseeds from current plant pose; target re-applied without a jump
+        recordEvent("controller=" + newType + " mode=" + adapter.modeLabel());
     }
 
     public ArmControllerType getControllerType() { return type; }
@@ -216,6 +257,7 @@ public class ArmEngine {
         // The sims seed at rest, so the pose is preserved but velocity resets to zero on swap.
         plant = buildPlant(plant.getTruePositionRad());
         reseedAdapterFromPlant();
+        recordEvent("plant=" + kind);
     }
 
     public PlantKind getPlantKind() { return plantKind; }
@@ -236,6 +278,8 @@ public class ArmEngine {
         targetRad = clampAngle(rad);
         adapter.setTargetRad(targetRad);
         metrics.onTargetChanged(targetRad, plant.getTruePositionRad(), elapsedSec);
+        recordEvent(String.format(java.util.Locale.US, "target=%.2fdeg",
+                Math.toDegrees(targetRad)));
     }
 
     public void setTargetDeg(double deg) {
@@ -292,6 +336,10 @@ public class ArmEngine {
         if (type == ArmControllerType.MECHANISM_PIDF) {
             ((MechanismArmAdapter) adapter).rebuild(); // controller + EKF reseeded from pose
         }
+        recordEvent(String.format(java.util.Locale.US,
+                "mechGains kP=%.2f kI=%.2f kD=%.3f kS=%.3f kV=%.3f kA=%.4f kCos=%.3f kSin=%.3f"
+                        + " vMax=%.2f aMax=%.2f jMax=%.1f",
+                kP, kI, kD, kS, kV, kA, kCos, kSin, maxVel, maxAccel, maxJerk));
     }
 
     /**
@@ -305,6 +353,7 @@ public class ArmEngine {
         if (type == ArmControllerType.MECHANISM_PIDF) {
             ((MechanismArmAdapter) adapter).rebuild();
         }
+        recordEvent("profiler=" + (useRuckig ? "ruckig" : "cascade"));
     }
 
     public boolean isMechanismRuckig() { return mechGains.useRuckigProfiler; }
@@ -317,6 +366,8 @@ public class ArmEngine {
     public void setPlantDynamics(double kS, double kG, double kV, double kA) {
         cfg.kS = kS; cfg.kG = kG; cfg.kV = kV; cfg.kA = kA;
         reseedPlantInPlace();
+        recordEvent(String.format(java.util.Locale.US,
+                "plantDynamics kS=%.3f kG=%.3f kV=%.3f kA=%.4f", kS, kG, kV, kA));
     }
 
     /** Structural: rebuild the plant at the current pose with the new backlash. */
@@ -386,6 +437,9 @@ public class ArmEngine {
         ffKs = r.kS; ffKg = r.kCos; ffKv = r.kV; ffKa = r.kA;
         mechGains.kS = r.kS; mechGains.kV = r.kV; mechGains.kA = r.kA;
         mechGains.kCos = r.kCos; mechGains.kSin = r.kSin;
+        recordEvent(String.format(java.util.Locale.US,
+                "sysid applied kS=%.3f kV=%.3f kA=%.4f kCos=%.3f kSin=%.3f",
+                r.kS, r.kV, r.kA, r.kCos, r.kSin));
         switch (type) {
             case ARM_PD:
             case ARM_LQR:
@@ -411,6 +465,7 @@ public class ArmEngine {
         plant = buildPlant(cfg.maxAngleRad);
         buildAdapter();
         metrics.reset();
+        recordEvent("reset");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

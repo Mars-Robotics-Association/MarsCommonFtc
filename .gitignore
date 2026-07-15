@@ -53,3 +53,6 @@ captures/
 # Anchored to the repo root: an unanchored ruckig/ also swallows Java package
 # directories like RuckigJava/src/main/java/com/ruckig/.
 /ruckig/
+
+# ControlLab flight-recorder session logs (per-tick CSVs written by the GUI)
+controllab-logs/
