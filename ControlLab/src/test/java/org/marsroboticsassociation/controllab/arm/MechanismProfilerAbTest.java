@@ -182,6 +182,32 @@ class MechanismProfilerAbTest {
         }
     }
 
+    @Test
+    void ruckigSurvivesCollapsedBackEmfCeilings() {
+        // Regression: with a high model kV (a plausible SysID result) the back-EMF velocity
+        // ceiling sits far below the configured vMax, so the profile cruises pinned to a
+        // position-dependent ceiling that is rewritten every loop while the accel ceiling reads
+        // zero. The Ruckig profile used to freeze mid-flight in this regime (failed replans held
+        // the state, which reproduced the same failing inputs forever).
+        ArmEngine e = new ArmEngine(ArmControllerType.MECHANISM_PIDF, 42L);
+        e.setMechanismProfiler(true);
+        MechanismArmAdapter.Gains g = e.getMechGains();
+        e.setMechanismGains(g.kP, g.kI, g.kD, g.kS, 4.0 /* kV */, g.kA, g.kCos, g.kSin,
+                g.maxVel, g.maxAccel, g.maxJerk);
+
+        for (double targetDeg : new double[] {90, 0, 90, 180}) {
+            double target = Math.toRadians(targetDeg);
+            e.setTargetRad(target);
+            for (int i = 0; i < 900; i++) {
+                e.tick();
+            }
+            double profErrDeg = Math.abs(Math.toDegrees(e.getTrajPosRad() - target));
+            assertTrue(profErrDeg < 1.0,
+                    "profile arrives at " + targetDeg + "° under collapsed ceilings; err="
+                            + profErrDeg + "°");
+        }
+    }
+
     private static void printTable(String header, List<MoveResult> cascade, List<MoveResult> ruckig) {
         System.out.println();
         System.out.println("=== " + header + " — CascadedRateLimiter vs RuckigProfiler ===");

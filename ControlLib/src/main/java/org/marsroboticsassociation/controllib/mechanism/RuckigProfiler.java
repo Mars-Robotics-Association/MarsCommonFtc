@@ -37,8 +37,10 @@ import com.ruckig.Trajectory;
  * lowers them to zero when the back-EMF headroom runs out). Ruckig cannot plan with a zero limit,
  * so limits are floored at a tiny positive value: the resulting plan brakes normally and then
  * crawls at negligible speed — effectively a hold, matching the cascade's behavior. If no valid
- * plan exists at all, the setpoint holds its state for that step ({@link #getLastResult} exposes
- * the Ruckig result code for debugging).
+ * plan exists from the exact current state (per-loop ceiling rewrites can strand it just outside
+ * the fresh bounds with no matching authority), the state is clamped into the band and replanned
+ * — the cascade's coping strategy — and only if that also fails does the setpoint hold for the
+ * step ({@link #getLastResult} exposes the Ruckig result code for debugging).
  *
  * <p>Steady-state {@code update} does not allocate. Not thread-safe.
  */
@@ -147,7 +149,21 @@ public class RuckigProfiler implements SetpointProfile {
 
         lastResult = otg.calculate(input, trajectory);
         if (lastResult < 0) {
-            return; // no feasible plan this step (e.g. zero authority over a long haul): hold
+            // Per-loop limit rewrites can strand the state just outside the fresh bounds while
+            // the matching authority is collapsed — e.g. cruising at the back-EMF velocity
+            // ceiling as it inches down each loop with the accel ceiling at zero. From that
+            // exact state no jerk-limited plan exists (Ruckig needs a brake pre-trajectory it
+            // has no authority for), and holding would freeze the profile forever, because the
+            // held state reproduces the same inputs next loop. Cope the way the cascade does:
+            // clamp the state into the band and plan from there. The velocity nick is bounded
+            // by how far the ceiling moved in one loop, so it stays negligible.
+            input.current_velocity[0] =
+                    clamp(velocity, -input.max_velocity[0], input.max_velocity[0]);
+            input.current_acceleration[0] = clamp(acceleration, -decelCap, accelCap);
+            lastResult = otg.calculate(input, trajectory);
+            if (lastResult < 0) {
+                return; // still infeasible: hold this step
+            }
         }
 
         if (dt >= trajectory.get_duration()) {
@@ -185,6 +201,10 @@ public class RuckigProfiler implements SetpointProfile {
 
     private static boolean isFinite(double v) {
         return !Double.isNaN(v) && !Double.isInfinite(v);
+    }
+
+    private static double clamp(double value, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, value));
     }
 
     /** Same validation contract as {@link CascadedRateLimiter}: zero allowed, negatives/NaN not. */

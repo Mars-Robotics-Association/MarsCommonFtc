@@ -144,6 +144,34 @@ class RuckigProfilerTest {
     }
 
     @Test
+    void velocityCeilingChatterDoesNotFreezeTheProfile() {
+        // Regression: MotorMechanismController evaluates the back-EMF velocity ceiling at the
+        // pre-update profile state, so a profile cruising at the ceiling sits a hair ABOVE each
+        // freshly lowered ceiling — while the accel ceiling is ~0 by construction at sustainable
+        // velocity. From that exact state Ruckig has no feasible plan (result -110), and a
+        // hold-on-error fallback freezes the profile forever. The profiler must clamp into the
+        // band and keep making progress instead.
+        RuckigProfiler p = new RuckigProfiler(2.0, 4.0, 4.0, 480.0, 0.0);
+        while (p.getVelocity() < 1.99) {
+            p.update(50.0, DT);
+        }
+        double posBefore = p.getPosition();
+        double velBefore = p.getVelocity();
+        for (int i = 0; i < 60; ++i) {
+            // Each loop the ceiling lands just below the current speed and the speed-up
+            // authority is revoked — the exact controller-induced chatter regime.
+            p.setMaxVelocity(p.getVelocity() * 0.997);
+            p.setMaxAcceleration(0.0);
+            p.update(50.0, DT);
+        }
+        double advanced = p.getPosition() - posBefore;
+        assertTrue(advanced > velBefore * DT * 60 * 0.5,
+                "profile keeps moving through ceiling chatter; advanced=" + advanced);
+        assertTrue(p.getVelocity() <= velBefore + 1e-9, "no speed gained without authority");
+        assertTrue(p.getVelocity() > 0.5 * velBefore, "no spurious hard braking either");
+    }
+
+    @Test
     void zeroVelocityAuthorityHoldsPosition() {
         RuckigProfiler p = new RuckigProfiler(2.0, 4.0, 4.0, 20.0, 0.0);
         p.setMaxVelocity(0.0);
