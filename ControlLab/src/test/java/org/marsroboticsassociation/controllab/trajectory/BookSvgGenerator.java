@@ -120,7 +120,12 @@ class BookSvgGenerator {
 
     private static void writeSvg(Path path, TrajectorySvgModel model) throws IOException {
         Files.createDirectories(path.getParent());
-        String svg = TrajectorySvgExporter.buildSvg(model);
+        // Platform-native line endings, so the regenerated file matches the git checkout
+        // (CRLF on Windows under autocrlf) instead of churning the working tree on every
+        // full test run.
+        String svg = TrajectorySvgExporter.buildSvg(model)
+                .replace("\r\n", "\n")
+                .replace("\n", System.lineSeparator());
         Files.writeString(path, svg, StandardCharsets.UTF_8);
     }
 
