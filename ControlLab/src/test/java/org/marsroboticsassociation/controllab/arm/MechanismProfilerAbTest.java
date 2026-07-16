@@ -27,6 +27,15 @@ class MechanismProfilerAbTest {
 
     private static final long SEED = 42L;
 
+    // The profile limits and kD this A/B was designed around, pinned explicitly so the comparison
+    // is insulated from the mechanism defaults: the flex-shaped defaults (a8/j24, kD 4)
+    // deliberately trade retarget agility for arrival ringdown — FlexRingTuningTest's subject,
+    // not this test's. Both variants always share these limits.
+    private static final double PIN_KD = 1.5;
+    private static final double PIN_VMAX = 8.0;
+    private static final double PIN_AMAX = 12.0;
+    private static final double PIN_JMAX = 480.0;
+
     /** One commanded move plus how long to run it, in ticks (~16 ms each). */
     private static final class Segment {
         final String name;
@@ -80,6 +89,9 @@ class MechanismProfilerAbTest {
     private static List<MoveResult> run(boolean ruckig, ArmEngine.PlantKind plant,
                                         List<Segment> script) {
         ArmEngine engine = new ArmEngine(ArmControllerType.MECHANISM_PIDF, SEED);
+        MechanismArmAdapter.Gains g = engine.getMechGains();
+        engine.setMechanismGains(g.kP, g.kI, PIN_KD, g.kS, g.kV, g.kA, g.kCos, g.kSin,
+                PIN_VMAX, PIN_AMAX, PIN_JMAX);
         engine.setMechanismProfiler(ruckig);
         if (plant != engine.getPlantKind()) {
             engine.setPlantKind(plant);
@@ -131,7 +143,7 @@ class MechanismProfilerAbTest {
 
     @Test
     void ruckigProfilerBeatsCascadeOnSetpointSmoothnessWithoutRegressingTracking() {
-        double configuredJerk = new MechanismArmAdapter.Gains().maxJerk; // 480 rad/s^3
+        double configuredJerk = PIN_JMAX;
 
         List<MoveResult> cascadeBk = run(false, ArmEngine.PlantKind.BACKLASH, backlashScript());
         List<MoveResult> ruckigBk = run(true, ArmEngine.PlantKind.BACKLASH, backlashScript());
@@ -227,6 +239,6 @@ class MechanismProfilerAbTest {
                     c.peakTrajJerk, r.peakTrajJerk,
                     c.peakPowerSlew, r.peakPowerSlew);
         }
-        System.out.println("(each cell: cascade→ruckig; peak jerk in rad/s^3 against a 480 limit)");
+        System.out.println("(each cell: cascade→ruckig; peak jerk in rad/s^3 against the configured limit)");
     }
 }

@@ -25,15 +25,20 @@ class MechanismArmAdapter implements ArmControlAdapter {
     static class Gains {
         double kP = 40.0;
         double kI = 8.0;
-        double kD = 1.5;
+        // kD 4 damps the arm's coupled flex mode through the engaged gear mesh — halves the
+        // arrival swing at zero move-time cost (FlexRingTuningTest).
+        double kD = 4.0;
         double kCos = 3.5;   // gravity at horizontal (== plant kG by default, heavy end-effector)
         double kSin = 0.0;   // center-of-mass angular offset term
         double kS = 0.3;     // static friction
         double kV = 1.2;     // back-EMF / viscous
         double kA = 0.35;    // inertia (matches the heavy plant default)
         double maxVel = 8.0;
-        double maxAccel = 12.0;
-        double maxJerk = 480.0;
+        // Shaped for the flexible arm (FlexRingTuningTest): the jerk ramp aMax/jMax = 0.33 s sits
+        // on the coupled flex mode's period band, so the profile cancels its own excitation
+        // (arrival swing ~0.55 deg vs ~2.9 deg at a12/j480, for ~0.5 s more on a full move).
+        double maxAccel = 8.0;
+        double maxJerk = 24.0;
         double feedbackVoltageMargin = 1.5;
         double velocityLagSec = 0.025;
         double modelAccelStdDev = 5.0;
@@ -90,9 +95,7 @@ class MechanismArmAdapter implements ArmControlAdapter {
                     gains.maxVel, gains.maxAccel, gains.maxJerk,
                     gains.feedbackVoltageMargin, initialPosRad);
         }
-        // Rest-only backlash compensation from the live plant's configured lash (0 on rigid).
-        // Structural plant changes rebuild this adapter, so build-time is current.
-        controller.setBacklashCompensation(plant.getBacklashRad(), BACKLASH_TAPER_VOLTS);
+        applyRestCompensation();
         ekf = new MotorMechanismEkf(
                 model, gains.velocityLagSec, gains.modelAccelStdDev,
                 gains.positionStdDev, gains.velocityStdDev,
@@ -113,7 +116,18 @@ class MechanismArmAdapter implements ArmControlAdapter {
         this.targetRad = rad;
     }
 
+    /**
+     * Rest compensation from the live plant's configured lash and rest compliance (both 0 on
+     * rigid). Contact stiffness and flex are live-tunable without an adapter rebuild, so this is
+     * re-applied every step, mirroring how Lineage A re-publishes its params each tick.
+     */
+    private void applyRestCompensation() {
+        controller.setBacklashCompensation(
+                plant.getBacklashRad(), BACKLASH_TAPER_VOLTS, plant.restComplianceRadPerVolt());
+    }
+
     @Override public void step(double dt, double hubVoltage) {
+        applyRestCompensation();
         double posRad = currentMeasuredPosRad();
         double velRad = tpsToRadPerSec(plant.getVelocityTps());
 
