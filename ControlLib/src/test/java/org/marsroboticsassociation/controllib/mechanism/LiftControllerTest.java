@@ -155,8 +155,8 @@ public class LiftControllerTest {
 
         assertTrue("did not reach target, final " + finalPos, Math.abs(finalPos - target) < 25.0);
         assertTrue("voltage exceeded the clamp: " + maxVoltage, maxVoltage <= VOLTAGE + 1e-6);
-        // The whole point of charging gravity in the direction of travel: the descent runs past the
-        // climb ceiling. Under the old worst-case gravity, this same speed would have been clamped.
+        // The whole point of charging gravity in the direction of travel: the descent runs past
+        // the climb ceiling, where worst-case gravity charging would clamp it.
         assertTrue(
                 "descent did not exploit gravity, peak " + peakSpeed,
                 peakSpeed > 1.05 * BACK_EMF_CEILING);

@@ -127,7 +127,7 @@ class EncoderSimTest {
         EncoderSim enc = new EncoderSim();
         int previous = enc.getPosition();
         // March forward in 1 ms steps through more than one latch window; the live count must
-        // increase essentially every read (it used to plateau between 10 ms latches).
+        // increase essentially every read, never plateauing between 10 ms latches.
         int increases = 0;
         for (int i = 0; i < 25; i++) {
             enc.advance(0.001, 1000.0);

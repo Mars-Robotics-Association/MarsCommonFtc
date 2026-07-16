@@ -23,7 +23,7 @@ class ModelAwareRuckigProfilerTest {
 
     @Test
     void velocityNeverExceedsTheLocalModelCeiling() {
-        // The falling-ceiling stretch that used to strand the externally-limited profiler: a
+        // A falling-ceiling stretch: a
         // descent from the back stop (225°) toward 90°, where the sustainable-velocity ceiling
         // drops as the arm approaches straight-down-over-the-top (180°). The profiler's own
         // one-step lookahead must keep the cruise inside the ceiling at every sample.
@@ -45,7 +45,7 @@ class ModelAwareRuckigProfilerTest {
                 break;
             }
         }
-        assertEquals(target, p.getPosition(), 0.0, "arrives exactly (used to freeze mid-flight)");
+        assertEquals(target, p.getPosition(), 0.0, "arrives exactly");
         assertTrue(steps < 3000, "settled");
     }
 
@@ -74,12 +74,13 @@ class ModelAwareRuckigProfilerTest {
 
     @Test
     void heavyGravityDescentRecoversFromOvershootAndClimbsBack() {
-        // Regression for the wrong-way deadlock. With heavy gravity (kCos=8 against 10.5 V), the
+        // With heavy gravity (kCos=8 against 10.5 V), the
         // braking ceiling collapses toward a horizontal target, so a descent can carry wrong-way
         // speed past the target. Pushing back toward the target is physically braking, so it must
-        // get the braking authority; the old travel-frame mapping handed it the acceleration
-        // ceiling — zero at speed against heavy gravity — and the profile froze just past the
-        // target forever (no plan, and the clamped state needed the same missing authority).
+        // get the braking authority; a limit mapping keyed to the travel direction hands it the
+        // acceleration ceiling instead — zero at speed against heavy gravity — and the profile
+        // freezes just past the target forever (no plan, and the clamped state needs the same
+        // missing authority).
         ArmModel model = new ArmModel(0.3, 1.2, 0.35, 8.0, 0.0);
         double target = 0.0;
         ModelAwareRuckigProfiler p =
@@ -96,13 +97,13 @@ class ModelAwareRuckigProfilerTest {
                 break;
             }
         }
-        assertEquals(target, p.getPosition(), 0.0, "descent lands (used to freeze past target)");
+        assertEquals(target, p.getPosition(), 0.0, "descent lands at the target");
         assertTrue(steps < 4000, "descent settled");
         // The target-position braking ceiling keeps the planned stop honest: overshoot past the
         // horizontal target stays negligible.
         assertTrue(maxOvershootDeg < 0.5, "overshoot bounded: " + maxOvershootDeg + "°");
 
-        // The move that used to be unreachable from the frozen state: climb against the gravity.
+        // From the landed state, climbing back against the gravity must also work.
         double up = Math.toRadians(90);
         steps = 0;
         while (steps < 4000) {
