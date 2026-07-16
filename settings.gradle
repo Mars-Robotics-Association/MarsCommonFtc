@@ -11,4 +11,6 @@ rootProject.name = 'MarsCommonFtc'
 include ':WpiMath'
 include ':ControlLib'
 include ':ControlLab'
+
+// Nested git submodule (see .gitmodules); pin via submodule pointer (e.g. v0.17.3).
 include ':RuckigJava'

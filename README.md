@@ -6,17 +6,20 @@ Shared Java modules for MARS Robotics Association FTC teams. This repo is consum
 
 | Module | Description |
 |--------|-------------|
-| **ControlLib** | Motion profiling, filters, motor controllers, localization utilities, and simulation tools. Publishes a shadow JAR for use in Android projects. |
+| **ControlLib** | Motion profiling, filters, motor controllers, localization utilities, and simulation tools. Publishes a shadow JAR for use in Android projects. Depends on nested [RuckigJava](https://github.com/Mars-Robotics-Association/RuckigJava) submodule. |
 | **ControlLab** | Desktop application for testing and visualizing ControlLib algorithms. |
 | **WpiMath** | Ported subset of WPILib's math library — geometry, kinematics, trajectory generation, and linear algebra. |
+| **RuckigJava** | Git submodule: pure-Java port of Ruckig Community OTG (currently pinned to `v0.17.3`). |
 
 ## Quick start
 
-Add MarsCommonFtc as a submodule in your robot project:
+Add MarsCommonFtc as a submodule in your robot project and init nested submodules:
 
 ```bash
 git submodule add https://github.com/Mars-Robotics-Association/MarsCommonFtc.git MarsCommonFtc
-cd MarsCommonFtc && git checkout v1.0.0 && cd ..
+cd MarsCommonFtc && git checkout v1.0.0
+git submodule update --init --recursive
+cd ..
 ```
 
 Then add the module redirects to your `settings.gradle`:
@@ -30,17 +33,28 @@ project(':ControlLib').projectDir = file('MarsCommonFtc/ControlLib')
 
 include ':ControlLab'
 project(':ControlLab').projectDir = file('MarsCommonFtc/ControlLab')
+
+include ':RuckigJava'
+project(':RuckigJava').projectDir = file('MarsCommonFtc/RuckigJava')
 ```
 
 Your existing dependency declarations (e.g. `implementation project(':ControlLib')`) work without changes.
 
 ## Standalone build
 
-MarsCommonFtc can also build independently for development and testing:
+Clone with submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/Mars-Robotics-Association/MarsCommonFtc.git
+# or after a plain clone:
+git submodule update --init --recursive
+```
+
+Then:
 
 ```bash
 ./gradlew :WpiMath:build :ControlLib:build :ControlLib:shadowJar
-./gradlew :WpiMath:test :ControlLib:test
+./gradlew :WpiMath:test :ControlLib:test :RuckigJava:test
 ```
 
 ## Full setup guide

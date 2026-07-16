@@ -1,0 +1,3 @@
+[submodule "RuckigJava"]
+	path = RuckigJava
+	url = https://github.com/Mars-Robotics-Association/RuckigJava.git
