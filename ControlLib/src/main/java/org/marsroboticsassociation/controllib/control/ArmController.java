@@ -102,6 +102,14 @@ public class ArmController {
          * gravity is too weak to pin the resting face, so a full bias would be a coin flip.
          */
         public double backlashTaperVolts = 0.3;
+        /**
+         * Static rest compliance: radians of motor-to-load droop per volt of gravity
+         * hold-voltage, from gear-tooth and structural (arm-tube) elasticity. Adds a
+         * gravity-proportional term to the rest bias; needs no taper since it vanishes with
+         * gravity on its own. On a real mechanism, measure the rest droop at two angles: the
+         * constant part is the half-lash, the slope is this. 0 disables.
+         */
+        public double restComplianceRadPerVolt = 0.0;
 
         // --- Latency compensation ---
         /** Forward-predict state by this many seconds to compensate sensor-to-actuator latency. */
@@ -408,17 +416,22 @@ public class ArmController {
     // ---------------------------------------------------------------------------
 
     /**
-     * The rest-only backlash bias for a stated target: a half-backlash signed by which tooth face
-     * gravity loads there, tapered where the gravity hold-voltage falls below
-     * {@link Params#backlashTaperVolts}.
+     * The rest bias for a stated target: a half-backlash signed by which tooth face gravity loads
+     * there (tapered where the gravity hold-voltage falls below
+     * {@link Params#backlashTaperVolts}), plus the gravity-proportional elastic droop
+     * ({@link Params#restComplianceRadPerVolt}).
      */
     static double backlashBias(double targetRad) {
-        if (PARAMS.backlashRad == 0.0) {
+        if (PARAMS.backlashRad == 0.0 && PARAMS.restComplianceRadPerVolt == 0.0) {
             return 0.0;
         }
         double gravityVolts = PARAMS.kg * Math.cos(targetRad);
-        double pin = MathUtil.clamp(gravityVolts / PARAMS.backlashTaperVolts, -1.0, 1.0);
-        return PARAMS.backlashRad / 2.0 * pin;
+        double bias = PARAMS.restComplianceRadPerVolt * gravityVolts;
+        if (PARAMS.backlashRad > 0.0) {
+            double pin = MathUtil.clamp(gravityVolts / PARAMS.backlashTaperVolts, -1.0, 1.0);
+            bias += PARAMS.backlashRad / 2.0 * pin;
+        }
+        return bias;
     }
 
     // ---------------------------------------------------------------------------

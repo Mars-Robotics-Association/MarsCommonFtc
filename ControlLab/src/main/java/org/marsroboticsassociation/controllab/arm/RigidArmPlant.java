@@ -53,6 +53,7 @@ class RigidArmPlant implements ArmPlant {
     @Override public double getMotorPositionRad()      { return sim.getTruePositionRad(); }
     @Override public boolean isEngaged()               { return true; }
     @Override public double getBacklashRad()           { return 0.0; }
+    @Override public double restComplianceRadPerVolt() { return 0.0; }
 
     @Override public void seedFrom(double loadRad, double loadVel) {
         rebuild(loadRad);

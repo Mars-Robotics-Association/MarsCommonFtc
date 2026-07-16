@@ -48,6 +48,14 @@ public interface ArmPlant {
     double getBacklashRad();
 
     /**
+     * The load's static rest compliance: radians of motor-to-load droop per volt of gravity
+     * hold-voltage, from gear-contact and structural elasticity. Zero for a rigid plant. Together
+     * with {@link #getBacklashRad}, this describes where the load rests relative to the motor:
+     * {@code halfBacklash·sign(g) + compliance·g} away, in the direction gravity pulls.
+     */
+    double restComplianceRadPerVolt();
+
+    /**
      * Rebuild the plant at the given load pose, preserving the current tuning config. Used on
      * hot-swap and on structural param edits so the arm keeps its pose (no jump home). The sims
      * always seed at rest, so {@code loadVel} is advisory and the new plant starts with zero

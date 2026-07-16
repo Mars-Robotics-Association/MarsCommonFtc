@@ -361,6 +361,16 @@ public class FlexArmMotorSim {
         return 2.0 * halfBacklashRad;
     }
 
+    /**
+     * The tip's static rest compliance: radians of motor-to-tip droop per volt of gravity
+     * hold-voltage — contact-spring penetration plus flex-spring sag (the tip carries {@code
+     * tipGravityShare} of the gravity across the flex spring). The total rest offset between motor
+     * and tip is {@code halfBacklash·sign(g) + compliance·g}.
+     */
+    public double getRestComplianceRadPerVolt() {
+        return 1.0 / contactStiffness + tipGravityShare / kFlex;
+    }
+
     /** The arm structural natural frequency in Hz. */
     public double getFlexHz() {
         return flexHz;

@@ -566,4 +566,29 @@ class ArmControllerTest {
                 "compensation should remove most of the sag (raw=" + rawErrDeg
                         + ", comp=" + compErrDeg + ")");
     }
+
+    /**
+     * The rest bias is half-lash (signed by gravity, tapered at the crest) plus a
+     * gravity-proportional compliance term for elastic droop (gear-tooth penetration, arm flex).
+     */
+    @Test
+    void testBacklashBiasComplianceTerm() {
+        ArmController.PARAMS.backlashRad = Math.toRadians(5.0);
+        ArmController.PARAMS.restComplianceRadPerVolt = 0.02;
+        double target = Math.toRadians(-60);
+        double gravityVolts = KG * Math.cos(target); // 0.75 V, above the 0.3 V taper
+
+        assertEquals(Math.toRadians(2.5) + 0.02 * gravityVolts,
+                ArmController.backlashBias(target), 1e-9,
+                "bias = half-lash + compliance * gravity");
+
+        // Compliance alone still biases (a stiff-lash-free but flexy arm), and it carries
+        // gravity's sign past vertical with no taper needed.
+        ArmController.PARAMS.backlashRad = 0.0;
+        assertEquals(0.02 * gravityVolts, ArmController.backlashBias(target), 1e-9);
+        double pastVertical = Math.toRadians(-120);
+        assertEquals(0.02 * KG * Math.cos(pastVertical),
+                ArmController.backlashBias(pastVertical), 1e-9,
+                "compliance term flips sign with gravity");
+    }
 }

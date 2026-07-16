@@ -51,6 +51,7 @@ public class MotorMechanismController {
     private final boolean conservativeBraking;
     private double halfBacklash = 0.0;
     private double backlashTaperVolts = 0.0;
+    private double restComplianceRadPerVolt = 0.0;
     private double integral = 0.0;
     private double lastVoltage = 0.0;
 
@@ -155,14 +156,37 @@ public class MotorMechanismController {
      *     positive; e.g. the gravity voltage a few degrees off the crest)
      */
     public void setBacklashCompensation(double backlash, double taperVolts) {
+        setBacklashCompensation(backlash, taperVolts, 0.0);
+    }
+
+    /**
+     * As {@link #setBacklashCompensation(double, double)}, plus a <b>rest compliance</b> term for
+     * elastic droop: gear-tooth contact penetration and structural (arm-tube) sag both let the
+     * load rest {@code compliance · gravityVoltage(target)} beyond the half-lash, proportionally
+     * to gravity. Unlike the lash term this needs no crest taper — it vanishes with gravity on its
+     * own. On a real mechanism, measure the rest droop at two angles: the constant part is the
+     * half-lash, the gravity-proportional slope is this compliance.
+     *
+     * @param backlash total lash at the output, in the mechanism's position units
+     * @param taperVolts gravity hold-voltage below which the lash bias tapers toward zero
+     * @param complianceRadPerVolt elastic rest droop per volt of gravity hold-voltage (0 for a
+     *     stiff mechanism)
+     */
+    public void setBacklashCompensation(
+            double backlash, double taperVolts, double complianceRadPerVolt) {
         if (backlash < 0) {
             throw new IllegalArgumentException("backlash must be >= 0, got " + backlash);
         }
         if (backlash > 0 && taperVolts <= 0) {
             throw new IllegalArgumentException("taperVolts must be > 0, got " + taperVolts);
         }
+        if (complianceRadPerVolt < 0) {
+            throw new IllegalArgumentException(
+                    "complianceRadPerVolt must be >= 0, got " + complianceRadPerVolt);
+        }
         this.halfBacklash = backlash / 2.0;
         this.backlashTaperVolts = taperVolts;
+        this.restComplianceRadPerVolt = complianceRadPerVolt;
     }
 
     /** Restart the profile from a known position at rest and clear the integrator. */
@@ -292,14 +316,20 @@ public class MotorMechanismController {
     }
 
     /**
-     * The half-backlash bias for a stated target: signed by which tooth face gravity loads there,
-     * tapered where the gravity hold-voltage is below {@code backlashTaperVolts}.
+     * The rest bias for a stated target: a half-backlash signed by which tooth face gravity loads
+     * there (tapered where the gravity hold-voltage is below {@code backlashTaperVolts}), plus the
+     * gravity-proportional elastic droop.
      */
     private double backlashBias(double target) {
-        if (halfBacklash == 0.0) {
+        if (halfBacklash == 0.0 && restComplianceRadPerVolt == 0.0) {
             return 0.0;
         }
-        return halfBacklash * clamp(model.gravityVoltage(target) / backlashTaperVolts, -1.0, 1.0);
+        double gravity = model.gravityVoltage(target);
+        double bias = restComplianceRadPerVolt * gravity;
+        if (halfBacklash > 0.0) {
+            bias += halfBacklash * clamp(gravity / backlashTaperVolts, -1.0, 1.0);
+        }
+        return bias;
     }
 
     private static double clamp(double value, double lo, double hi) {

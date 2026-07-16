@@ -4,6 +4,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 import org.marsroboticsassociation.controllib.sim.BacklashArmMotorSim;
+import org.marsroboticsassociation.controllib.sim.FlexArmMotorSim;
 
 import java.util.Random;
 
@@ -253,6 +254,103 @@ public class ArmControllerBacklashTest {
                 "past-vertical bias sign must flip with the resting face (raw=" + rawPastErrDeg
                         + ", comp=" + compPastErrDeg + ")",
                 compPastErrDeg < 1.0 && compPastErrDeg < rawPastErrDeg - 1.5);
+    }
+
+    /**
+     * On the three-inertia flex plant, the tip rests off the motor by more than the half-lash:
+     * gear-tooth penetration and flex-spring sag add an elastic droop <em>proportional to
+     * gravity</em>. Half-lash compensation alone leaves that behind (observed live in ControlLab:
+     * stated target parked halfway between motor and arm). The full rest model is {@code
+     * halfLash·sign(g) + compliance·g}; with the plant's compliance supplied, the tip lands on the
+     * stated target. Note the fix is <em>not</em> full-lash compensation — the droop scales with
+     * gravity while the lash term does not, so a constant full-lash bias is wrong at most angles.
+     */
+    @Test
+    public void restCompensationCoversElasticSagOnTheFlexPlant() {
+        double start = -Math.PI / 4; // -45 deg
+        double target = Math.PI / 4; // +45 deg
+
+        double rawErrDeg = runFlex(start, target, false);
+        double halfLashOnlyErrDeg = runFlex(start, target, true, 0.0);
+        double fullErrDeg = runFlex(start, target, true, Double.NaN); // NaN = use plant's compliance
+
+        // Expected droop at +45 deg: half-lash 2.5 + (1/500 + 0.85/kFlex)·kG·cos(45) ≈ 1.7 more.
+        System.out.printf(
+                "flex rest compensation: raw=%.2f, half-lash-only=%.2f, +compliance=%.2f deg "
+                        + "(half-backlash=%.2f deg)%n",
+                rawErrDeg, halfLashOnlyErrDeg, fullErrDeg, HALF_BACKLASH_DEG);
+
+        assertTrue(
+                "raw flex droop should exceed the half-lash alone, got " + rawErrDeg + " deg",
+                rawErrDeg > HALF_BACKLASH_DEG + 1.0);
+        assertTrue(
+                "half-lash-only should leave the elastic sag behind (raw=" + rawErrDeg
+                        + ", half-lash-only=" + halfLashOnlyErrDeg + ")",
+                halfLashOnlyErrDeg > 1.0 && halfLashOnlyErrDeg < rawErrDeg);
+        assertTrue(
+                "lash + compliance should land the tip on the stated target, got "
+                        + fullErrDeg + " deg",
+                fullErrDeg < 1.0);
+    }
+
+    private double runFlex(double start, double target, boolean compensate) {
+        return runFlex(start, target, compensate, Double.NaN);
+    }
+
+    /**
+     * Run the move against the flex plant; return mean steady-state tip error in degrees.
+     *
+     * @param complianceRadPerVolt rest compliance handed to the controller when compensating;
+     *     NaN means use the plant's own {@link FlexArmMotorSim#getRestComplianceRadPerVolt}
+     */
+    private double runFlex(
+            double start, double target, boolean compensate, double complianceRadPerVolt) {
+        FlexArmMotorSim plant = new FlexArmMotorSim(
+                K_S, K_G, K_V, K_A,
+                TICKS_PER_REV, GEAR_RATIO,
+                ENCODER_ZERO_OFFSET_RAD,
+                MIN_ANGLE_RAD, MAX_ANGLE_RAD,
+                start, BACKLASH_RAD,
+                /* flexHz= */ 3.0, /* flexZeta= */ 0.03);
+        ArmModel model = new ArmModel(K_S, K_V, K_A, K_G, 0.0);
+        MotorMechanismEkf ekf = new MotorMechanismEkf(model, 0.025, 5.0, 0.003, 0.1, 0.0, start);
+        MotorMechanismController controller =
+                new MotorMechanismController(model, 40, 8, 1.5, 8.0, 12.0, 480.0, 1.5, start);
+        if (compensate) {
+            double compliance = Double.isNaN(complianceRadPerVolt)
+                    ? plant.getRestComplianceRadPerVolt()
+                    : complianceRadPerVolt;
+            controller.setBacklashCompensation(BACKLASH_RAD, TAPER_VOLTS, compliance);
+        }
+
+        Random rng = new Random(1L);
+        double power = 0.0;
+        int lastLoopMs = 0, nextLoopMs = 20;
+        double sumErrDeg = 0.0;
+        int samples = 0;
+
+        for (int ms = 0; ms <= 4000; ms++) {
+            plant.step(0.001, power, VOLTAGE);
+            if (ms >= nextLoopMs) {
+                double dt = (ms - lastLoopMs) / 1000.0;
+                ekf.predict(dt, power, VOLTAGE);
+                ekf.correct(
+                        plant.getPositionTicks() / TICKS_PER_RAD + ENCODER_ZERO_OFFSET_RAD,
+                        plant.getVelocityTps() / TICKS_PER_RAD);
+                double voltage =
+                        controller.calculate(
+                                target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt);
+                power = voltage / VOLTAGE;
+                if (ms / 1000.0 > 3.0) {
+                    sumErrDeg +=
+                            Math.abs(Math.toDegrees(plant.getTruePositionRad() - target));
+                    samples++;
+                }
+                lastLoopMs = ms;
+                nextLoopMs = ms + 20 + rng.nextInt(10);
+            }
+        }
+        return sumErrDeg / samples;
     }
 
     /** Run the move against the rigid plant; return mean steady-state load error in degrees. */

@@ -289,6 +289,15 @@ public class BacklashArmMotorSim {
         return 2.0 * halfBacklashRad;
     }
 
+    /**
+     * The load's static rest compliance: radians of motor-to-load droop per volt of gravity
+     * hold-voltage, from the contact-spring penetration. The total rest offset between motor and
+     * load is {@code halfBacklash·sign(g) + compliance·g}.
+     */
+    public double getRestComplianceRadPerVolt() {
+        return 1.0 / contactStiffness;
+    }
+
     // ── dynamics ─────────────────────────────────────────────────────────────────
     //
     //   state = [θ_m, ω_m, θ_L, ω_L]

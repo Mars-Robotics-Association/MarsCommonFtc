@@ -54,6 +54,7 @@ class FlexArmPlant implements ArmPlant {
     @Override public double getMotorPositionRad()      { return sim.getMotorPositionRad(); }
     @Override public boolean isEngaged()               { return sim.isEngaged(); }
     @Override public double getBacklashRad()           { return sim.getBacklashRad(); }
+    @Override public double restComplianceRadPerVolt() { return sim.getRestComplianceRadPerVolt(); }
 
     @Override public void seedFrom(double loadRad, double loadVel) {
         rebuild(loadRad);
