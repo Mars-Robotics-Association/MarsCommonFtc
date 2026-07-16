@@ -56,8 +56,8 @@ class RuckigProfilerTest {
         // Lands exactly (the final step snaps when the remaining plan fits inside dt)
         assertEquals(1.0, p.getPosition(), 0.0, "exact landing");
         assertEquals(0.0, p.getVelocity(), 0.0);
-        // The property CascadedRateLimiter cannot deliver: jerk bounded through the entire stop,
-        // including the very last steps into the target.
+        // Jerk stays bounded through the entire stop, including the very last steps into the
+        // target: the deceleration is planned, not clamped.
         assertTrue(maxJerkObserved <= maxJ * 1.05 + 1e-9,
                 "jerk bounded through the stop; observed " + maxJerkObserved);
         assertTrue(steps < 2000, "settled");
@@ -254,7 +254,7 @@ class RuckigProfilerTest {
     }
 
     @Test
-    void validationMirrorsCascadedRateLimiter() {
+    void validatesLimitsAtConstructionAndRewrite() {
         assertThrows(IllegalArgumentException.class,
                 () -> new RuckigProfiler(-1.0, 1, 1, 1, 0));
         assertThrows(IllegalArgumentException.class,

@@ -5,18 +5,13 @@ package org.marsroboticsassociation.controllib.mechanism;
  * velocity, acceleration, and jerk are bounded, under limits that may be rewritten every loop
  * (e.g. from back-EMF headroom).
  *
- * <p>This is the surface {@link MotorMechanismController} drives. Implementations:
+ * <p>The concrete implementation is {@link RuckigProfiler} — online trajectory generation
+ * (replans a time-optimal, jerk-limited profile from the setpoint's own state every loop), so the
+ * stop is a planned jerk ramp-out that lands exactly at rest on the target. {@link
+ * MotorMechanismController} drives the {@link ModelAwareSetpointProfile} extension of this
+ * surface.
  *
- * <ul>
- *   <li>{@link CascadedRateLimiter} — greedy one-step slew filter. Robust and cheap, but not a
- *       planner: near the target it rides the stopping curve and finishes with clamps, so the last
- *       instants of a move can exceed the jerk limit.
- *   <li>{@link RuckigProfiler} — online trajectory generation (replans a time-optimal,
- *       jerk-limited profile from the setpoint's own state every loop), so the stop is a planned
- *       jerk ramp-out that lands exactly at rest on the target.
- * </ul>
- *
- * <p>Contract notes, shared with {@link CascadedRateLimiter}'s original behavior:
+ * <p>Contract notes:
  *
  * <ul>
  *   <li>{@code update} advances the setpoint by wall-clock {@code dt}; non-positive or NaN

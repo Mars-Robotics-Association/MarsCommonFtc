@@ -3,18 +3,18 @@ package org.marsroboticsassociation.controllib.mechanism;
 /**
  * {@link RuckigProfiler} that owns its back-EMF ceilings: before every replan it evaluates the
  * {@link MechanismModel} at its <em>own</em> current state and rewrites its velocity,
- * acceleration, and deceleration limits itself. {@link MotorMechanismController} detects the
- * {@link ModelAwareSetpointProfile} interface and only forwards the available voltage each loop.
+ * acceleration, and deceleration limits itself. {@link MotorMechanismController} drives this
+ * {@link ModelAwareSetpointProfile} surface and only forwards the available voltage each loop.
  *
- * <p>This removes the lag seam of the externally-rewritten-limits design, where the controller
- * evaluated the ceilings at the profile's pre-update state (the algebraic-loop workaround). Two
- * ceilings are handled specially:
+ * <p>Owning the ceilings lets each plan use limits evaluated at the exact state it plans from
+ * (see {@link ModelAwareSetpointProfile} for why an outside caller cannot). Two ceilings are
+ * handled specially:
  *
  * <ul>
  *   <li><b>Velocity, with one-step lookahead.</b> The sustainable-velocity ceiling depends on
  *       position through gravity, so a profile cruising exactly at the ceiling can find itself a
  *       hair <em>above</em> the ceiling one step later wherever the ceiling falls along the
- *       motion — the regime that used to force the clamp-and-replan fallback every loop. The
+ *       motion — a regime that forces the clamp-and-replan fallback every loop. The
  *       ceiling used for each plan is the minimum of its value here and at the position one step
  *       ahead along the current motion, so the plan never cruises into a falling ceiling.
  *   <li><b>Braking, at zero speed and at the target.</b> Back-EMF aids braking, so the model's
@@ -22,8 +22,7 @@ package org.marsroboticsassociation.controllib.mechanism;
  *       through gravity, collapsing toward the target on a gravity-loaded descent. A planner
  *       assumes its limits hold for the whole remaining move, so the stop is planned at the
  *       ceiling's minimum over the stop: evaluated at rest, at the worse of the current and the
- *       target position. (The speed part is what {@code MotorMechanismController}'s
- *       conservative-braking option did; here both are inherent.)
+ *       target position.
  *   </li>
  * </ul>
  *
@@ -37,6 +36,7 @@ public class ModelAwareRuckigProfiler extends RuckigProfiler implements ModelAwa
     private final MechanismModel model;
     private final double configuredMaxVelocity;
     private final double configuredMaxAcceleration;
+    private final double configuredMaxDeceleration;
 
     private double availableVoltage = 0.0;
 
@@ -54,10 +54,30 @@ public class ModelAwareRuckigProfiler extends RuckigProfiler implements ModelAwa
             double maxAcceleration,
             double maxJerk,
             double initialPosition) {
-        super(maxVelocity, maxAcceleration, maxAcceleration, maxJerk, initialPosition);
+        this(model, maxVelocity, maxAcceleration, maxAcceleration, maxJerk, initialPosition);
+    }
+
+    /**
+     * As the symmetric constructor, but with independent mechanical caps for speeding up and
+     * braking (motion-frame, per the {@link SetpointProfile} contract). Pass {@code
+     * maxAcceleration > maxDeceleration} to let a mechanism launch harder than it stops; the
+     * back-EMF ceilings still throttle each cap independently below its configured value.
+     *
+     * @param maxAcceleration mechanical cap on acceleration that increases speed
+     * @param maxDeceleration mechanical cap on braking
+     */
+    public ModelAwareRuckigProfiler(
+            MechanismModel model,
+            double maxVelocity,
+            double maxAcceleration,
+            double maxDeceleration,
+            double maxJerk,
+            double initialPosition) {
+        super(maxVelocity, maxAcceleration, maxDeceleration, maxJerk, initialPosition);
         this.model = model;
         this.configuredMaxVelocity = maxVelocity;
         this.configuredMaxAcceleration = maxAcceleration;
+        this.configuredMaxDeceleration = maxDeceleration;
     }
 
     @Override
@@ -89,13 +109,13 @@ public class ModelAwareRuckigProfiler extends RuckigProfiler implements ModelAwa
 
         // Braking planned at the ceiling's minimum over the stop: at rest (back-EMF aid gone),
         // and at the worse of here and the target position (on a gravity-loaded descent the
-        // braking ceiling collapses toward the target; a plan must not promise braking the end
-        // of the stop will not have — that is what caused overshoot into the wrong-way state).
+        // braking ceiling collapses toward the target; a plan that promises braking the end of
+        // the stop will not have overshoots into the wrong-way state).
         double decelCeiling =
                 Math.min(
                         model.maxSustainableDeceleration(availableVoltage, position, 0.0),
                         model.maxSustainableDeceleration(availableVoltage, targetPosition, 0.0));
-        setMaxDeceleration(Math.min(configuredMaxAcceleration, Math.max(0, decelCeiling)));
+        setMaxDeceleration(Math.min(configuredMaxDeceleration, Math.max(0, decelCeiling)));
 
         // Velocity ceiling with one-step lookahead along the current motion, so a plan that
         // cruises at the ceiling is still inside the band when the next replan happens.

@@ -48,22 +48,20 @@ import java.util.Random;
  *       ~±1.6 rad/s² of free-fall uncertainty, so ~0.5 rad/s is the gentlest landing that can be
  *       planned blind. Doing better needs load-side sensing (an output-shaft encoder) or less
  *       lash.
- *   <li><b>The dominant bouncing was not on the way down at all — it was chatter at the hold</b>
- *       (~10 tooth separations per second, ±0.3 deg, in every configuration; gone with zero
- *       backlash). {@link #holdChatterTrace} pinned it on the setpoint itself: {@link
- *       CascadedRateLimiter}'s stopping-velocity law has unbounded slope at zero distance, so the
- *       profile limit-cycled around the target (±5 rad/s² of acceleration dither every loop) and
- *       the feedforward broadcast that as ±1.5 V. Capping the profile's velocity command at
- *       {@code error/dt} — the speed that lands exactly on the target this step — lets the
- *       setpoint truly settle: holds are now motionless (p2p ≈ 0) with at most one tooth unload
- *       left, during the arrival-overshoot recovery.
- *   <li><b>The arrival overshoot was also the profile's fault, not backlash</b> (it reproduced
- *       with zero lash). {@link #arrivalTrace} showed the setpoint itself sailing ~4 deg past the
- *       target: the stopping-velocity law assumed braking could begin instantly, ignoring the
- *       jerk-limited swing from full accelerate to full brake — an error that grows with speed.
- *       Charging the swing distance against the stopping distance cut the reversal overshoot from
- *       4.6 to 1.3 deg at an 8 rad/s cap, the same as at 4 rad/s, so descent speed no longer
- *       trades against arrival accuracy.
+ *   <li><b>Hold quality dominates perceived bounce: any setpoint motion at the hold broadcasts
+ *       through the feedforward as tooth-separating voltage chatter.</b> A profile that
+ *       limit-cycles around the target (a few rad/s² of acceleration dither per loop reaches the
+ *       feedforward as ±1.5 V) separates the teeth ~10 times a second at ±0.3 deg regardless of
+ *       descent tuning; zero backlash removes the symptom but not the dither. {@link
+ *       #holdChatterTrace} guards the requirement: the setpoint must land at rest and stay
+ *       motionless (p2p ≈ 0), leaving at most one tooth unload, during the arrival-overshoot
+ *       recovery.
+ *   <li><b>Arrival overshoot is the profile's responsibility, not backlash's</b> (it reproduces
+ *       with zero lash). {@link #arrivalTrace} watches the setpoint itself: a stop must charge
+ *       the jerk-limited swing from full accelerate to full brake against the stopping distance —
+ *       a braking plan that assumes it can begin instantly sails past the target by an error that
+ *       grows with speed. Reversal overshoot is ~1.3 deg at an 8 rad/s velocity cap, the same as
+ *       at 4 rad/s, so descent speed does not trade against arrival accuracy.
  * </ul>
  */
 public class ArmBacklashKeepEngagedTest {
@@ -448,15 +446,12 @@ public class ArmBacklashKeepEngagedTest {
                         + baseline.maxDescentImpact + ", handoff=" + best.maxDescentImpact + ")",
                 best.maxDescentImpact < 0.5 * baseline.maxDescentImpact);
 
-        // Finding 3: the hold is quiet. It used to chatter (~10 tooth separations per second,
-        // +/-0.3 deg) because CascadedRateLimiter's stopping-velocity law has unbounded slope at
-        // zero distance, so the setpoint limit-cycled around the target and the feedforward
-        // broadcast the resulting +/-5 rad/s^2 acceleration dither as +/-1.5 V. Capping the
-        // velocity command at error/dt (land exactly on target this step) lets the profile truly
-        // settle; at most one tooth unload remains, during the arrival-overshoot recovery.
+        // Finding 3: the hold is quiet. A setpoint that limit-cycles around the target broadcasts
+        // its acceleration dither through the feedforward (+/-1.5 V at +/-5 rad/s^2) and separates
+        // the teeth ~10 times a second; a profile that lands at rest leaves at most one tooth
+        // unload, during the arrival-overshoot recovery.
         assertTrue(
-                "hold should be quiet after the rate-limiter landing fix (got "
-                        + baseline.holdSeps + " separations)",
+                "hold should be quiet (got " + baseline.holdSeps + " separations)",
                 baseline.holdSeps <= 2);
         assertTrue(
                 "hold should not wiggle: p2p=" + baseline.steadyP2PDeg + " deg",

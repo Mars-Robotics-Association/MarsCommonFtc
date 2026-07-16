@@ -102,8 +102,8 @@ public class ArmEngine {
     // ─────────────────────────────────────────────────────────────────────────────
 
     public void tick() {
-        // Always apply realistic loop timing (16 ms ± 4 ms). The rate limiter is hardened against
-        // dt jitter, so the profile no longer needs an exactly-periodic mode for clean plots.
+        // Always apply realistic loop timing (16 ms ± 4 ms). The profiler replans from its own
+        // state every loop, so dt jitter does not need a special exactly-periodic mode.
         double dt = NOMINAL_DT + (random.nextDouble() - 0.5) * DT_JITTER;
         elapsedNanos += (long) (dt * 1e9);
 
@@ -334,35 +334,21 @@ public class ArmEngine {
     public void setMechanismGains(double kP, double kI, double kD,
                                   double kS, double kV, double kA,
                                   double kCos, double kSin,
-                                  double maxVel, double maxAccel, double maxJerk) {
+                                  double maxVel, double maxAccel, double maxDecel,
+                                  double maxJerk) {
         mechGains.kP = kP; mechGains.kI = kI; mechGains.kD = kD;
         mechGains.kS = kS; mechGains.kV = kV; mechGains.kA = kA;
         mechGains.kCos = kCos; mechGains.kSin = kSin;
-        mechGains.maxVel = maxVel; mechGains.maxAccel = maxAccel; mechGains.maxJerk = maxJerk;
+        mechGains.maxVel = maxVel; mechGains.maxAccel = maxAccel; mechGains.maxDecel = maxDecel;
+        mechGains.maxJerk = maxJerk;
         if (type == ArmControllerType.MECHANISM_PIDF) {
             ((MechanismArmAdapter) adapter).rebuild(); // controller + EKF reseeded from pose
         }
         recordEvent(String.format(java.util.Locale.US,
                 "mechGains kP=%.2f kI=%.2f kD=%.3f kS=%.3f kV=%.3f kA=%.4f kCos=%.3f kSin=%.3f"
-                        + " vMax=%.2f aMax=%.2f jMax=%.1f",
-                kP, kI, kD, kS, kV, kA, kCos, kSin, maxVel, maxAccel, maxJerk));
+                        + " vMax=%.2f aMax=%.2f dMax=%.2f jMax=%.1f",
+                kP, kI, kD, kS, kV, kA, kCos, kSin, maxVel, maxAccel, maxDecel, maxJerk));
     }
-
-    /**
-     * Choose the mechanism controller's setpoint profiler: Ruckig OTG (planned, clamp-free stops,
-     * conservative braking) or the default cascaded rate limiter. Rebuilds the adapter, reseeding
-     * controller + EKF from the current pose.
-     */
-    public void setMechanismProfiler(boolean useRuckig) {
-        if (mechGains.useRuckigProfiler == useRuckig) return;
-        mechGains.useRuckigProfiler = useRuckig;
-        if (type == ArmControllerType.MECHANISM_PIDF) {
-            ((MechanismArmAdapter) adapter).rebuild();
-        }
-        recordEvent("profiler=" + (useRuckig ? "ruckig" : "cascade"));
-    }
-
-    public boolean isMechanismRuckig() { return mechGains.useRuckigProfiler; }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Live plant-param edits

@@ -2,17 +2,15 @@ package org.marsroboticsassociation.controllib.mechanism;
 
 /**
  * A {@link SetpointProfile} that computes its own back-EMF ceilings from a {@link MechanismModel}
- * at plan time, instead of having {@link MotorMechanismController} rewrite its limits from the
- * outside each loop.
+ * at plan time. This is the surface {@link MotorMechanismController} drives.
  *
- * <p>The externally-rewritten-limits interface has a structural flaw: the controller can only
- * evaluate the ceilings at the profile's <em>pre-update</em> state (evaluating after the update
- * would be an algebraic loop), so a profile cruising at the velocity ceiling is judged against a
- * ceiling computed one step behind where the plan actually runs. A profile that owns the model
- * evaluates its ceilings at its own state at the moment it plans — and can look ahead along its
- * own motion — which removes that lag entirely.
+ * <p>The profile owns the ceilings because only it can evaluate them without lag. The ceilings
+ * depend on the profile's state, and the post-update state is itself the result of applying them
+ * — an algebraic loop — so any outside caller could only evaluate them at the <em>pre-update</em>
+ * state, one step behind where the plan actually runs. A profile that owns the model evaluates
+ * its ceilings at its own state at the moment it plans, and can look ahead along its own motion.
  *
- * <p>The controller detects this interface and, instead of rewriting limits, only forwards the
+ * <p>The controller never rewrites limits; it only forwards the
  * voltage available for feedforward each loop via {@link #setAvailableVoltage}.
  */
 public interface ModelAwareSetpointProfile extends SetpointProfile {

@@ -25,7 +25,6 @@ class ArmFlightRecorderTest {
         Path log = engine.startFlightRecorder(tempDir);
         assertNotNull(log, "recorder starts");
 
-        engine.setMechanismProfiler(true);
         engine.setTargetRad(Math.toRadians(90));
         for (int i = 0; i < 200; i++) {
             engine.tick();
@@ -42,7 +41,6 @@ class ArmFlightRecorderTest {
 
         String all = String.join("\n", lines);
         assertTrue(all.contains("session start"), "session-start event");
-        assertTrue(all.contains("profiler=ruckig"), "profiler toggle event");
         assertTrue(all.contains("target=90.00deg"), "target event");
         assertTrue(all.contains("plant="), "plant swap event");
 

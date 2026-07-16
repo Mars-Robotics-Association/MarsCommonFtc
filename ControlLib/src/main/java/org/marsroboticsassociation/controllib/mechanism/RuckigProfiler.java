@@ -5,21 +5,21 @@ import com.ruckig.Ruckig;
 import com.ruckig.Trajectory;
 
 /**
- * Online-trajectory-generation setpoint profiler backed by the Ruckig port ({@code com.ruckig}).
- * Drop-in alternative to {@link CascadedRateLimiter} behind {@link SetpointProfile}.
+ * Online-trajectory-generation setpoint profiler backed by the Ruckig port ({@code com.ruckig}),
+ * the {@link SetpointProfile} implementation.
  *
  * <p>Every {@link #update} replans a time-optimal, jerk-limited trajectory from the setpoint's own
  * {@code (position, velocity, acceleration)} state to the target at rest, under the current
- * limits, then samples it {@code dt} ahead. This is Ruckig's intended usage pattern, and it is
- * what the greedy cascade cannot do: the deceleration phase is <em>planned</em> to land at
- * {@code (target, 0, 0)} exactly, so a move finishes with a jerk ramp-out instead of the
- * late-braking clamps of a one-step filter. Limits rewritten between calls (back-EMF ceilings)
+ * limits, then samples it {@code dt} ahead. This is Ruckig's intended usage pattern: the
+ * deceleration phase is <em>planned</em> to land at {@code (target, 0, 0)} exactly, so a move
+ * finishes with a jerk ramp-out. Limits rewritten between calls (back-EMF ceilings)
  * are simply picked up by the next replan; states outside the new limits (velocity or residual
  * acceleration over a freshly lowered cap) are absorbed by Ruckig's brake pre-trajectory rather
  * than clamped.
  *
- * <p><b>Limit-frame mapping.</b> This class takes motion-frame limits like the cascade
- * (acceleration = speeding up, deceleration = braking, relative to the actual motion); Ruckig's
+ * <p><b>Limit-frame mapping.</b> This class takes motion-frame limits per the {@link
+ * SetpointProfile} contract (acceleration = speeding up, deceleration = braking, relative to the
+ * actual motion); Ruckig's
  * are signed. Each replan maps by the sign of the current velocity — moving in +,
  * {@code max_acceleration = maxAcceleration} and {@code min_acceleration = -maxDeceleration};
  * flipped when moving in −; the direction of travel decides only at rest. Mapping by velocity
@@ -33,17 +33,17 @@ import com.ruckig.Trajectory;
  * <p><b>Back-EMF braking caveat.</b> A plan assumes its limits hold for the whole remaining move,
  * but {@link MechanismModel#maxSustainableDeceleration} shrinks as speed drops. Feeding this
  * profiler the instantaneous braking ceiling is therefore optimistic during a stop. Callers that
- * rewrite limits from the model each loop should pass a braking ceiling evaluated at low speed
- * (see {@link MotorMechanismController}'s conservative-braking option), which is a lower bound on
- * the authority available anywhere in the remaining brake.
+ * rewrite limits from the model each loop should pass a braking ceiling evaluated at low speed,
+ * which is a lower bound on the authority available anywhere in the remaining brake ({@link
+ * ModelAwareRuckigProfiler} does this itself).
  *
- * <p><b>Zero-authority limits.</b> Zero limits mean "no authority right now" (the controller
- * lowers them to zero when the back-EMF headroom runs out). Ruckig cannot plan with a zero limit,
+ * <p><b>Zero-authority limits.</b> Zero limits mean "no authority right now" (a back-EMF ceiling
+ * lowers them to zero when the headroom runs out). Ruckig cannot plan with a zero limit,
  * so limits are floored at a tiny positive value: the resulting plan brakes normally and then
- * crawls at negligible speed — effectively a hold, matching the cascade's behavior. If no valid
+ * crawls at negligible speed — effectively a hold. If no valid
  * plan exists from the exact current state (per-loop ceiling rewrites can strand it just outside
- * the fresh bounds with no matching authority), the state is clamped into the band and replanned
- * — the cascade's coping strategy — and only if that also fails does the setpoint hold for the
+ * the fresh bounds with no matching authority), the state is clamped into the band and replanned,
+ * and only if that also fails does the setpoint hold for the
  * step ({@link #getLastResult} exposes the Ruckig result code for debugging).
  *
  * <p>Steady-state {@code update} does not allocate. Not thread-safe.
@@ -137,7 +137,7 @@ public class RuckigProfiler implements SetpointProfile {
 
         // Motion-frame -> signed-frame limit mapping, by the sign of the current velocity (the
         // SetpointProfile contract: acceleration limits speeding up, deceleration limits braking,
-        // relative to the actual motion — the same frame CascadedRateLimiter's bounds use). Only
+        // relative to the actual motion). Only
         // at rest, where nothing is being braked, does the direction of travel decide. Mapping by
         // travel direction instead deadlocks on wrong-way motion: pushing back toward the target
         // is physically braking (back-EMF aids it), but a travel-frame map hands that push the
@@ -164,8 +164,8 @@ public class RuckigProfiler implements SetpointProfile {
             // ceiling as it inches down each loop with the accel ceiling at zero. From that
             // exact state no jerk-limited plan exists (Ruckig needs a brake pre-trajectory it
             // has no authority for), and holding would freeze the profile forever, because the
-            // held state reproduces the same inputs next loop. Cope the way the cascade does:
-            // clamp the state into the band and plan from there. The velocity nick is bounded
+            // held state reproduces the same inputs next loop. Cope by clamping the state into
+            // the band and planning from there. The velocity nick is bounded
             // by how far the ceiling moved in one loop, so it stays negligible.
             input.current_velocity[0] =
                     clamp(velocity, -input.max_velocity[0], input.max_velocity[0]);
@@ -177,7 +177,7 @@ public class RuckigProfiler implements SetpointProfile {
         }
 
         if (dt >= trajectory.get_duration()) {
-            // The whole remaining move fits in this step: land exactly, like the cascade does.
+            // The whole remaining move fits in this step: land exactly.
             position = targetPosition;
             velocity = 0.0;
             acceleration = 0.0;
@@ -217,7 +217,7 @@ public class RuckigProfiler implements SetpointProfile {
         return Math.max(lo, Math.min(hi, value));
     }
 
-    /** Same validation contract as {@link CascadedRateLimiter}: zero allowed, negatives/NaN not. */
+    /** Zero is allowed (it means "no authority right now"); negatives and NaN are rejected. */
     private static double requireNonNegative(double value, String name) {
         if (!(value >= 0)) {
             throw new IllegalArgumentException(name + " must be non-negative; got " + value);
@@ -225,7 +225,7 @@ public class RuckigProfiler implements SetpointProfile {
         return value;
     }
 
-    /** Same validation contract as {@link CascadedRateLimiter#UNLIMITED_JERK}'s. */
+    /** Strictly positive; {@link #UNLIMITED_JERK} is the sanctioned way to ask for no limit. */
     private static double requirePositiveJerk(double maxJerk) {
         if (!(maxJerk > 0)) {
             throw new IllegalArgumentException(

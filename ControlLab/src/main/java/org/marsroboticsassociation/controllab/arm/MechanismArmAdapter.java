@@ -1,7 +1,6 @@
 package org.marsroboticsassociation.controllab.arm;
 
 import org.marsroboticsassociation.controllib.mechanism.ArmModel;
-import org.marsroboticsassociation.controllib.mechanism.ModelAwareRuckigProfiler;
 import org.marsroboticsassociation.controllib.mechanism.MotorMechanismController;
 import org.marsroboticsassociation.controllib.mechanism.MotorMechanismEkf;
 
@@ -38,6 +37,9 @@ class MechanismArmAdapter implements ArmControlAdapter {
         // on the coupled flex mode's period band, so the profile cancels its own excitation
         // (arrival swing ~0.55 deg vs ~2.9 deg at a12/j480, for ~0.5 s more on a full move).
         double maxAccel = 8.0;
+        // Braking cap, separate from maxAccel so the arm may launch harder than it stops (the
+        // arrival swing constrains braking, not starting). Equal by default.
+        double maxDecel = 8.0;
         double maxJerk = 24.0;
         double feedbackVoltageMargin = 1.5;
         double velocityLagSec = 0.025;
@@ -45,12 +47,6 @@ class MechanismArmAdapter implements ArmControlAdapter {
         double positionStdDev = 0.003;
         double velocityStdDev = 0.1;
         double positionTimingJitterStdDev = 0.0;
-        /**
-         * Profile the setpoint with {@link ModelAwareRuckigProfiler} (planned, clamp-free stops;
-         * computes its own back-EMF ceilings at plan time with conservative braking) instead of
-         * the default {@link org.marsroboticsassociation.controllib.mechanism.CascadedRateLimiter}.
-         */
-        boolean useRuckigProfiler = false;
     }
 
     private final Gains gains;
@@ -81,20 +77,10 @@ class MechanismArmAdapter implements ArmControlAdapter {
     /** (Re)build the model, controller, and EKF seeded from the given pose. */
     private void build(double initialPosRad) {
         model = new ArmModel(gains.kS, gains.kV, gains.kA, gains.kCos, gains.kSin);
-        if (gains.useRuckigProfiler) {
-            controller = new MotorMechanismController(
-                    model, gains.kP, gains.kI, gains.kD,
-                    gains.maxVel, gains.maxAccel,
-                    gains.feedbackVoltageMargin,
-                    new ModelAwareRuckigProfiler(model, gains.maxVel, gains.maxAccel,
-                            gains.maxJerk, initialPosRad),
-                    false /* ignored: the model-aware profiler brakes conservatively itself */);
-        } else {
-            controller = new MotorMechanismController(
-                    model, gains.kP, gains.kI, gains.kD,
-                    gains.maxVel, gains.maxAccel, gains.maxJerk,
-                    gains.feedbackVoltageMargin, initialPosRad);
-        }
+        controller = new MotorMechanismController(
+                model, gains.kP, gains.kI, gains.kD,
+                gains.maxVel, gains.maxAccel, gains.maxDecel, gains.maxJerk,
+                gains.feedbackVoltageMargin, initialPosRad);
         applyRestCompensation();
         ekf = new MotorMechanismEkf(
                 model, gains.velocityLagSec, gains.modelAccelStdDev,
@@ -147,7 +133,7 @@ class MechanismArmAdapter implements ArmControlAdapter {
     @Override public double trajVelRad()      { return controller.getSetpointVelocity(); }
     @Override public double trajAccelRad()    { return controller.getSetpointAcceleration(); }
     @Override public String modeLabel() {
-        return gains.useRuckigProfiler ? "MECHANISM_PIDF (Ruckig)" : "MECHANISM_PIDF";
+        return "MECHANISM_PIDF";
     }
 
     private double currentMeasuredPosRad() {

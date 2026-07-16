@@ -445,18 +445,16 @@ public class ArmControllerBacklashTest {
 
     /**
      * On a downward (gravity-aided) reversal the load presses on the braking face the whole way
-     * down (see ArmBacklashKeepEngagedTest), so the arrival should be clean at any descent speed.
-     *
-     * <p>Historically it was not: the fast (8 rad/s) reversal overshot the bottom by ~10 deg where
-     * a 4 rad/s cap held it to ~4, because {@link CascadedRateLimiter}'s stopping law ignored the
-     * jerk-limited acceleration reversal and braked one accel swing too late — an error that grows
-     * with speed, which made "slow down" look like a backlash mitigation. With the stopping law
-     * charging the swing distance, descent speed no longer costs overshoot: fast and capped arrive
-     * alike, within a couple of degrees past the load's half-backlash resting offset, and both
-     * settle without chattering down.
+     * down (see ArmBacklashKeepEngagedTest), so the arrival must be clean at any descent speed:
+     * the stop is planned under the jerk limit from the profile's own state, so braking starts
+     * early enough regardless of how fast the descent runs. Fast (8 rad/s) and velocity-capped
+     * (4 rad/s) descents arrive alike — within a couple of degrees past the load's half-backlash
+     * resting offset — and both settle without chattering down. A stopping law that ignores the
+     * jerk-limited swing from full accelerate to full brake fails this test at the fast speed
+     * only, which would make "slow down" masquerade as a backlash mitigation.
      */
     @Test
-    public void descentSpeedNoLongerCostsBottomOvershoot() {
+    public void descentSpeedDoesNotCostBottomOvershoot() {
         // default accel=12, jerk=480; only the velocity cap changes.
         double[] fast = runReversalMetrics(/* maxVel= */ 8.0, 12.0, 480.0);
         double[] capped = runReversalMetrics(/* maxVel= */ 4.0, 12.0, 480.0);
@@ -473,9 +471,9 @@ public class ArmControllerBacklashTest {
         assertTrue(
                 "capped reversal overshoot too large: " + capped[0] + " deg",
                 capped[0] < HALF_BACKLASH_DEG + 3.0);
-        // And going fast no longer costs meaningful extra overshoot.
+        // And going fast costs no meaningful extra overshoot.
         assertTrue(
-                "descent speed should not cost overshoot anymore (fast=" + fast[0]
+                "descent speed should not cost overshoot (fast=" + fast[0]
                         + ", capped=" + capped[0] + ")",
                 fast[0] < capped[0] + 1.0);
         // Both settle rather than bouncing all the way down.

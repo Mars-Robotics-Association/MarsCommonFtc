@@ -83,10 +83,9 @@ class FlexRingTuningTest {
     private ArmEngine makeEngine(Config c) {
         ArmEngine e = new ArmEngine(ArmControllerType.MECHANISM_PIDF, 42L);
         e.setPlantKind(ArmEngine.PlantKind.FLEX);
-        e.setMechanismProfiler(true);
         MechanismArmAdapter.Gains g = e.getMechGains();
         e.setMechanismGains(g.kP, g.kI, c.kD, g.kS, g.kV, g.kA, g.kCos, g.kSin,
-                c.maxVel, c.maxAccel, c.maxJerk);
+                c.maxVel, c.maxAccel, c.maxAccel, c.maxJerk);
         return e;
     }
 
