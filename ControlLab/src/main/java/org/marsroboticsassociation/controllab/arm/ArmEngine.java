@@ -268,7 +268,7 @@ public class ArmEngine {
 
     public PlantKind getPlantKind() { return plantKind; }
 
-    /** Legacy rigid/backlash toggle; {@link #setPlantKind} supersedes it. */
+    /** Boolean shorthand for {@link #setPlantKind}, selecting only between BACKLASH and RIGID. */
     public void setBacklashEnabled(boolean enabled) {
         setPlantKind(enabled ? PlantKind.BACKLASH : PlantKind.RIGID);
     }

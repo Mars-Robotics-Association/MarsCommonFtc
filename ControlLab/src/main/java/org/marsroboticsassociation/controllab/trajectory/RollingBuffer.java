@@ -28,7 +28,7 @@ public class RollingBuffer {
     }
 
     /**
-     * Legacy constructor for 4 data streams (position, velocity, acceleration, target).
+     * Convenience constructor for 4 data streams (position, velocity, acceleration, target).
      */
     public RollingBuffer(double windowSeconds, int capacity) {
         this(windowSeconds, capacity, 4);
@@ -75,7 +75,7 @@ public class RollingBuffer {
         return toList(data[streamIndex]);
     }
 
-    // --- Legacy Accessors ---
+    // --- Named accessors for the conventional stream order ---
 
     public List<Double> getPositions() { return getData(0); }
     public List<Double> getVelocities() { return getData(1); }

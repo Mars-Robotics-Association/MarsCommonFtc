@@ -12,11 +12,10 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Tests the pure {@link TagAmbiguitySolver} against a canned {@link PlanarPnpSolver} fake — proving
- * the OpenCV-extraction refactor works end-to-end with no native dependency: the solver prepares the
- * points, the (fake) seam returns solutions, and the solver selects best/alt and computes the
- * ambiguity ratio. On-robot the same solver is wired to the OpenCV-backed {@code
- * OpenCvPlanarPnpSolver} instead.
+ * Tests the pure {@link TagAmbiguitySolver} against a canned {@link PlanarPnpSolver} fake, so the
+ * full path runs with no native dependency: the solver prepares the points, the (fake) seam returns
+ * solutions, and the solver selects best/alt and computes the ambiguity ratio. On-robot the same
+ * solver is wired to the OpenCV-backed {@code OpenCvPlanarPnpSolver}.
  */
 class TagAmbiguitySolverTest {
 

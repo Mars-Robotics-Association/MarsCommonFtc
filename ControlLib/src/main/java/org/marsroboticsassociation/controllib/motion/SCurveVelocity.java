@@ -24,7 +24,8 @@ public class SCurveVelocity implements VelocityTrajectory {
     private final boolean singlePhase; // true if only one jerk phase used
 
     /**
-     * Symmetric-jerk constructor (backwards compatible).
+     * Symmetric-jerk constructor: {@code jMax} bounds jerk in both the increasing- and
+     * decreasing-acceleration phases.
      */
     public SCurveVelocity(double v0, double v1, double a0, double aMax, double jMax) {
         this(v0, v1, a0, aMax, jMax, jMax);

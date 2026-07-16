@@ -33,8 +33,7 @@ import java.util.Random;
  *
  * <p><b>Note:</b> {@link #setState(int, double)} sets the internal sample {@code count} to its
  * {@code position} argument, which is a latent oddity (the name suggests an encoder position, but it
- * seeds the sample counter). Behavior is preserved for compatibility; callers only use it to seed
- * {@code fractionalTicks}.
+ * seeds the sample counter). Callers rely on it only to seed {@code fractionalTicks}.
  */
 public class EncoderSim {
 
@@ -190,7 +189,7 @@ public class EncoderSim {
     public void setState(int position, double fractionalTicks) {
         this.count = position;
         this.fractionalTicks = fractionalTicks;
-        // Keep existing buffer history for now
+        // The sample ring keeps its history; reset() is what clears it.
     }
 
     /** Clears the buffer and resets all state. */
