@@ -188,6 +188,8 @@ public class ArmEngine {
         p.ks = ffKs; p.kg = ffKg; p.kv = ffKv; p.ka = ffKa;
         p.kP = kP;   p.kD = kD;
         p.maxVelRad = 3.0; p.maxAccelRad = 6.0; p.maxDecelRad = 8.0; p.maxJerkRad = 30.0;
+        // Rest-only backlash compensation from the live plant's configured lash (0 on rigid).
+        p.backlashRad = plant.getBacklashRad();
         return p;
     }
 
@@ -201,6 +203,8 @@ public class ArmEngine {
         p.ks = ffKs; p.kg = ffKg; p.kv = ffKv; p.ka = ffKa;
         p.qPosition = lqrQPos; p.qVelocity = lqrQVel; p.rVoltage = lqrR;
         p.maxVelRad = 3.0; p.maxAccelRad = 6.0; p.maxDecelRad = 8.0; p.maxJerkRad = 30.0;
+        // Rest-only backlash compensation from the live plant's configured lash (0 on rigid).
+        p.backlashRad = plant.getBacklashRad();
         return p;
     }
 
@@ -474,6 +478,8 @@ public class ArmEngine {
 
     public double getElapsedSec()          { return elapsedSec; }
     public double getTargetRad()           { return targetRad; }
+    /** The endpoint the profile actually drives to (stated target plus any backlash bias). */
+    public double getProfileTargetRad()    { return adapter.profileTargetRad(); }
     public double getTrueLoadRad()         { return plant.getTruePositionRad(); }
     public double getTrueLoadVelRad()      { return plant.getTrueVelocityRadPerSec(); }
     public double getMotorRad()            { return plant.getMotorPositionRad(); }

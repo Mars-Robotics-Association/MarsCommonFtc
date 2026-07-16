@@ -115,6 +115,10 @@ class LineageAArmAdapter implements ArmControlAdapter {
 
     @Override public double commandedPower() { return lastPower; }
 
+    @Override public double profileTargetRad() {
+        return armPd != null ? armPd.getTargetAngleRad() : armLqr.getTargetAngleRad();
+    }
+
     @Override public double estimatedPosRad() {
         return armPd != null ? armPd.getEstimatedPositionRad() : armLqr.getEstimatedPositionRad();
     }

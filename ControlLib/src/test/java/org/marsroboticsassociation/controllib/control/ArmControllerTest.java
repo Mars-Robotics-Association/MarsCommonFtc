@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.marsroboticsassociation.controllib.hardware.IMotor;
 import org.marsroboticsassociation.controllib.sim.ArmMotorSim;
+import org.marsroboticsassociation.controllib.sim.BacklashArmMotorSim;
 
 import java.util.Random;
 
@@ -486,5 +487,83 @@ class ArmControllerTest {
                 "13.75V run should converge to target");
         assertEquals(targetAngle, pos2, Math.toRadians(5),
                 "10.5V run should converge to target");
+    }
+
+    // ── backlash rest compensation ──────────────────────────────────────────────
+
+    static class BacklashSimMotorAdapter implements IMotor {
+        final BacklashArmMotorSim sim;
+        double lastPower = 0.0;
+
+        BacklashSimMotorAdapter(BacklashArmMotorSim sim) {
+            this.sim = sim;
+        }
+
+        @Override public String getName()              { return "arm"; }
+        @Override public int    getPosition()          { return sim.getPositionTicks(); }
+        @Override public double getVelocity()          { return sim.getVelocityTps(); }
+        @Override public void   setPower(double power) { lastPower = power; }
+        @Override public double getHubVoltage()        { return HUB_VOLTAGE; }
+        @Override public void   setVelocity(double tps) {}
+        @Override public void   setVelocityPIDFCoefficients(double p, double i, double d, double f) {}
+    }
+
+    /**
+     * Drive the -45 -> -120 deg move onto the two-mass backlash plant with the given
+     * PARAMS.backlashRad compensation; return the mean steady-state load error in degrees.
+     */
+    private double runBacklashMove(double compensationBacklashRad) {
+        double plantBacklashRad = Math.toRadians(5.0);
+        double targetAngle = Math.toRadians(-120);
+        ArmController.PARAMS.backlashRad = compensationBacklashRad;
+
+        BacklashArmMotorSim sim = new BacklashArmMotorSim(KS, KG, KV, KA,
+                TICKS_PER_REV, GEAR_RATIO,
+                ENCODER_ZERO_OFFSET_RAD,
+                MIN_ANGLE_RAD, MAX_ANGLE_RAD,
+                MAX_ANGLE_RAD, plantBacklashRad);
+        BacklashSimMotorAdapter adapter = new BacklashSimMotorAdapter(sim);
+        simTimeNanos = 0;
+        ArmController controller = new ArmController(adapter,
+                (caption, format, value) -> {}, this::clockSupplier);
+        controller.setTarget(targetAngle);
+
+        Random rng = new Random(SEED);
+        double sumErrDeg = 0;
+        int samples = 0;
+        for (int i = 0; i < 500; i++) {
+            double dt = Math.max(0.005, 0.016 + rng.nextGaussian() * 0.005);
+            simTimeNanos += (long) (dt * 1e9);
+            controller.update(dt, HUB_VOLTAGE);
+            sim.step(dt, adapter.lastPower, HUB_VOLTAGE);
+            if (i >= 350) {
+                sumErrDeg += Math.abs(Math.toDegrees(sim.getTruePositionRad() - targetAngle));
+                samples++;
+            }
+        }
+        return sumErrDeg / samples;
+    }
+
+    /**
+     * Rest-only backlash compensation: with PARAMS.backlashRad set, the target is biased a
+     * half-backlash against gravity so the load — which settles a half-backlash off the motor on
+     * the gravity-loaded tooth face — comes to rest at the stated angle. At -120 deg the load
+     * rests <em>above</em> the motor (gravity pulls it back toward vertical), so the bias is
+     * negative; uncompensated, the load parks ~2.5 deg shy of the target.
+     */
+    @Test
+    void testBacklashRestCompensation() {
+        double rawErrDeg = runBacklashMove(0.0);
+        double compErrDeg = runBacklashMove(Math.toRadians(5.0));
+        System.out.printf("testBacklashRestCompensation: raw=%.2f deg, compensated=%.2f deg "
+                + "(half-backlash=2.50 deg)%n", rawErrDeg, compErrDeg);
+
+        assertTrue(rawErrDeg > 1.5,
+                "uncompensated run should show the half-lash sag, got " + rawErrDeg + " deg");
+        assertTrue(compErrDeg < 1.2,
+                "compensated load should rest near the stated target, got " + compErrDeg + " deg");
+        assertTrue(compErrDeg < rawErrDeg - 1.0,
+                "compensation should remove most of the sag (raw=" + rawErrDeg
+                        + ", comp=" + compErrDeg + ")");
     }
 }

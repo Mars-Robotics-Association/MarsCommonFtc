@@ -89,6 +89,20 @@ public class ArmController {
         /** Coast (cut power) when within this angle of a hard stop (rad). */
         public double coastZoneRad = Math.toRadians(10);
 
+        // --- Backlash compensation (rest-only) ---
+        /**
+         * Total gearbox backlash at the output shaft (rad). When nonzero, targets are biased a
+         * half-backlash against gravity so the load — which settles a half-backlash off the motor,
+         * hanging on the gravity-loaded tooth face — comes to rest at the stated angle. Only the
+         * endpoint moves; the motion is unchanged. 0 disables.
+         */
+        public double backlashRad = 0.0;
+        /**
+         * Gravity hold-voltage below which the rest bias tapers to zero (V). Near vertical,
+         * gravity is too weak to pin the resting face, so a full bias would be a coin flip.
+         */
+        public double backlashTaperVolts = 0.3;
+
         // --- Latency compensation ---
         /** Forward-predict state by this many seconds to compensate sensor-to-actuator latency. */
         public double latencyCompensationSec = 0.030;
@@ -203,7 +217,8 @@ public class ArmController {
      * @param hubVoltage current battery voltage in volts
      */
     public void setTarget(double angleRad, double hubVoltage) {
-        targetAngleRad = MathUtil.clamp(angleRad, PARAMS.minAngleRad, PARAMS.maxAngleRad);
+        targetAngleRad = MathUtil.clamp(
+                angleRad + backlashBias(angleRad), PARAMS.minAngleRad, PARAMS.maxAngleRad);
 
         double fromRad;
         if (mode == Mode.COASTING) {
@@ -342,6 +357,14 @@ public class ArmController {
         return trajectory.getVelocity();
     }
 
+    /**
+     * The target angle the trajectory actually drives to: the stated target plus any rest-only
+     * backlash bias, clamped to the hard stops.
+     */
+    public double getTargetAngleRad() {
+        return targetAngleRad;
+    }
+
     /** Get the current controller mode. */
     public Mode getMode() {
         return mode;
@@ -378,6 +401,24 @@ public class ArmController {
         telemetry.addData(name + " arm traj vel",      "%.1f", Math.toDegrees(trajectory.getVelocity()));
         telemetry.addData(name + " arm voltage cmd",   "%.2f V", lastVoltageCmded);
         telemetry.addData(name + " arm power",         "%.3f", lastPower);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Backlash compensation
+    // ---------------------------------------------------------------------------
+
+    /**
+     * The rest-only backlash bias for a stated target: a half-backlash signed by which tooth face
+     * gravity loads there, tapered where the gravity hold-voltage falls below
+     * {@link Params#backlashTaperVolts}.
+     */
+    static double backlashBias(double targetRad) {
+        if (PARAMS.backlashRad == 0.0) {
+            return 0.0;
+        }
+        double gravityVolts = PARAMS.kg * Math.cos(targetRad);
+        double pin = MathUtil.clamp(gravityVolts / PARAMS.backlashTaperVolts, -1.0, 1.0);
+        return PARAMS.backlashRad / 2.0 * pin;
     }
 
     // ---------------------------------------------------------------------------

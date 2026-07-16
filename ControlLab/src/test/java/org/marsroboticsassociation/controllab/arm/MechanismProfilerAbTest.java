@@ -201,7 +201,10 @@ class MechanismProfilerAbTest {
             for (int i = 0; i < 900; i++) {
                 e.tick();
             }
-            double profErrDeg = Math.abs(Math.toDegrees(e.getTrajPosRad() - target));
+            // Score the profile against the endpoint it actually chases — with the backlash
+            // plant live, rest-only compensation biases that up to a half-lash off the stated
+            // target.
+            double profErrDeg = Math.abs(Math.toDegrees(e.getTrajPosRad() - e.getProfileTargetRad()));
             assertTrue(profErrDeg < 1.0,
                     "profile arrives at " + targetDeg + "° under collapsed ceilings; err="
                             + profErrDeg + "°");

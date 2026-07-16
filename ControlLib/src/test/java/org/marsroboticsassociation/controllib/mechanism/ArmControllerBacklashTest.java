@@ -45,6 +45,9 @@ public class ArmControllerBacklashTest {
     private static final double MAX_ANGLE_RAD = Math.PI * 0.9;
     private static final double BACKLASH_RAD = Math.toRadians(5.0); // half-backlash = 2.5 deg
     private static final double HALF_BACKLASH_DEG = Math.toDegrees(BACKLASH_RAD) / 2.0;
+    // Gravity hold-voltage below which the rest compensation tapers off (~ kG at 11 deg from
+    // vertical): too little gravity to pin the load onto one tooth face.
+    private static final double TAPER_VOLTS = 0.3;
 
     @Test
     public void reachesAndHoldsTargetThroughBacklash() {
@@ -205,6 +208,53 @@ public class ArmControllerBacklashTest {
                 backlashErrDeg > rigidErrDeg);
     }
 
+    /**
+     * Rest-only backlash compensation: bias the target a half-backlash <em>against</em> gravity,
+     * so the load — which settles a half-backlash off the motor on the gravity-loaded tooth face —
+     * comes to rest on the stated target instead of the motor. Only the endpoint moves, so this
+     * closes the steady-state half-lash sag the other tests tolerate, without touching the motion.
+     *
+     * <p>Run on both sides of vertical, since the resting face (and so the bias sign) flips with
+     * the sign of the gravity torque: below vertical the load hangs under the motor; past vertical
+     * it rests above it.
+     */
+    @Test
+    public void restCompensationClosesTheGapToRigid() {
+        // Below vertical (gravity voltage positive: bias up).
+        double start = -Math.PI / 4; // -45 deg
+        double target = Math.PI / 4; // +45 deg
+        double rigidErrDeg = runRigid(start, target);
+        double rawErrDeg = runBacklash(start, target, false);
+        double compErrDeg = runBacklash(start, target, true);
+
+        // Past vertical (gravity voltage negative: bias down).
+        double startPast = Math.toRadians(150);
+        double targetPast = Math.toRadians(120);
+        double rawPastErrDeg = runBacklash(startPast, targetPast, false);
+        double compPastErrDeg = runBacklash(startPast, targetPast, true);
+
+        System.out.printf(
+                "rest compensation: rigid=%.2f, raw=%.2f -> comp=%.2f deg; "
+                        + "past-vertical raw=%.2f -> comp=%.2f deg (half-backlash=%.2f deg)%n",
+                rigidErrDeg, rawErrDeg, compErrDeg, rawPastErrDeg, compPastErrDeg,
+                HALF_BACKLASH_DEG);
+
+        // Compensation removes the half-lash sag: steady error drops from ~half-backlash to near
+        // the rigid plant's level (residual: contact-spring sag + encoder quantization + tracking).
+        assertTrue(
+                "compensated steady error should be near rigid, got " + compErrDeg
+                        + " deg (rigid=" + rigidErrDeg + ")",
+                compErrDeg < 1.0);
+        assertTrue(
+                "compensation should remove most of the half-lash sag (raw=" + rawErrDeg
+                        + ", comp=" + compErrDeg + ")",
+                compErrDeg < rawErrDeg - 1.5);
+        assertTrue(
+                "past-vertical bias sign must flip with the resting face (raw=" + rawPastErrDeg
+                        + ", comp=" + compPastErrDeg + ")",
+                compPastErrDeg < 1.0 && compPastErrDeg < rawPastErrDeg - 1.5);
+    }
+
     /** Run the move against the rigid plant; return mean steady-state load error in degrees. */
     private double runRigid(double start, double target) {
         ArmPlantSim plant =
@@ -237,7 +287,8 @@ public class ArmControllerBacklashTest {
                                 target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt);
                 power = voltage / VOLTAGE;
                 if (ms / 1000.0 > 2.0) {
-                    sumErrDeg += Math.abs(Math.toDegrees(plant.getTrueAngleRad()) - 45.0);
+                    sumErrDeg +=
+                            Math.abs(Math.toDegrees(plant.getTrueAngleRad() - target));
                     samples++;
                 }
                 lastLoopMs = ms;
@@ -249,11 +300,22 @@ public class ArmControllerBacklashTest {
 
     /** Run the same move against the backlash plant; return mean steady-state load error. */
     private double runBacklash(double start, double target) {
+        return runBacklash(start, target, false);
+    }
+
+    /**
+     * Run the move against the backlash plant, optionally with rest-only backlash compensation
+     * enabled on the controller; return mean steady-state load error in degrees.
+     */
+    private double runBacklash(double start, double target, boolean compensate) {
         BacklashArmMotorSim plant = makePlant(start);
         ArmModel model = new ArmModel(K_S, K_V, K_A, K_G, 0.0);
         MotorMechanismEkf ekf = new MotorMechanismEkf(model, 0.025, 5.0, 0.003, 0.1, 0.0, start);
         MotorMechanismController controller =
                 new MotorMechanismController(model, 40, 8, 1.5, 8.0, 12.0, 480.0, 1.5, start);
+        if (compensate) {
+            controller.setBacklashCompensation(BACKLASH_RAD, TAPER_VOLTS);
+        }
 
         Random rng = new Random(1L);
         double power = 0.0;
@@ -272,7 +334,8 @@ public class ArmControllerBacklashTest {
                                 target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt);
                 power = voltage / VOLTAGE;
                 if (ms / 1000.0 > 2.0) {
-                    sumErrDeg += Math.abs(Math.toDegrees(plant.getTruePositionRad()) - 45.0);
+                    sumErrDeg +=
+                            Math.abs(Math.toDegrees(plant.getTruePositionRad() - target));
                     samples++;
                 }
                 lastLoopMs = ms;

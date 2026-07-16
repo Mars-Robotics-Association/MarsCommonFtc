@@ -29,6 +29,13 @@ public interface ArmControlAdapter {
 
     // --- plotting getters ---
 
+    /**
+     * The endpoint the controller's profile actually drives to: the stated target plus any
+     * rest-only backlash bias, clamped to the hard stops. Equals the stated target when the live
+     * plant has no lash.
+     */
+    double profileTargetRad();
+
     /** The controller's estimated arm position (radians). */
     double estimatedPosRad();
 

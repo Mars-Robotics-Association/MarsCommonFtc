@@ -49,6 +49,8 @@ public class MotorMechanismController {
     /** Non-null when {@link #profile} computes its own ceilings (it then only needs voltage). */
     private final ModelAwareSetpointProfile modelAwareProfile;
     private final boolean conservativeBraking;
+    private double halfBacklash = 0.0;
+    private double backlashTaperVolts = 0.0;
     private double integral = 0.0;
     private double lastVoltage = 0.0;
 
@@ -132,6 +134,37 @@ public class MotorMechanismController {
         this.conservativeBraking = conservativeBraking;
     }
 
+    /**
+     * Enable rest-only backlash compensation. A motor-encoder controller can only servo the motor
+     * side of the gearbox; the load settles a half-backlash away from it, hanging on the
+     * gravity-loaded tooth face. Biasing the target a half-backlash <em>against</em> gravity puts
+     * the load, not the motor, on the stated target. Only the endpoint moves — the profile plans
+     * to the biased target from the start, so the motion is unchanged and there is no correction
+     * hop at arrival.
+     *
+     * <p>The bias is scaled by {@code gravityVoltage(target) / taperVolts}, clamped to ±1, so it
+     * carries gravity's sign (an arm past vertical rests on the other face) and fades to zero near
+     * a crest, where gravity is too weak to pin the resting face and a full bias would be a coin
+     * flip that can double the error.
+     *
+     * <p>The biased target sits up to a half-backlash past the stated one: keep stated targets at
+     * least that far inside any hard stop. Pass {@code backlashRad} of 0 to disable.
+     *
+     * @param backlash total lash at the output, in the mechanism's position units
+     * @param taperVolts gravity hold-voltage below which the bias tapers toward zero (must be
+     *     positive; e.g. the gravity voltage a few degrees off the crest)
+     */
+    public void setBacklashCompensation(double backlash, double taperVolts) {
+        if (backlash < 0) {
+            throw new IllegalArgumentException("backlash must be >= 0, got " + backlash);
+        }
+        if (backlash > 0 && taperVolts <= 0) {
+            throw new IllegalArgumentException("taperVolts must be > 0, got " + taperVolts);
+        }
+        this.halfBacklash = backlash / 2.0;
+        this.backlashTaperVolts = taperVolts;
+    }
+
     /** Restart the profile from a known position at rest and clear the integrator. */
     public void reset(double position) {
         profile.reset(position);
@@ -155,6 +188,10 @@ public class MotorMechanismController {
             double measuredVelocity,
             double busVoltage,
             double dt) {
+        // Rest-only backlash compensation (see setBacklashCompensation): the profile chases the
+        // biased endpoint so the load comes to rest on the stated one.
+        targetPosition = compensatedTarget(targetPosition);
+
         // Voltage available to the feedforward, leaving a margin for the PID to correct with.
         double availableVoltage = Math.max(0.0, busVoltage - feedbackVoltageMargin);
         // Externally-rewritten ceilings (the else branch) are evaluated at the profile's current
@@ -243,6 +280,26 @@ public class MotorMechanismController {
 
     public double getSetpointAcceleration() {
         return profile.getAcceleration();
+    }
+
+    /**
+     * The target the profile actually chases for a stated target: the stated position plus the
+     * rest-only backlash bias (identity when compensation is disabled). Exposed so callers can
+     * score the profile against its true endpoint, e.g. in telemetry or arrival checks.
+     */
+    public double compensatedTarget(double targetPosition) {
+        return targetPosition + backlashBias(targetPosition);
+    }
+
+    /**
+     * The half-backlash bias for a stated target: signed by which tooth face gravity loads there,
+     * tapered where the gravity hold-voltage is below {@code backlashTaperVolts}.
+     */
+    private double backlashBias(double target) {
+        if (halfBacklash == 0.0) {
+            return 0.0;
+        }
+        return halfBacklash * clamp(model.gravityVoltage(target) / backlashTaperVolts, -1.0, 1.0);
     }
 
     private static double clamp(double value, double lo, double hi) {

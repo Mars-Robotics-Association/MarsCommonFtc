@@ -15,6 +15,12 @@ import org.marsroboticsassociation.controllib.mechanism.MotorMechanismEkf;
  */
 class MechanismArmAdapter implements ArmControlAdapter {
 
+    /**
+     * Gravity hold-voltage below which the rest-only backlash bias tapers to zero — too little
+     * gravity to pin the load onto one tooth face (~5 deg from vertical at the default kG).
+     */
+    private static final double BACKLASH_TAPER_VOLTS = 0.3;
+
     /** Editable gains, gathered so a rebuild is a single call. */
     static class Gains {
         double kP = 40.0;
@@ -84,6 +90,9 @@ class MechanismArmAdapter implements ArmControlAdapter {
                     gains.maxVel, gains.maxAccel, gains.maxJerk,
                     gains.feedbackVoltageMargin, initialPosRad);
         }
+        // Rest-only backlash compensation from the live plant's configured lash (0 on rigid).
+        // Structural plant changes rebuild this adapter, so build-time is current.
+        controller.setBacklashCompensation(plant.getBacklashRad(), BACKLASH_TAPER_VOLTS);
         ekf = new MotorMechanismEkf(
                 model, gains.velocityLagSec, gains.modelAccelStdDev,
                 gains.positionStdDev, gains.velocityStdDev,
@@ -117,6 +126,7 @@ class MechanismArmAdapter implements ArmControlAdapter {
     }
 
     @Override public double commandedPower()  { return lastPower; }
+    @Override public double profileTargetRad() { return controller.compensatedTarget(targetRad); }
     @Override public double estimatedPosRad() { return ekf.getPosition(); }
     @Override public double estimatedVelRad() { return ekf.getVelocity(); }
     @Override public double trajPosRad()      { return controller.getSetpointPosition(); }
