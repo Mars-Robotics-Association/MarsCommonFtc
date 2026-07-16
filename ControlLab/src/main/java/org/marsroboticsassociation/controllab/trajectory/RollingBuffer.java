@@ -9,6 +9,13 @@ import java.util.List;
  */
 public class RollingBuffer {
 
+    /**
+     * Streams 0..4 are conventional: position, velocity, acceleration, target, max motor accel.
+     * The named accessors read them, so a buffer must allocate at least this many for those
+     * accessors to be in range. Callers needing extra streams pass a larger {@code numStreams}.
+     */
+    public static final int NAMED_STREAMS = 5;
+
     private final double windowSeconds;
     private final int capacity;
     private final int numStreams;
@@ -28,10 +35,11 @@ public class RollingBuffer {
     }
 
     /**
-     * Convenience constructor for 4 data streams (position, velocity, acceleration, target).
+     * Convenience constructor allocating exactly the {@value #NAMED_STREAMS} streams that the named
+     * accessors below read.
      */
     public RollingBuffer(double windowSeconds, int capacity) {
-        this(windowSeconds, capacity, 4);
+        this(windowSeconds, capacity, NAMED_STREAMS);
     }
 
     public void add(double time, double... values) {
@@ -75,7 +83,7 @@ public class RollingBuffer {
         return toList(data[streamIndex]);
     }
 
-    // --- Named accessors for the conventional stream order ---
+    // --- Named accessors for the conventional streams 0..4 ---
 
     public List<Double> getPositions() { return getData(0); }
     public List<Double> getVelocities() { return getData(1); }
