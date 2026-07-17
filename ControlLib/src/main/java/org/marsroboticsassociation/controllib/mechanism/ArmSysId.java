@@ -249,38 +249,43 @@ public final class ArmSysId {
      * keeps a lashy/flexy drivetrain from inflating {@code kS} — the direction-flipping flex/lash
      * bias a hard-accelerating run pumps into the {@code sign(ω)} regressor is starved here.
      *
-     * <p>Velocity and acceleration are recovered from the position log (local quadratic fit, then a
-     * central difference), so the caller only logs angle and applied voltage — exactly like {@link
+     * <p>Velocity and acceleration are recovered from the position log (local quadratic fit against
+     * the actual sample times, then a central difference), so loop-rate jitter does not bias the fit
+     * and the caller only logs angle, applied voltage, and wall-clock time — exactly like {@link
      * #accumulateRun}, just driven at a held speed instead of a constant voltage. Only steady
      * samples (|α| under {@link FitParams#holdAccelGate}, |ω| above {@link FitParams#minSpeedRad},
      * clear of the stops) are kept; each becomes a row {@code [sign(ω), ω, cosθ, sinθ, α]} with the
      * applied voltage as its right-hand side. Feed the accumulated rows to {@link #solveTwoStage}.
      *
-     * @param thetaRad equally-spaced arm angles over the hold (rad)
+     * @param thetaRad arm angles over the hold (rad)
      * @param voltage  per-sample applied voltage sustaining the hold (volts)
-     * @param dt       sample period (seconds)
+     * @param timeSec  monotonically increasing sample times (seconds); any zero origin is fine
      * @param rows     feature rows {@code [sign(ω), ω, cosθ, sinθ, α]} (appended)
      * @param rhs      right-hand side (applied voltage) (appended)
      */
     public static void accumulateHold(
             double[] thetaRad,
             double[] voltage,
-            double dt,
+            double[] timeSec,
             double minAngleRad,
             double maxAngleRad,
             FitParams params,
             List<double[]> rows,
             List<Double> rhs) {
         int n = thetaRad.length;
-        if (n < 2 * params.velHalf + 3 || voltage.length != n) {
+        if (n < 2 * params.velHalf + 3 || voltage.length != n || timeSec.length != n) {
             return;
         }
         double[] w = new double[n];
         for (int i = 0; i < n; i++) {
-            w[i] = localVelocity(thetaRad, i, n, dt, params.velHalf);
+            w[i] = localVelocity(thetaRad, timeSec, i, n, params.velHalf);
         }
         for (int i = params.velHalf + 1; i < n - params.velHalf - 1; i++) {
-            double accel = (w[i + 1] - w[i - 1]) / (2 * dt);
+            double dtc = timeSec[i + 1] - timeSec[i - 1];
+            if (dtc < 1e-9) {
+                continue;
+            }
+            double accel = (w[i + 1] - w[i - 1]) / dtc;
             if (Math.abs(w[i]) < params.minSpeedRad
                     || Math.abs(accel) > params.holdAccelGate
                     || thetaRad[i] < minAngleRad + params.stopMarginRad

@@ -185,8 +185,10 @@ public final class ArmSysId {
             theta.add(pos);
             volts.add(power * HUB);
         }
+        double[] times = new double[theta.size()];
+        for (int i = 0; i < times.length; i++) times[i] = i * DT; // sim runs at a fixed step
         org.marsroboticsassociation.controllib.mechanism.ArmSysId.accumulateHold(
-                toArray(theta), toArray(volts), DT,
+                toArray(theta), toArray(volts), times,
                 cfg.minAngleRad, cfg.maxAngleRad, FIT, rows, rhs);
     }
 

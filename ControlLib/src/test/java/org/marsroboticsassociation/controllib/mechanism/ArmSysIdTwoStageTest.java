@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Unit test of the two-stage solver's linear algebra, independent of any simulation: build hold and
@@ -60,6 +61,45 @@ class ArmSysIdTwoStageTest {
         assertEquals(KA, r.kA, 1e-6, "kA from moving runs");
         assertEquals(KCOS, r.kCos, 1e-6, "kCos from holds");
         assertEquals(KSIN, r.kSin, 1e-6, "kSin from holds");
+    }
+
+    @Test
+    void accumulateHoldRecoversFrictionAndGravityUnderLoopJitter() {
+        // Synthetic constant-velocity holds at several speeds/directions, logged with jittered
+        // wall-clock timestamps (7–13 ms) like a real robot loop. The pooled OLS over the hold rows
+        // must recover kS, kV, kCos, kSin despite the non-uniform dt.
+        Random rng = new Random(7);
+        List<double[]> rows = new ArrayList<>();
+        List<Double> rhs = new ArrayList<>();
+        for (double w : new double[] {-2.5, -1.5, -0.75, 0.75, 1.5, 2.5}) {
+            int n = 260;
+            double[] theta = new double[n], volt = new double[n], time = new double[n];
+            double t = 0.0;
+            double th = w > 0 ? -0.4 : 3.0; // sweep across the [-1, 3.6] window
+            for (int i = 0; i < n; i++) {
+                double dt = 0.010 * (0.7 + 0.6 * rng.nextDouble());
+                t += dt;
+                th += w * dt;
+                time[i] = t;
+                theta[i] = th;
+                volt[i] = KS * Math.signum(w) + KV * w + KCOS * Math.cos(th) + KSIN * Math.sin(th);
+            }
+            ArmSysId.accumulateHold(theta, volt, time, -1.0, 3.6, ArmSysId.DEFAULT_PARAMS, rows, rhs);
+        }
+        assertTrue(rows.size() > 100, "should keep many steady samples, got " + rows.size());
+
+        // Hold rows are [sign(ω), ω, cosθ, sinθ, α]; OLS recovers [kS, kV, kCos, kSin, ~0].
+        double[] b = ArmSysId.solveOls(rows.toArray(new double[0][]), toPrimitive(rhs));
+        assertEquals(KS, b[0], 0.02, "kS");
+        assertEquals(KV, b[1], 0.02, "kV");
+        assertEquals(KCOS, b[2], 0.03, "kCos");
+        assertEquals(KSIN, b[3], 0.03, "kSin");
+    }
+
+    private static double[] toPrimitive(List<Double> list) {
+        double[] a = new double[list.size()];
+        for (int i = 0; i < a.length; i++) a[i] = list.get(i);
+        return a;
     }
 
     @Test
