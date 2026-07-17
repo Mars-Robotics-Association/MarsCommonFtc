@@ -68,23 +68,25 @@ class ArmSysIdTest {
 
     @Test
     void recoversThroughFlexFromTheMotorEncoder() {
-        // Arm structural flex on top of the lash. The steady one-directional runs keep the flex
-        // spring at its quasi-static deflection, so kV and kA (what the model-based controller
-        // needs for damping/inertia) still come out usable. But the encoder measures the MOTOR
-        // angle while gravity acts on the tip hanging a flex-deflection (~3 deg here) plus the
-        // lash below it: the gravity regressor is angle-shifted, so kCos is underestimated and the
-        // direction-dependent part of the shift is misattributed to kS. That bias is real — a
-        // robot with a flexy arm biases its sysid the same way — so this asserts the honest
-        // envelope rather than tight recovery.
+        // Arm structural flex on top of the lash — the case that used to bias the fit: the encoder
+        // measures the MOTOR angle while gravity acts at the arm, offset by the lash and the flex
+        // deflection. The direction-split hold columns absorb the ±half-lash offset (instead of
+        // dumping it into kS), the hold-side kV ships (quasi-static, flex-immune), and the run
+        // intervals span whole flex periods so the ring cancels out of kA. Tolerances here are
+        // tight on purpose: they lock in the de-biased fit.
         ArmPlantConfig cfg = new ArmPlantConfig(); // kA=0.35, kG=3.5, flex 3 Hz zeta 0.03
         ArmSysId.Result r = ArmSysId.characterize(cfg, ArmEngine.PlantKind.FLEX);
-        System.out.printf("sysid(flex 3Hz): kS=%.3f kV=%.3f kA=%.3f kCos=%.3f R2=%.4f%n",
-                r.kS, r.kV, r.kA, r.kCos, r.rSquared);
+        System.out.printf(
+                "sysid(flex 3Hz): kS=%.3f kV=%.3f kA=%.3f kCos=%.3f R2=%.4f "
+                        + "kVhold=%.3f kVrun=%.3f halfLash=%.2fdeg%n",
+                r.kS, r.kV, r.kA, r.kCos, r.rSquared,
+                r.kVHold, r.kVRun, Math.toDegrees(r.halfLashRad));
         assertTrue(r.rSquared > 0.99, "fit through flex should still be strong, R2=" + r.rSquared);
-        assertEquals(1.2, r.kV, 1.2 * 0.15, "kV recovered through flex within 15%");
-        assertEquals(0.35, r.kA, 0.35 * 0.20, "kA recovered through flex within 20%");
-        assertEquals(3.5, r.kCos, 3.5 * 0.25,
-                "gravity through flex is underestimated by the tip deflection but stays in the ballpark");
+        assertEquals(0.3, r.kS, 0.10, "kS through flex must not inflate (anti-braking bias)");
+        assertEquals(1.2, r.kV, 1.2 * 0.08, "kV recovered through flex within 8% (hold-side)");
+        assertEquals(0.35, r.kA, 0.35 * 0.15, "kA recovered through flex within 15%");
+        assertEquals(3.5, r.kCos, 3.5 * 0.10, "gravity recovered through flex within 10%");
+        assertTrue(!Double.isNaN(r.kVHold), "hold-side kV should be pinned by the speed sweep");
     }
 
     @Test

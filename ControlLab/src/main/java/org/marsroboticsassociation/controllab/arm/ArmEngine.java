@@ -429,9 +429,21 @@ public class ArmEngine {
         ffKs = r.kS; ffKg = r.kCos; ffKv = r.kV; ffKa = r.kA;
         mechGains.kS = r.kS; mechGains.kV = r.kV; mechGains.kA = r.kA;
         mechGains.kCos = r.kCos; mechGains.kSin = r.kSin;
-        recordEvent(String.format(java.util.Locale.US,
+        StringBuilder event = new StringBuilder(String.format(java.util.Locale.US,
                 "sysid applied kS=%.3f kV=%.3f kA=%.4f kCos=%.3f kSin=%.3f",
                 r.kS, r.kV, r.kA, r.kCos, r.kSin));
+        if (!Double.isNaN(r.kVHold)) {
+            event.append(String.format(java.util.Locale.US,
+                    " kVhold=%.3f kVrun=%.3f", r.kVHold, r.kVRun));
+        }
+        if (!Double.isNaN(r.halfLashRad)) {
+            event.append(String.format(java.util.Locale.US,
+                    " halfLash=%.2fdeg", Math.toDegrees(r.halfLashRad)));
+        }
+        if (r.kVDisagreement() > 0.10) {
+            event.append(" [warn: hold/run kV disagree - flex/lash contamination of runs]");
+        }
+        recordEvent(event.toString());
         switch (type) {
             case ARM_PD:
             case ARM_LQR:

@@ -343,6 +343,7 @@ public class ArmTab extends JPanel {
         final double plantKv = engine.getPlantKv();
         final double plantKa = engine.getPlantKa();
         final double plantKg = engine.getPlantKg();
+        final double plantHalfLash = engine.getBacklashRad() / 2.0;
 
         SwingWorker<ArmSysId.Result, Void> worker = new SwingWorker<ArmSysId.Result, Void>() {
             @Override
@@ -354,7 +355,8 @@ public class ArmTab extends JPanel {
             protected void done() {
                 try {
                     ArmSysId.Result r = get();
-                    presentSysIdResult(r, plantKind, plantKs, plantKv, plantKa, plantKg);
+                    presentSysIdResult(r, plantKind, plantKs, plantKv, plantKa, plantKg,
+                            plantHalfLash);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException ex) {
@@ -374,10 +376,25 @@ public class ArmTab extends JPanel {
     }
 
     private void presentSysIdResult(ArmSysId.Result r, ArmEngine.PlantKind plantKind,
-                                    double plantKs, double plantKv, double plantKa, double plantKg) {
+                                    double plantKs, double plantKv, double plantKa, double plantKg,
+                                    double plantHalfLash) {
         String plant = plantKind == ArmEngine.PlantKind.RIGID
                 ? "rigid plant"
                 : plantKind.toString().toLowerCase() + " plant (motor-side encoder)";
+        String kvDetail = Double.isNaN(r.kVHold)
+                ? ""
+                : String.format(
+                        "<tr><td>kV hold / run</td><td>%.3f / %.3f</td><td></td></tr>",
+                        r.kVHold, r.kVRun);
+        String lashDetail = Double.isNaN(r.halfLashRad)
+                ? ""
+                : String.format(
+                        "<tr><td>half-lash</td><td>%.2f°</td><td>%.2f°</td></tr>",
+                        Math.toDegrees(r.halfLashRad), Math.toDegrees(plantHalfLash));
+        String warning = r.kVDisagreement() > 0.10
+                ? "<br><b>Warning:</b> hold-side and run-side kV disagree by more than 10% — "
+                        + "the moving runs look flex/lash-contaminated (the hold-side kV ships)."
+                : "";
         String msg = String.format(
                 "<html>Identified through the %s (R² = %.4f, %d samples):<br><br>"
                         + "<table cellpadding=3>"
@@ -387,13 +404,15 @@ public class ArmTab extends JPanel {
                         + "<tr><td>kA</td><td>%.3f</td><td>%.3f</td></tr>"
                         + "<tr><td>kCos (kG)</td><td>%.3f</td><td>%.3f</td></tr>"
                         + "<tr><td>kSin</td><td>%.3f</td><td>%.3f</td></tr>"
-                        + "</table><br>Apply these to the controller model?</html>",
+                        + "%s%s"
+                        + "</table>%s<br>Apply these to the controller model?</html>",
                 plant, r.rSquared, r.samples,
                 r.kS, plantKs,
                 r.kV, plantKv,
                 r.kA, plantKa,
                 r.kCos, plantKg,
-                r.kSin, 0.0);
+                r.kSin, 0.0,
+                kvDetail, lashDetail, warning);
         int choice = JOptionPane.showConfirmDialog(this, msg, "SysID Result",
                 JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (choice != JOptionPane.YES_OPTION) return;

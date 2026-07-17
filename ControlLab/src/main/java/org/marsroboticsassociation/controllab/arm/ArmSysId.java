@@ -51,6 +51,12 @@ public final class ArmSysId {
     public static final class Result {
         public final double kS, kV, kA, kCos, kSin, rSquared;
         public final int samples;
+        /** Hold-stage kV (quasi-static, flex-immune); NaN when the holds could not pin it. */
+        public final double kVHold;
+        /** Run-stage kV cross-check from the moving fit. */
+        public final double kVRun;
+        /** Backlash half-angle (rad) implied by the direction-split hold fit; NaN if unavailable. */
+        public final double halfLashRad;
 
         Result(org.marsroboticsassociation.controllib.mechanism.ArmSysId.Result r) {
             this.kS = r.kS;
@@ -60,14 +66,20 @@ public final class ArmSysId {
             this.kSin = r.kSin;
             this.rSquared = r.rSquared;
             this.samples = r.samples;
+            this.kVHold = r.kVHold;
+            this.kVRun = r.kVRun;
+            this.halfLashRad = r.halfLashRad;
+        }
+
+        /** |kVHold − kVRun| / kV; beyond ~10% flags flex/lash contamination of the moving runs. */
+        public double kVDisagreement() {
+            return Math.abs(kVHold - kVRun) / Math.max(Math.abs(kV), 1e-9);
         }
     }
 
     private static final double DT = 0.01;           // 100 Hz logging
     private static final int RUN_STEPS = 90;         // 0.9 s per run
     private static final double HUB = ArmEngine.HUB_VOLTAGE;
-    private static final org.marsroboticsassociation.controllib.mechanism.ArmSysId.FitParams FIT =
-            org.marsroboticsassociation.controllib.mechanism.ArmSysId.DEFAULT_PARAMS;
 
     // Constant-velocity holds (identify kS/kV/kCos/kSin quasi-statically; see velocitySweep).
     private static final double[] SWEEP_SPEEDS = {0.75, 1.5, 2.25, 3.0}; // rad/s, both directions
@@ -105,6 +117,12 @@ public final class ArmSysId {
         double ticksPerRad = cfg.ticksPerRad();
         double lo = cfg.minAngleRad, hi = cfg.maxAngleRad, span = hi - lo;
         double bottom = lo + 0.05 * span, top = hi - 0.05 * span, mid = lo + 0.55 * span;
+        // Flex-aware fit windows: through the flex plant the structural period is known from the
+        // config, so run intervals span whole periods and the ring cancels out of the kA fit.
+        var fit = new org.marsroboticsassociation.controllib.mechanism.ArmSysId.FitParams();
+        if (kind == ArmEngine.PlantKind.FLEX && cfg.flexHz > 0) {
+            fit.flexPeriodSec = 1.0 / cfg.flexHz;
+        }
         // Gravity peaks at horizontals (cos θ = ±1). On an over-the-top workspace those are 0 and
         // +π, not the span midpoint (often upright). Seed extra runs from every horizontal that
         // sits clear of the hard stops so kS/kCos stay identifiable.
@@ -116,32 +134,34 @@ public final class ArmSysId {
         List<double[]> movingRows = new ArrayList<>();
         List<Double> movingRhs = new ArrayList<>();
         for (double p : new double[]{0.45, 0.60, 0.80, 0.95}) {
-            runRun(cfg, ticksPerRad, bottom, p, kind, movingRows, movingRhs);
+            runRun(cfg, ticksPerRad, bottom, p, kind, fit, movingRows, movingRhs);
         }
         for (double p : new double[]{-0.45, -0.60, -0.80, -0.95}) {
-            runRun(cfg, ticksPerRad, top, p, kind, movingRows, movingRhs);
+            runRun(cfg, ticksPerRad, top, p, kind, fit, movingRows, movingRhs);
         }
         for (double start : gravityStarts) {
-            runRun(cfg, ticksPerRad, start, 0.70, kind, movingRows, movingRhs);
-            runRun(cfg, ticksPerRad, start, -0.70, kind, movingRows, movingRhs);
+            runRun(cfg, ticksPerRad, start, 0.70, kind, fit, movingRows, movingRhs);
+            runRun(cfg, ticksPerRad, start, -0.70, kind, fit, movingRows, movingRhs);
         }
 
         // Stage 1 data: constant-velocity holds at several speeds, both directions.
         List<double[]> holdRows = new ArrayList<>();
         List<Double> holdRhs = new ArrayList<>();
         for (double speed : SWEEP_SPEEDS) {
-            velocityHold(cfg, ticksPerRad, kind, +speed, holdRows, holdRhs);
-            velocityHold(cfg, ticksPerRad, kind, -speed, holdRows, holdRhs);
+            velocityHold(cfg, ticksPerRad, kind, +speed, fit, holdRows, holdRhs);
+            velocityHold(cfg, ticksPerRad, kind, -speed, fit, holdRows, holdRhs);
         }
 
         return new Result(
                 org.marsroboticsassociation.controllib.mechanism.ArmSysId.solveTwoStage(
-                        holdRows, holdRhs, movingRows, movingRhs));
+                        fit, holdRows, holdRhs, movingRows, movingRhs));
     }
 
     /** One constant-power run: log position, then stack integrated-dynamics equations. */
     private static void runRun(ArmPlantConfig cfg, double ticksPerRad, double startRad, double power,
-                               ArmEngine.PlantKind kind, List<double[]> rows, List<Double> rhs) {
+                               ArmEngine.PlantKind kind,
+                               org.marsroboticsassociation.controllib.mechanism.ArmSysId.FitParams fit,
+                               List<double[]> rows, List<Double> rhs) {
         int n = RUN_STEPS;
         double[] theta = new double[n];
         // Clean encoders throughout: isolate the plant (lash/flex) effect from read-timing jitter.
@@ -152,7 +172,7 @@ public final class ArmSysId {
         }
         double v = power * HUB;
         org.marsroboticsassociation.controllib.mechanism.ArmSysId.accumulateRun(
-                theta, v, DT, cfg.minAngleRad, cfg.maxAngleRad, FIT, rows, rhs);
+                theta, v, DT, cfg.minAngleRad, cfg.maxAngleRad, fit, rows, rhs);
     }
 
     /**
@@ -163,9 +183,11 @@ public final class ArmSysId {
      * arm: same angle + voltage log, same accumulate call.
      */
     private static void velocityHold(ArmPlantConfig cfg, double ticksPerRad, ArmEngine.PlantKind kind,
-                                     double targetVel, List<double[]> rows, List<Double> rhs) {
-        double start = targetVel > 0 ? cfg.minAngleRad + FIT.stopMarginRad
-                : cfg.maxAngleRad - FIT.stopMarginRad;
+                                     double targetVel,
+                                     org.marsroboticsassociation.controllib.mechanism.ArmSysId.FitParams fit,
+                                     List<double[]> rows, List<Double> rhs) {
+        double start = targetVel > 0 ? cfg.minAngleRad + fit.stopMarginRad
+                : cfg.maxAngleRad - fit.stopMarginRad;
         SimHandle sim = newSim(cfg, ticksPerRad, kind, start);
         List<Double> theta = new ArrayList<>();
         List<Double> volts = new ArrayList<>();
@@ -178,8 +200,8 @@ public final class ArmSysId {
             double pos = sim.posRad();
             // Stop once the sweep reaches the far hard-stop margin (accumulateHold discards those
             // samples anyway); until then log every step.
-            if (targetVel > 0 ? pos > cfg.maxAngleRad - FIT.stopMarginRad
-                    : pos < cfg.minAngleRad + FIT.stopMarginRad) {
+            if (targetVel > 0 ? pos > cfg.maxAngleRad - fit.stopMarginRad
+                    : pos < cfg.minAngleRad + fit.stopMarginRad) {
                 if (!theta.isEmpty()) break;
             }
             theta.add(pos);
@@ -189,7 +211,7 @@ public final class ArmSysId {
         for (int i = 0; i < times.length; i++) times[i] = i * DT; // sim runs at a fixed step
         org.marsroboticsassociation.controllib.mechanism.ArmSysId.accumulateHold(
                 toArray(theta), toArray(volts), times,
-                cfg.minAngleRad, cfg.maxAngleRad, FIT, rows, rhs);
+                cfg.minAngleRad, cfg.maxAngleRad, fit, rows, rhs);
     }
 
     private static double[] toArray(List<Double> list) {
