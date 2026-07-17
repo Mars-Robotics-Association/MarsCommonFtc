@@ -41,6 +41,11 @@ class MechanismArmAdapter implements ArmControlAdapter {
         // arrival swing constrains braking, not starting). Equal by default.
         double maxDecel = 8.0;
         double maxJerk = 24.0;
+        // Taper the kS feedforward to zero as the profile decelerates below this speed into an
+        // arrival. Motor-side sysid through the lash + flex biases kS high (the friction-flex
+        // deflection is collinear with sign(v)), and a too-large kS is an anti-braking term that
+        // reintroduces arrival overshoot; the taper caps that. 0 disables it.
+        double staticFrictionTaperVelocity = 1.0;
         double feedbackVoltageMargin = 1.5;
         double velocityLagSec = 0.025;
         double modelAccelStdDev = 5.0;
@@ -81,6 +86,7 @@ class MechanismArmAdapter implements ArmControlAdapter {
                 model, gains.kP, gains.kI, gains.kD,
                 gains.maxVel, gains.maxAccel, gains.maxDecel, gains.maxJerk,
                 gains.feedbackVoltageMargin, initialPosRad);
+        controller.setStaticFrictionTaperVelocity(gains.staticFrictionTaperVelocity);
         applyRestCompensation();
         ekf = new MotorMechanismEkf(
                 model, gains.velocityLagSec, gains.modelAccelStdDev,

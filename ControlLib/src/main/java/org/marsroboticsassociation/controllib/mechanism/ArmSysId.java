@@ -31,6 +31,15 @@ import java.util.List;
  * sim), then {@link #solve}. ControlLab's simulated battery and the on-robot
  * {@code ArmSysIdTuning} OpMode both use this path.
  *
+ * <p><b>Through a lashy/flexy drivetrain</b>, prefer the two-stage path: friction and gravity
+ * from constant-velocity holds ({@link #accumulateHold}) plus inertia from the moving runs,
+ * combined by {@link #solveTwoStage}. A hard-accelerating run through the lash and flex inflates
+ * {@code kS} — the direction-flipping flex/lash deflection is collinear with the {@code sign(ω)}
+ * regressor — and that over-estimate becomes an anti-braking feedforward term that reintroduces
+ * arrival overshoot. Holding a steady speed keeps {@code α ≈ 0}, starving that bias. Same logging
+ * (angle + voltage) as {@link #accumulateRun}; the caller just drives a held speed instead of a
+ * constant voltage.
+ *
  * @see ArmModel
  */
 public final class ArmSysId {
@@ -98,6 +107,12 @@ public final class ArmSysId {
         public int[] intervalLens = {8, 16, 30};
         /** Stride between interval starts (samples). */
         public int stride = 4;
+        /**
+         * A constant-velocity hold sample counts as steady (quasi-static) only when {@code |α|} is
+         * below this, so the flex sits at its quasi-static deflection and there is no {@code kA·α}
+         * term to bias {@code kS}. See {@link #accumulateHold}.
+         */
+        public double holdAccelGate = 1.0;
     }
 
     public static final FitParams DEFAULT_PARAMS = new FitParams();
@@ -224,6 +239,111 @@ public final class ArmSysId {
                 rhs.add(iV);
             }
         }
+    }
+
+    /**
+     * Stack quasi-static rows from one <b>constant-velocity hold</b> into the friction/gravity
+     * system. Where {@link #accumulateRun} excites {@code kA} with acceleration, a hold suppresses
+     * it: at a steady speed {@code α ≈ 0}, so each sample obeys {@code V = kS·sign(ω) + kV·ω +
+     * kCos·cosθ + kSin·sinθ} and the flex spring sits at its quasi-static deflection. That is what
+     * keeps a lashy/flexy drivetrain from inflating {@code kS} — the direction-flipping flex/lash
+     * bias a hard-accelerating run pumps into the {@code sign(ω)} regressor is starved here.
+     *
+     * <p>Velocity and acceleration are recovered from the position log (local quadratic fit, then a
+     * central difference), so the caller only logs angle and applied voltage — exactly like {@link
+     * #accumulateRun}, just driven at a held speed instead of a constant voltage. Only steady
+     * samples (|α| under {@link FitParams#holdAccelGate}, |ω| above {@link FitParams#minSpeedRad},
+     * clear of the stops) are kept; each becomes a row {@code [sign(ω), ω, cosθ, sinθ, α]} with the
+     * applied voltage as its right-hand side. Feed the accumulated rows to {@link #solveTwoStage}.
+     *
+     * @param thetaRad equally-spaced arm angles over the hold (rad)
+     * @param voltage  per-sample applied voltage sustaining the hold (volts)
+     * @param dt       sample period (seconds)
+     * @param rows     feature rows {@code [sign(ω), ω, cosθ, sinθ, α]} (appended)
+     * @param rhs      right-hand side (applied voltage) (appended)
+     */
+    public static void accumulateHold(
+            double[] thetaRad,
+            double[] voltage,
+            double dt,
+            double minAngleRad,
+            double maxAngleRad,
+            FitParams params,
+            List<double[]> rows,
+            List<Double> rhs) {
+        int n = thetaRad.length;
+        if (n < 2 * params.velHalf + 3 || voltage.length != n) {
+            return;
+        }
+        double[] w = new double[n];
+        for (int i = 0; i < n; i++) {
+            w[i] = localVelocity(thetaRad, i, n, dt, params.velHalf);
+        }
+        for (int i = params.velHalf + 1; i < n - params.velHalf - 1; i++) {
+            double accel = (w[i + 1] - w[i - 1]) / (2 * dt);
+            if (Math.abs(w[i]) < params.minSpeedRad
+                    || Math.abs(accel) > params.holdAccelGate
+                    || thetaRad[i] < minAngleRad + params.stopMarginRad
+                    || thetaRad[i] > maxAngleRad - params.stopMarginRad) {
+                continue;
+            }
+            rows.add(new double[] {
+                Math.signum(w[i]), w[i], Math.cos(thetaRad[i]), Math.sin(thetaRad[i]), accel
+            });
+            rhs.add(voltage[i]);
+        }
+    }
+
+    /**
+     * Two-stage fit that splits each parameter to the data that identifies it cleanly.
+     *
+     * <p><b>Stage 1 — {@code kS} and gravity from the holds.</b> An OLS over the {@link
+     * #accumulateHold} rows yields {@code kS, kCos, kSin}. These are the terms a hard-accelerating
+     * run through the lash + flex corrupts: the direction-flipping friction/lash deflection is
+     * collinear with the {@code sign(ω)} regressor, so it lands in {@code kS} and biases gravity.
+     * The quasi-static holds (α ≈ 0) starve that bias. (The rows also carry an {@code ω} column and
+     * an {@code α} nuisance column so the intercept is clean; both fitted coefficients are discarded
+     * here — {@code kV} is better taken from the moving runs, where speed varies over a wide range.)
+     *
+     * <p><b>Stage 2 — {@code kV} and {@code kA} from the moving runs.</b> With {@code kS} and gravity
+     * subtracted, each {@link #accumulateRun} row reduces to {@code kV·Δθ + kA·Δω}; a 2-parameter OLS
+     * over {@code (Δθ, Δω)} recovers both, where they are well-excited (a wide speed range and hard
+     * onsets) and mutually separable — so {@code kA} does not inherit any hold-side {@code kV} error.
+     * The reported {@code rSquared} is over the moving rows.
+     *
+     * <p>Falls back to a plain {@link #solve} on the moving rows if there are too few hold rows.
+     *
+     * @param holdRows   rows from {@link #accumulateHold}
+     * @param holdRhs    their right-hand sides
+     * @param movingRows rows from {@link #accumulateRun}
+     * @param movingRhs  their right-hand sides
+     */
+    public static Result solveTwoStage(
+            List<double[]> holdRows,
+            List<Double> holdRhs,
+            List<double[]> movingRows,
+            List<Double> movingRhs) {
+        if (holdRows.size() < 5 || movingRows.size() < 2) {
+            return solve(movingRows, movingRhs);
+        }
+        double[] s1 = solveOls(holdRows.toArray(new double[0][]), toArray(holdRhs));
+        double kS = s1[0], kCos = s1[2], kSin = s1[3]; // s1[1] (ω) and s1[4] (α) discarded
+
+        // Stage 2: kV and kA together from the moving runs, with kS and gravity removed.
+        double[][] x2 = new double[movingRows.size()][2]; // [Δθ, Δω]
+        double[] y2 = new double[movingRows.size()];
+        for (int i = 0; i < movingRows.size(); i++) {
+            double[] xi = movingRows.get(i); // [sign·Δt, Δθ, Δω, ∫cos, ∫sin]
+            x2[i][0] = xi[1];
+            x2[i][1] = xi[2];
+            y2[i] = movingRhs.get(i) - kS * xi[0] - kCos * xi[3] - kSin * xi[4];
+        }
+        double[] s2 = solveOls(x2, y2);
+        double kV = s2[0], kA = s2[1];
+
+        double r2 = rSquared(movingRows.toArray(new double[0][]), toArray(movingRhs),
+                new double[] {kS, kV, kA, kCos, kSin});
+        return new Result(kS, kV, kA, kCos, kSin, r2, holdRows.size() + movingRows.size());
     }
 
     /**

@@ -48,7 +48,21 @@ public abstract class MechanismModel {
 
     /** Inverse dynamics: the voltage a desired motion needs (the feedforward term). */
     public double feedforwardVoltage(double position, double velocity, double acceleration) {
-        return kS * Math.signum(velocity)
+        return feedforwardVoltage(position, velocity, acceleration, 1.0);
+    }
+
+    /**
+     * Inverse dynamics with the static-friction term scaled by {@code staticFrictionScale} (in
+     * [0, 1]). {@code kS} is the y-intercept of the voltage-versus-velocity line extrapolated from
+     * the moving regime; near a zero-crossing that extrapolation stops describing the mechanism
+     * (stiction, not the kinetic intercept, governs there), and on a lashy/flexy drivetrain motor-
+     * side identification biases {@code kS} high. Scaling it toward zero as the setpoint decelerates
+     * into an arrival keeps an over-estimate from fighting the brake. The rest of the feedforward is
+     * unchanged. See {@link MotorMechanismController} for the taper policy.
+     */
+    public double feedforwardVoltage(
+            double position, double velocity, double acceleration, double staticFrictionScale) {
+        return staticFrictionScale * kS * Math.signum(velocity)
                 + kV * velocity
                 + kA * acceleration
                 + gravityVoltage(position);

@@ -7,25 +7,35 @@ import org.marsroboticsassociation.controllib.sim.FlexArmMotorSim;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.DoubleSupplier;
+import java.util.function.IntSupplier;
 
 /**
- * Simulated system-identification for the arm. It drives a fresh plant built from the config with a
- * battery of known-voltage runs across the travel, logs the motor-side encoder, and recovers the arm
- * feedforward model via {@link org.marsroboticsassociation.controllib.mechanism.ArmSysId}
- * (integrated equation of motion).
+ * Simulated system-identification for the arm. It drives a fresh plant built from the config, logs
+ * the motor-side encoder, and recovers the arm feedforward model via
+ * {@link org.marsroboticsassociation.controllib.mechanism.ArmSysId}.
  *
  * <pre>
  *   V = kS*sign(w) + kV*w + kA*(dw/dt) + kCos*cos(theta) + kSin*sin(theta)
  * </pre>
  *
+ * <p><b>Two-stage battery.</b> Friction and gravity ({@code kS, kV, kCos, kSin}) come from
+ * constant-velocity holds and inertia ({@code kA}) from constant-power runs, combined by
+ * {@link org.marsroboticsassociation.controllib.mechanism.ArmSysId#solveTwoStage}. The holds are
+ * what make {@code kS} survive a lashy/flexy drivetrain: at a steady speed the acceleration is ~ 0,
+ * so the flex sits at its quasi-static deflection and the direction-flipping flex/lash bias that a
+ * hard-accelerating run pumps into {@code kS} is starved. (A single-stage constant-power sysid
+ * through the lash + flex instead inflates {@code kS}, and that over-estimate is an anti-braking
+ * feedforward term that reintroduces arrival overshoot.) The holds here are driven by a PI velocity
+ * loop over the sim; on a real robot the {@code ArmSysIdTuning} OpMode drives the same holds and
+ * feeds {@link org.marsroboticsassociation.controllib.mechanism.ArmSysId#accumulateHold} the same
+ * angle + voltage log.
+ *
  * <p><b>Plant choice.</b> {@link #characterize(ArmPlantConfig)} uses a rigid {@link ArmMotorSim}.
  * {@link #characterize(ArmPlantConfig, ArmEngine.PlantKind)} selects the two-inertia
  * {@link BacklashArmMotorSim} or the three-inertia {@link FlexArmMotorSim} and logs the
  * <em>motor-side</em> encoder — the realistic case for a robot with an unavoidable lashy (and
- * flexy) drivetrain. Steady one-directional runs keep the teeth engaged and the flex spring
- * quasi-static, so the motor encoder still sees the coupled inertia and gravity and the fit holds.
- * Identified {@code kA} is what the model-based controller needs when the true plant is heavier or
- * lashier than the hand-tuned model.
+ * flexy) drivetrain.
  */
 public final class ArmSysId {
 
@@ -58,6 +68,15 @@ public final class ArmSysId {
     private static final double HUB = ArmEngine.HUB_VOLTAGE;
     private static final org.marsroboticsassociation.controllib.mechanism.ArmSysId.FitParams FIT =
             org.marsroboticsassociation.controllib.mechanism.ArmSysId.DEFAULT_PARAMS;
+
+    // Constant-velocity holds (identify kS/kV/kCos/kSin quasi-statically; see velocitySweep).
+    private static final double[] SWEEP_SPEEDS = {0.75, 1.5, 2.25, 3.0}; // rad/s, both directions
+    private static final int SWEEP_MAX_STEPS = 500;  // 5 s cap per hold
+    private static final double SWEEP_KP = 8.0;      // velocity-hold P gain, V per rad/s: saturates
+    // warmup so the hold reaches speed early and sweeps a wide angle band (heavy inertia otherwise
+    // burns the whole travel getting up to the higher speeds); steady samples are picked by
+    // accumulateHold's acceleration gate, so a bit of warmup in the log is harmless
+    private static final double SWEEP_KI = 20.0;     // velocity-hold I gain, V per rad
 
     /** Run the characterization against a rigid plant built from {@code cfg}. */
     public static Result characterize(ArmPlantConfig cfg) {
@@ -92,24 +111,32 @@ public final class ArmSysId {
         double margin = 0.08 * span;
         double[] gravityStarts = gravityRichStarts(lo, hi, margin, mid);
 
-        List<double[]> rows = new ArrayList<>();
-        List<Double> rhs = new ArrayList<>();
-
-        // Moderate runs (rich angle sweep at near-terminal velocity) in both directions, plus hard
-        // steps from rest whose onset makes Δw large (exciting kA), plus gravity-rich starts.
+        // Stage 2 data: constant-power runs (rich angle sweep at near-terminal velocity) in both
+        // directions, plus hard steps from rest whose onset makes Δw large (exciting kA).
+        List<double[]> movingRows = new ArrayList<>();
+        List<Double> movingRhs = new ArrayList<>();
         for (double p : new double[]{0.45, 0.60, 0.80, 0.95}) {
-            runRun(cfg, ticksPerRad, bottom, p, kind, rows, rhs);
+            runRun(cfg, ticksPerRad, bottom, p, kind, movingRows, movingRhs);
         }
         for (double p : new double[]{-0.45, -0.60, -0.80, -0.95}) {
-            runRun(cfg, ticksPerRad, top, p, kind, rows, rhs);
+            runRun(cfg, ticksPerRad, top, p, kind, movingRows, movingRhs);
         }
         for (double start : gravityStarts) {
-            runRun(cfg, ticksPerRad, start, 0.70, kind, rows, rhs);
-            runRun(cfg, ticksPerRad, start, -0.70, kind, rows, rhs);
+            runRun(cfg, ticksPerRad, start, 0.70, kind, movingRows, movingRhs);
+            runRun(cfg, ticksPerRad, start, -0.70, kind, movingRows, movingRhs);
+        }
+
+        // Stage 1 data: constant-velocity holds at several speeds, both directions.
+        List<double[]> holdRows = new ArrayList<>();
+        List<Double> holdRhs = new ArrayList<>();
+        for (double speed : SWEEP_SPEEDS) {
+            velocityHold(cfg, ticksPerRad, kind, +speed, holdRows, holdRhs);
+            velocityHold(cfg, ticksPerRad, kind, -speed, holdRows, holdRhs);
         }
 
         return new Result(
-                org.marsroboticsassociation.controllib.mechanism.ArmSysId.solve(rows, rhs));
+                org.marsroboticsassociation.controllib.mechanism.ArmSysId.solveTwoStage(
+                        holdRows, holdRhs, movingRows, movingRhs));
     }
 
     /** One constant-power run: log position, then stack integrated-dynamics equations. */
@@ -118,6 +145,72 @@ public final class ArmSysId {
         int n = RUN_STEPS;
         double[] theta = new double[n];
         // Clean encoders throughout: isolate the plant (lash/flex) effect from read-timing jitter.
+        SimHandle sim = newSim(cfg, ticksPerRad, kind, startRad);
+        for (int i = 0; i < n; i++) {
+            sim.step(DT, power);
+            theta[i] = sim.posRad();
+        }
+        double v = power * HUB;
+        org.marsroboticsassociation.controllib.mechanism.ArmSysId.accumulateRun(
+                theta, v, DT, cfg.minAngleRad, cfg.maxAngleRad, FIT, rows, rhs);
+    }
+
+    /**
+     * One constant-velocity hold: a PI loop on velocity error sweeps the arm across the travel at a
+     * held {@code targetVel}, logging motor-encoder angle and the applied voltage that sustains it.
+     * The log is handed to {@link org.marsroboticsassociation.controllib.mechanism.ArmSysId#accumulateHold},
+     * which keeps only the steady (α ≈ 0) samples. Mirrors what the on-robot OpMode does with a real
+     * arm: same angle + voltage log, same accumulate call.
+     */
+    private static void velocityHold(ArmPlantConfig cfg, double ticksPerRad, ArmEngine.PlantKind kind,
+                                     double targetVel, List<double[]> rows, List<Double> rhs) {
+        double start = targetVel > 0 ? cfg.minAngleRad + FIT.stopMarginRad
+                : cfg.maxAngleRad - FIT.stopMarginRad;
+        SimHandle sim = newSim(cfg, ticksPerRad, kind, start);
+        List<Double> theta = new ArrayList<>();
+        List<Double> volts = new ArrayList<>();
+        double integral = 0;
+        for (int i = 0; i < SWEEP_MAX_STEPS; i++) {
+            double err = targetVel - sim.velRad();
+            integral += err * DT;
+            double power = Math.max(-1.0, Math.min(1.0, (SWEEP_KP * err + SWEEP_KI * integral) / HUB));
+            sim.step(DT, power);
+            double pos = sim.posRad();
+            // Stop once the sweep reaches the far hard-stop margin (accumulateHold discards those
+            // samples anyway); until then log every step.
+            if (targetVel > 0 ? pos > cfg.maxAngleRad - FIT.stopMarginRad
+                    : pos < cfg.minAngleRad + FIT.stopMarginRad) {
+                if (!theta.isEmpty()) break;
+            }
+            theta.add(pos);
+            volts.add(power * HUB);
+        }
+        org.marsroboticsassociation.controllib.mechanism.ArmSysId.accumulateHold(
+                toArray(theta), toArray(volts), DT,
+                cfg.minAngleRad, cfg.maxAngleRad, FIT, rows, rhs);
+    }
+
+    private static double[] toArray(List<Double> list) {
+        double[] a = new double[list.size()];
+        for (int i = 0; i < a.length; i++) a[i] = list.get(i);
+        return a;
+    }
+
+    /** A uniform driver over the three plant sims, in the mechanism's motor-encoder frame. */
+    private interface SimHandle {
+        void step(double dt, double power);
+        double posRad();
+        double velRad();
+    }
+
+    /** A sim's {@code step(dt, power, hubVoltage)}. */
+    private interface Stepper {
+        void step(double dt, double power, double hubVoltage);
+    }
+
+    /** Build a {@link SimHandle} for the plant kind, seeded at {@code startRad} with a clean encoder. */
+    private static SimHandle newSim(ArmPlantConfig cfg, double ticksPerRad,
+                                    ArmEngine.PlantKind kind, double startRad) {
         switch (kind) {
             case FLEX: {
                 FlexArmMotorSim sim = new FlexArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
@@ -125,22 +218,16 @@ public final class ArmSysId {
                         cfg.minAngleRad, cfg.maxAngleRad, startRad, cfg.backlashRad,
                         cfg.flexHz, cfg.flexZeta);
                 sim.setEncoder(new EncoderSim());
-                for (int i = 0; i < n; i++) {
-                    sim.step(DT, power, HUB);
-                    theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
-                }
-                break;
+                return handle(sim::step, sim::getPositionTicks, sim::getVelocityTps, ticksPerRad,
+                        cfg.encoderZeroOffsetRad);
             }
             case BACKLASH: {
                 BacklashArmMotorSim sim = new BacklashArmMotorSim(cfg.kS, cfg.kG, cfg.kV, cfg.kA,
                         cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
                         cfg.minAngleRad, cfg.maxAngleRad, startRad, cfg.backlashRad);
                 sim.setEncoder(new EncoderSim());
-                for (int i = 0; i < n; i++) {
-                    sim.step(DT, power, HUB);
-                    theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
-                }
-                break;
+                return handle(sim::step, sim::getPositionTicks, sim::getVelocityTps, ticksPerRad,
+                        cfg.encoderZeroOffsetRad);
             }
             case RIGID:
             default: {
@@ -148,16 +235,20 @@ public final class ArmSysId {
                         cfg.ticksPerRev, cfg.gearRatio, cfg.encoderZeroOffsetRad,
                         cfg.minAngleRad, cfg.maxAngleRad, startRad);
                 sim.setEncoder(new EncoderSim());
-                for (int i = 0; i < n; i++) {
-                    sim.step(DT, power, HUB);
-                    theta[i] = sim.getPositionTicks() / ticksPerRad + cfg.encoderZeroOffsetRad;
-                }
-                break;
+                return handle(sim::step, sim::getPositionTicks, sim::getVelocityTps, ticksPerRad,
+                        cfg.encoderZeroOffsetRad);
             }
         }
-        double v = power * HUB;
-        org.marsroboticsassociation.controllib.mechanism.ArmSysId.accumulateRun(
-                theta, v, DT, cfg.minAngleRad, cfg.maxAngleRad, FIT, rows, rhs);
+    }
+
+    /** Adapt a sim's step/read methods to a {@link SimHandle} in radians. */
+    private static SimHandle handle(Stepper stepper, IntSupplier ticks, DoubleSupplier velTps,
+                                    double ticksPerRad, double offsetRad) {
+        return new SimHandle() {
+            @Override public void step(double dt, double power) { stepper.step(dt, power, HUB); }
+            @Override public double posRad() { return ticks.getAsInt() / ticksPerRad + offsetRad; }
+            @Override public double velRad() { return velTps.getAsDouble() / ticksPerRad; }
+        };
     }
 
     /**

@@ -84,6 +84,11 @@ class FlexRingTuningTest {
         ArmEngine e = new ArmEngine(ArmControllerType.MECHANISM_PIDF, 42L);
         e.setPlantKind(ArmEngine.PlantKind.FLEX);
         MechanismArmAdapter.Gains g = e.getMechGains();
+        // Isolate the profile/kD shaping this test studies: disable the static-friction taper (an
+        // orthogonal arrival lever, studied in StaticFrictionTaperTest) so its numbers reflect the
+        // jerk ramp and kD alone. With the true kS=0.3 baked in here, the taper only slightly
+        // softens braking; the arm ships it on as insurance against a sysid-inflated kS.
+        g.staticFrictionTaperVelocity = 0.0;
         e.setMechanismGains(g.kP, g.kI, c.kD, g.kS, g.kV, g.kA, g.kCos, g.kSin,
                 c.maxVel, c.maxAccel, c.maxAccel, c.maxJerk);
         return e;

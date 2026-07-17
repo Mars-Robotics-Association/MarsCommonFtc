@@ -45,6 +45,7 @@ public class MotorMechanismController {
     private double halfBacklash = 0.0;
     private double backlashTaperVolts = 0.0;
     private double restComplianceRadPerVolt = 0.0;
+    private double staticFrictionTaperVelocity = 0.0;
     private double integral = 0.0;
     private double lastVoltage = 0.0;
 
@@ -200,6 +201,27 @@ public class MotorMechanismController {
         this.restComplianceRadPerVolt = complianceRadPerVolt;
     }
 
+    /**
+     * Taper the static-friction feedforward toward zero as the setpoint decelerates below this
+     * speed, so an over-estimated {@code kS} cannot fight the brake into an arrival. The model's
+     * {@code kS} is the y-intercept of the voltage-versus-velocity line from the moving regime;
+     * that extrapolation is least valid near a zero-crossing (stiction governs there), and motor-
+     * side identification through a lashy/flexy drivetrain biases {@code kS} high (the direction-
+     * flipping friction-flex deflection is collinear with the {@code sign(v)} regressor and cannot
+     * be separated from it). The taper only bites while braking: full {@code kS} is kept when
+     * gaining speed (where it helps break free), and it ramps linearly to zero as |setpoint
+     * velocity| falls from this threshold to a stop.
+     *
+     * @param velocity speed below which a decelerating setpoint's {@code kS} feedforward tapers;
+     *     0 (the default) disables the taper (full {@code kS·sign(v)} at all times)
+     */
+    public void setStaticFrictionTaperVelocity(double velocity) {
+        if (velocity < 0) {
+            throw new IllegalArgumentException("taper velocity must be >= 0, got " + velocity);
+        }
+        this.staticFrictionTaperVelocity = velocity;
+    }
+
     /** Restart the profile from a known position at rest and clear the integrator. */
     public void reset(double position) {
         profile.reset(position);
@@ -238,9 +260,14 @@ public class MotorMechanismController {
         double setpointVelocity = profile.getVelocity();
         double setpointAcceleration = profile.getAcceleration();
 
-        // F: feedforward from the model (back-EMF aware).
+        // F: feedforward from the model (back-EMF aware), with the static-friction term tapered
+        // through an arrival so an over-estimated kS cannot fight the brake (see
+        // setStaticFrictionTaperVelocity).
+        double staticFrictionScale =
+                staticFrictionScale(setpointVelocity, setpointAcceleration);
         double feedforward =
-                model.feedforwardVoltage(setpointPosition, setpointVelocity, setpointAcceleration);
+                model.feedforwardVoltage(
+                        setpointPosition, setpointVelocity, setpointAcceleration, staticFrictionScale);
 
         // PID feedback on the profile-versus-estimate gap.
         double positionError = setpointPosition - measuredPosition;
@@ -300,6 +327,23 @@ public class MotorMechanismController {
             bias += halfBacklash * clamp(gravity / backlashTaperVolts, -1.0, 1.0);
         }
         return bias;
+    }
+
+    /**
+     * The [0, 1] scale for the static-friction feedforward this loop (see {@link
+     * #setStaticFrictionTaperVelocity}). Full {@code kS} unless the taper is enabled and the
+     * setpoint is braking (velocity and acceleration opposite in sign); while braking it ramps
+     * linearly with |velocity| from 0 at rest to 1 at the taper velocity.
+     */
+    private double staticFrictionScale(double velocity, double acceleration) {
+        if (staticFrictionTaperVelocity <= 0.0) {
+            return 1.0;
+        }
+        boolean braking = velocity * acceleration < 0.0;
+        if (!braking) {
+            return 1.0;
+        }
+        return clamp(Math.abs(velocity) / staticFrictionTaperVelocity, 0.0, 1.0);
     }
 
     private static double clamp(double value, double lo, double hi) {
