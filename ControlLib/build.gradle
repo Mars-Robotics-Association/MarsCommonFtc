@@ -1,6 +1,7 @@
 plugins {
     id 'java-library'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    // gradleup fork; 9.2.x matches Gradle 9.1 (9.6 needs newer Gradle APIs; 8.3 fails ASM remapping)
+    id 'com.gradleup.shadow' version '9.2.2'
 }
 
 java {
@@ -42,9 +43,7 @@ shadowJar {
     relocate 'org.ejml', 'controllib.shadow.org.ejml'
 
     // Keep all WpiMath classes — TeamCode uses them directly and their transitive
-    // EJML references cover the entire EJML footprint, so no further excludes needed
-    // Keep all WpiMath classes — TeamCode uses them directly and their transitive
-    // EJML references cover the entire EJML footprint, so no further excludes needed
+    // EJML references cover the entire EJML footprint, so no further excludes needed.
     minimize {
         exclude(project(':WpiMath'))
         // Keep the full com.ruckig API so TeamCode can drive the OTG directly
