@@ -264,7 +264,7 @@ public class ArmController {
      * @param dt         elapsed time in seconds since the last update
      * @param hubVoltage battery voltage in volts
      */
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "removal"})
     public void update(double dt, double hubVoltage) {
         if (dt < 1e-6) return;
 
@@ -322,7 +322,6 @@ public class ArmController {
         //    Use predicted position (not trajectory position) for gravity compensation —
         //    gravity acts at the arm's actual angle, not where the trajectory expects it.
         double nextVel = trajVel + trajAccel * dt;
-        @SuppressWarnings("removal")
         double ffVoltage = feedforward.calculate(predictedPosRad, trajVel, nextVel, dt);
 
         // 9. PD feedback
