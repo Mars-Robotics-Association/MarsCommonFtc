@@ -322,6 +322,7 @@ public class ArmController {
         //    Use predicted position (not trajectory position) for gravity compensation —
         //    gravity acts at the arm's actual angle, not where the trajectory expects it.
         double nextVel = trajVel + trajAccel * dt;
+        @SuppressWarnings("removal")
         double ffVoltage = feedforward.calculate(predictedPosRad, trajVel, nextVel, dt);
 
         // 9. PD feedback
