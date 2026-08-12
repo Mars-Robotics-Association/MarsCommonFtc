@@ -1,7 +1,9 @@
 plugins {
     id 'java'
+    id 'org.jetbrains.kotlin.jvm'
     id 'application'
 }
+
 java {
     group = 'org.marsroboticsassociation.controllab'
 
@@ -9,6 +11,11 @@ java {
         languageVersion = JavaLanguageVersion.of(17) // or 21
     }
 }
+
+kotlin {
+    jvmToolchain(17)
+}
+
 repositories {
     mavenCentral()
 }
@@ -16,6 +23,7 @@ repositories {
 dependencies {
     implementation project(':ControlLib')
     implementation project(':WpiMath')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib'
 
     implementation 'com.univocity:univocity-parsers:2.9.1'
     implementation 'org.knowm.xchart:xchart:3.8.7'

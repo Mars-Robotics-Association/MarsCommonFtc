@@ -7,7 +7,7 @@ Shared modules for MARS Robotics Association FTC teams. This repo is consumed as
 | Module | Description |
 |--------|-------------|
 | **ControlLib** | **Kotlin** motion profiling, filters, motor controllers, localization utilities, and simulation tools. Publishes a shadow JAR for use in Android projects. Depends on nested [RuckigJava](https://github.com/Mars-Robotics-Association/RuckigJava) submodule. Requires Kotlin stdlib (bundled in the shadow JAR). |
-| **ControlLab** | Desktop application (Java) for testing and visualizing ControlLib algorithms. |
+| **ControlLab** | Desktop application (**Kotlin**) for testing and visualizing ControlLib algorithms. |
 | **WpiMath** | Ported subset of WPILib's math library (Java) — geometry, kinematics, trajectory generation, and linear algebra. |
 | **RuckigJava** | Git submodule: pure-Java port of Ruckig Community OTG (currently pinned to `v0.17.3`). |
 
