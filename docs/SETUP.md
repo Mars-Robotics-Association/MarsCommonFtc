@@ -9,6 +9,39 @@ plus nested **[RuckigJava](https://github.com/Mars-Robotics-Association/RuckigJa
 - Android Studio (Ladybug or later recommended)
 - JDK 17
 
+## Pre-commit formatting (contributors)
+
+This repo uses the same git hook approach as `mars-road-runner-quickstart`: staged
+`.java` files are reformatted with **google-java-format** (AOSP / 4-space) and staged
+`.kt` files with **ktfmt** (`--kotlinlang-style` / 4-space). Formatters re-stage the
+files before the commit completes.
+
+Once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Pinned jars live under `~/.githooks` (shared across clones):
+
+| Tool | Version | Path |
+|------|---------|------|
+| google-java-format | 1.28.0 | `~/.githooks/google-java-format.jar` |
+| ktfmt | 0.64 | `~/.githooks/ktfmt.jar` |
+
+If a jar is missing, the hook prints the install `curl` command. Example:
+
+```bash
+mkdir -p "$HOME/.githooks"
+curl -fsSL -o "$HOME/.githooks/ktfmt.jar" \
+  "https://github.com/Kotlin/ktfmt/releases/download/v0.64/ktfmt-0.64-with-dependencies.jar"
+curl -fsSL -o "$HOME/.githooks/google-java-format.jar" \
+  "https://github.com/google/google-java-format/releases/download/v1.28.0/google-java-format-1.28.0-all-deps.jar"
+```
+
+Requires Java 17+ on `PATH` or `JAVA_HOME`. Override jar locations with
+`GOOGLE_JAVA_FORMAT_JAR` / `KTFMT_FORMAT_JAR` if needed.
+
 ## Adding to Your Robot Project
 
 ### SourceTree

@@ -1,0 +1,176 @@
+#!/bin/bash
+# Format staged source before commit:
+#   - Java:   google-java-format (AOSP style, 4-space)
+#   - Kotlin: ktfmt (--kotlinlang-style, 4-space)
+#
+# Same method as mars-road-runner-quickstart. Requires Java 17+ (project JDK)
+# and pinned all-deps jars under $HOME/.githooks (or override env vars below).
+#
+# Pin notes:
+#   google-java-format 1.28.0 — last release that runs on JDK 17 (1.29+ needs newer JDK)
+#   ktfmt 0.64 — needs JDK 11+; with-dependencies jar
+#
+# Set up once per clone:
+#   git config core.hooksPath .githooks
+# Download jars (if missing) with the curl commands printed when a jar is absent.
+
+set -euo pipefail
+
+# Keep in sync with preflight-check.sh / preflight-check.bat
+GJF_VERSION="1.28.0"
+GJF_URL="https://github.com/google/google-java-format/releases/download/v${GJF_VERSION}/google-java-format-${GJF_VERSION}-all-deps.jar"
+GJF_JAR="${GOOGLE_JAVA_FORMAT_JAR:-$HOME/.githooks/google-java-format.jar}"
+
+KTFMT_VERSION="0.64"
+KTFMT_URL="https://github.com/Kotlin/ktfmt/releases/download/v${KTFMT_VERSION}/ktfmt-${KTFMT_VERSION}-with-dependencies.jar"
+KTFMT_JAR="${KTFMT_FORMAT_JAR:-$HOME/.githooks/ktfmt.jar}"
+
+find_java17() {
+    is_java17() {
+        local v
+        v=$("$1" -version 2>&1 | awk -F'"' '/version/{print $2}' | cut -d. -f1)
+        [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 17 ))
+    }
+
+    if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+        is_java17 "$JAVA_HOME/bin/java" && echo "$JAVA_HOME/bin/java" && return
+    fi
+    if command -v java &>/dev/null; then
+        is_java17 "$(command -v java)" && echo "$(command -v java)" && return
+    fi
+    local dir java_bin jhome
+    for dir in \
+            "/c/Program Files/Eclipse Adoptium" \
+            "/c/Program Files/Java" \
+            "/c/Program Files/Microsoft" \
+            "/c/Program Files/BellSoft" \
+            "$HOME/.jdks" \
+            "$HOME/Library/Java/JavaVirtualMachines"; do
+        [[ -d "$dir" ]] || continue
+        for java_bin in \
+                "$dir"/jdk-1[7-9]*/bin/java \
+                "$dir"/jdk-1[7-9]*/Contents/Home/bin/java \
+                "$dir"/jdk-2[0-9]*/bin/java \
+                "$dir"/jdk-2[0-9]*/Contents/Home/bin/java \
+                "$dir"/ms-1[7-9]*/bin/java \
+                "$dir"/ms-1[7-9]*/Contents/Home/bin/java \
+                "$dir"/ms-2[0-9]*/Contents/Home/bin/java \
+                "$dir"/jbr-1[7-9]*/bin/java \
+                "$dir"/jbr-1[7-9]*/Contents/Home/bin/java \
+                "$dir"/*/Contents/Home/bin/java; do
+            [[ -x "$java_bin" ]] && is_java17 "$java_bin" && echo "$java_bin" && return
+        done
+    done
+    if [[ -x /usr/libexec/java_home ]]; then
+        # Prefer 17 (project target); fall back to any 17+
+        jhome=$(/usr/libexec/java_home -v 17 2>/dev/null) \
+            || jhome=$(/usr/libexec/java_home -v 21 2>/dev/null) \
+            || jhome=$(/usr/libexec/java_home -v 22 2>/dev/null) \
+            || true
+        if [[ -n "${jhome:-}" && -x "$jhome/bin/java" ]] && is_java17 "$jhome/bin/java"; then
+            echo "$jhome/bin/java"
+            return
+        fi
+    fi
+    for java_bin in \
+            /usr/lib/jvm/java-1[7-9]-*/bin/java \
+            /usr/lib/jvm/java-2[0-9]-*/bin/java \
+            /usr/lib/jvm/temurin-1[7-9]-*/bin/java \
+            /usr/lib/jvm/temurin-2[0-9]-*/bin/java; do
+        [[ -x "$java_bin" ]] && is_java17 "$java_bin" && echo "$java_bin" && return
+    done
+    return 1
+}
+
+# Quick self-test: newer GJF jars throw NoClassDefFoundError: JCAnyPattern on JDK 17.
+gjf_works_with_java() {
+    local java_bin="$1" jar="$2"
+    echo 'class _GjfProbe { void m() { int x = 1; } }' \
+        | "$java_bin" -jar "$jar" --aosp - >/dev/null 2>&1
+}
+
+# ktfmt accepts stdin → stdout; use that as a lightweight jar/runtime probe.
+ktfmt_works_with_java() {
+    local java_bin="$1" jar="$2"
+    echo 'fun main(){val x=1}' \
+        | "$java_bin" -jar "$jar" --kotlinlang-style - >/dev/null 2>&1
+}
+
+STAGED_JAVA=$(git diff --cached --name-only --diff-filter=ACM | grep '\.java$' || true)
+STAGED_KT=$(git diff --cached --name-only --diff-filter=ACM | grep '\.kt$' || true)
+
+[[ -z "$STAGED_JAVA" && -z "$STAGED_KT" ]] && exit 0
+
+if ! JAVA=$(find_java17); then
+    echo "error: need Java 17+ to run source formatters (project uses JDK 17)." >&2
+    echo "       Install a JDK 17+ and ensure it is on PATH or JAVA_HOME." >&2
+    exit 1
+fi
+
+FAILED=0
+
+# ── Java (google-java-format) ───────────────────────────────────────────────
+if [[ -n "$STAGED_JAVA" ]]; then
+    if [[ ! -f "$GJF_JAR" ]]; then
+        jar_dir=$(dirname "$GJF_JAR")
+        echo "error: google-java-format.jar not found at $GJF_JAR" >&2
+        echo "       Install pinned v${GJF_VERSION}:" >&2
+        echo "         mkdir -p \"${jar_dir}\" && curl -fsSL -o \"${GJF_JAR}\" \"${GJF_URL}\"" >&2
+        exit 1
+    fi
+
+    if ! gjf_works_with_java "$JAVA" "$GJF_JAR"; then
+        echo "error: $GJF_JAR is not compatible with $("$JAVA" -version 2>&1 | head -1)." >&2
+        echo "       google-java-format 1.29+ needs a newer JDK than many FTC setups have." >&2
+        echo "       Install the pinned v${GJF_VERSION} jar:" >&2
+        echo "         curl -fsSL -o \"$GJF_JAR\" \"$GJF_URL\"" >&2
+        exit 1
+    fi
+
+    while IFS= read -r file; do
+        [[ -f "$file" ]] || continue
+        if ! "$JAVA" -jar "$GJF_JAR" --aosp --replace "$file"; then
+            echo "error: google-java-format failed on $file" >&2
+            FAILED=1
+            continue
+        fi
+        git add -- "$file"
+    done <<< "$STAGED_JAVA"
+fi
+
+# ── Kotlin (ktfmt) ──────────────────────────────────────────────────────────
+if [[ -n "$STAGED_KT" ]]; then
+    if [[ ! -f "$KTFMT_JAR" ]]; then
+        jar_dir=$(dirname "$KTFMT_JAR")
+        echo "error: ktfmt.jar not found at $KTFMT_JAR" >&2
+        echo "       Install pinned v${KTFMT_VERSION}:" >&2
+        echo "         mkdir -p \"${jar_dir}\" && curl -fsSL -o \"${KTFMT_JAR}\" \"${KTFMT_URL}\"" >&2
+        exit 1
+    fi
+
+    if ! ktfmt_works_with_java "$JAVA" "$KTFMT_JAR"; then
+        echo "error: $KTFMT_JAR failed under $("$JAVA" -version 2>&1 | head -1)." >&2
+        echo "       Install the pinned v${KTFMT_VERSION} jar:" >&2
+        echo "         curl -fsSL -o \"$KTFMT_JAR\" \"$KTFMT_URL\"" >&2
+        exit 1
+    fi
+
+    while IFS= read -r file; do
+        [[ -f "$file" ]] || continue
+        # --kotlinlang-style: 4-space block indent (pairs with google-java-format --aosp).
+        # --quiet: suppress per-file "Done formatting" noise on successful runs.
+        if ! "$JAVA" -jar "$KTFMT_JAR" --kotlinlang-style --quiet "$file"; then
+            echo "error: ktfmt failed on $file" >&2
+            FAILED=1
+            continue
+        fi
+        git add -- "$file"
+    done <<< "$STAGED_KT"
+fi
+
+if [[ "$FAILED" -ne 0 ]]; then
+    echo "error: pre-commit format failed; commit aborted." >&2
+    exit 1
+fi
+
+exit 0
