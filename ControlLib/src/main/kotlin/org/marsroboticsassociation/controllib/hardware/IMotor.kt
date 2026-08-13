@@ -6,8 +6,11 @@ interface IMotor {
     /** Encoder ticks. */
     val position: Int
 
-    /** Ticks per second. */
-    val velocity: Double
+    /**
+     * Encoder ticks per second. Named separately from `DcMotorEx.getVelocity()` so a Kotlin class
+     * can implement both without a JVM signature clash (that Java method is overloaded).
+     */
+    val encoderVelocity: Double
 
     fun setPower(power: Double)
 

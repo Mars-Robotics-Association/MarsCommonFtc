@@ -17,7 +17,7 @@ class FlywheelTestFixture {
         override val position: Int
             get() = sim.getPositionTicks()
 
-        override val velocity: Double
+        override val encoderVelocity: Double
             get() = sim.getVelocityTps()
 
         override fun setPower(power: Double) {

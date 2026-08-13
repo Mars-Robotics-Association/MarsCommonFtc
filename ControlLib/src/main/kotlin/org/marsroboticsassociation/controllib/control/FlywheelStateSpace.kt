@@ -107,7 +107,7 @@ class FlywheelStateSpace(
         loop = buildLoop(PARAMS, startupVoltage)
         accelLpf = BiquadLowPassVarDt(PARAMS.accelLpfCutoffHz, 0.5)
         // Seed observer to current velocity so the first correction isn't a large jump
-        val initialRadPerSec = motor.velocity * 2 * PI / PARAMS.ticksPerRev
+        val initialRadPerSec = motor.encoderVelocity * 2 * PI / PARAMS.ticksPerRev
         loop.reset(VecBuilder.fill(initialRadPerSec))
     }
 
@@ -148,7 +148,7 @@ class FlywheelStateSpace(
         if (dt < 1e-6) return // likely a duplicate call in the same frame
 
         val twoPI = 2.0 * PI
-        val measuredRadPerSec = motor.velocity * twoPI / PARAMS.ticksPerRev
+        val measuredRadPerSec = motor.encoderVelocity * twoPI / PARAMS.ticksPerRev
         val targetRadPerSec = targetTps * twoPI / PARAMS.ticksPerRev
 
         loop.setNextR(VecBuilder.fill(targetRadPerSec))
@@ -198,7 +198,7 @@ class FlywheelStateSpace(
      * idle period to avoid a transient where the observer state is far from reality.
      */
     fun reset() {
-        val currentRadPerSec = motor.velocity * 2.0 * PI / PARAMS.ticksPerRev
+        val currentRadPerSec = motor.encoderVelocity * 2.0 * PI / PARAMS.ticksPerRev
         loop.reset(VecBuilder.fill(currentRadPerSec))
     }
 
@@ -206,7 +206,7 @@ class FlywheelStateSpace(
     fun writeTelemetry() {
         telemetry.addData(primaryName + " ss target TPS", "%.0f", targetTps)
         telemetry.addData(primaryName + " ss estimated TPS", "%.1f", getEstimatedTps())
-        telemetry.addData(primaryName + " ss measured TPS", "%.1f", motor.velocity)
+        telemetry.addData(primaryName + " ss measured TPS", "%.1f", motor.encoderVelocity)
         telemetry.addData(primaryName + " ss voltage cmd", "%.2f V", lastVoltageCmded)
         telemetry.addData(primaryName + " ss power", "%.3f", lastPower)
     }

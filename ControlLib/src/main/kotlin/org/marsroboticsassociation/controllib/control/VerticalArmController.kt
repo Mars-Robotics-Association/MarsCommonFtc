@@ -231,7 +231,7 @@ class VerticalArmController {
 
         // Seed observer and trajectory to current position
         val posRad = ticksToRad(motor.position)
-        val velRad = tpsToRadPerSec(motor.velocity)
+        val velRad = tpsToRadPerSec(motor.encoderVelocity)
         kalman.setXhat(VecBuilder.fill(posRad, velRad))
         targetAngleRad = posRad
         trajectory.resetFromMeasurement(posRad, velRad)
@@ -305,7 +305,7 @@ class VerticalArmController {
 
         // 1. Read sensors
         val measuredPosRad = ticksToRad(motor.position)
-        val measuredVelRad = tpsToRadPerSec(motor.velocity)
+        val measuredVelRad = tpsToRadPerSec(motor.encoderVelocity)
 
         // 2. Kalman correct + predict with linearized voltage
         val uLinear: Matrix<N1, N1> = VecBuilder.fill(lastLinearVoltage)
@@ -389,7 +389,7 @@ class VerticalArmController {
 
     fun reset() {
         val posRad = ticksToRad(motor.position)
-        val velRad = tpsToRadPerSec(motor.velocity)
+        val velRad = tpsToRadPerSec(motor.encoderVelocity)
         kalman.setXhat(VecBuilder.fill(posRad, velRad))
         predictedPosRad = posRad
         predictedVelRad = velRad

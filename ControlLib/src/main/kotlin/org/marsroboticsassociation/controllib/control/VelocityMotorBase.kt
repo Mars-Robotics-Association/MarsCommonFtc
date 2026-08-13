@@ -78,7 +78,7 @@ abstract class VelocityMotorBase : MotorBase {
     abstract fun isAtTargetSpeed(): Boolean
 
     override fun updateInternal(dt: Double) {
-        tpsActual = motor.velocity
+        tpsActual = motor.encoderVelocity
         tpsLpf.update(tpsActual, dt)
     }
 

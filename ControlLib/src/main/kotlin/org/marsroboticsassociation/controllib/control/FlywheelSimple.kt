@@ -131,7 +131,7 @@ class FlywheelSimple {
         // Velocity filter (always runs so readings stay fresh)
         val filterTau = 1.0 / (2.0 * PI * PARAMS.velLpfCutoffHz)
         val alpha = 1.0 - exp(-dt / filterTau)
-        rawVelocity = motor.velocity
+        rawVelocity = motor.encoderVelocity
         smoothVelocity = alpha * rawVelocity + (1.0 - alpha) * smoothVelocity
 
         // Coast when target is zero
