@@ -81,7 +81,7 @@ class SinCurvePositionTest {
         val s = SinCurvePosition(0.0, 200.0, 0.0, 0.0, 5.0, 3.0, 3.0, 10.0)
         assertEquals(5.0, s.vPeak, 1e-6, "should reach vMax")
         assertTrue(s.T4 > 0, "cruise phase should exist")
-        assertEquals(200.0, s.getPosition(s.getTotalTime()), 1e-4, "end position")
+        assertEquals(200.0, s.getPosition(s.totalTime), 1e-4, "end position")
     }
 
     @Test
@@ -93,7 +93,7 @@ class SinCurvePositionTest {
     @Test
     fun negative_direction_mirrored() {
         val s = SinCurvePosition(50.0, -50.0, 0.0, 0.0, 8.0, 4.0, 4.0, 10.0)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertTrue(tf > 0)
         assertEquals(-50.0, s.getPosition(tf), 1e-4, "should arrive at pTarget")
         assertEquals(0.0, s.getVelocity(tf), 1e-4, "should come to rest")
@@ -102,7 +102,7 @@ class SinCurvePositionTest {
     @Test
     fun trivial_zeroDistance() {
         val s = SinCurvePosition(5.0, 5.0, 2.0, 1.0, 8.0, 4.0, 4.0, 10.0)
-        assertEquals(0.0, s.getTotalTime(), "trivial: zero total time")
+        assertEquals(0.0, s.totalTime, "trivial: zero total time")
         assertEquals(5.0, s.getPosition(0.0))
         assertEquals(5.0, s.getPosition(1.0))
         assertDoesNotThrow { s.getVelocity(0.0) }
@@ -111,7 +111,7 @@ class SinCurvePositionTest {
     @Test
     fun nonZeroV0_forward_endConditionsMet() {
         val s = SinCurvePosition(0.0, 100.0, 3.0, 0.0, 8.0, 4.0, 4.0, 10.0)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertEquals(100.0, s.getPosition(tf), 1e-3)
         assertEquals(0.0, s.getVelocity(tf), 1e-3)
         assertEquals(0.0, s.getAcceleration(tf), 1e-3)
@@ -120,7 +120,7 @@ class SinCurvePositionTest {
     @Test
     fun nonZeroA0_positive_endConditionsMet() {
         val s = SinCurvePosition(0.0, 80.0, 0.0, 2.0, 8.0, 4.0, 4.0, 10.0)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertEquals(80.0, s.getPosition(tf), 1e-3)
         assertEquals(0.0, s.getVelocity(tf), 1e-3)
         assertEquals(0.0, s.getAcceleration(tf), 1e-3)
@@ -147,7 +147,7 @@ class SinCurvePositionTest {
     @MethodSource("allConfigs")
     fun endConditions(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertEquals(c.pTarget, s.getPosition(tf), 1e-3, "p(tf) == pTarget")
         assertEquals(0.0, s.getVelocity(tf), 1e-3, "v(tf) == 0")
         assertEquals(0.0, s.getAcceleration(tf), 1e-3, "a(tf) == 0")
@@ -161,7 +161,7 @@ class SinCurvePositionTest {
     @MethodSource("allConfigs")
     fun kinematicContinuity_velocity(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         if (tf < 1e-9) return
         val h = 1e-5
         val samples = 100
@@ -176,7 +176,7 @@ class SinCurvePositionTest {
     @MethodSource("allConfigs")
     fun kinematicContinuity_acceleration(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         if (tf < 1e-9) return
         val h = 1e-5
         val samples = 100
@@ -200,7 +200,7 @@ class SinCurvePositionTest {
     @MethodSource("allConfigs")
     fun smoothAcceleration_noPhaseBoundaryJump(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         if (tf < 1e-9) return
         // Sample at high density and verify acceleration never jumps discontinuously.
         // Since acceleration is continuous for sinusoidal profiles, |a(t+h) - a(t-h)| ~ h*jerk.
@@ -223,7 +223,7 @@ class SinCurvePositionTest {
     @MethodSource("allConfigs")
     fun accelBounded_neverExceedsAMax(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         if (tf < 1e-9) return
         val samples = 1000
         val bound = maxOf(c.aMaxAccel, c.aMaxDecel) + 1e-6
@@ -246,7 +246,7 @@ class SinCurvePositionTest {
         // direction, so the handoff arc replaces braking-offset + T1-onset.
         val s = SinCurvePosition(0.0, 50.0, -3.0, 0.0, 8.0, 2.0, 5.0, 12.0)
         assertTrue(s.handoffCombined, "expected Case B handoff for direction_reversal")
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         // Verify velocity and position reach their endpoints CONTINUOUSLY (not via endpoint clamp).
         // With the T2 bug, velocity near the end was ~0.7 instead of 0.
         assertEquals(0.0, s.getVelocity(tf - 1e-6), 1e-3, "v should continuously reach 0")
@@ -318,13 +318,13 @@ class SinCurvePositionTest {
         assertEquals(0.0, s.T5, 1e-9, "T5 should be absorbed into the midpoint arc")
         assertEquals(
             0.0,
-            s.getVelocity(s.getTotalTime() - 1e-6),
+            s.getVelocity(s.totalTime - 1e-6),
             1e-3,
             "velocity should end continuously",
         )
         assertEquals(
             0.75,
-            s.getPosition(s.getTotalTime() - 1e-6),
+            s.getPosition(s.totalTime - 1e-6),
             1e-3,
             "position should end continuously",
         )
@@ -427,7 +427,7 @@ class SinCurvePositionTest {
         // Advance to well past total time (estimate ~30 s is more than enough)
         clock[0] = 30e9.toLong()
         mgr.update()
-        assertEquals(100.0, mgr.getPosition(), 1e-3)
-        assertEquals(0.0, mgr.getVelocity(), 1e-3)
+        assertEquals(100.0, mgr.position, 1e-3)
+        assertEquals(0.0, mgr.velocity, 1e-3)
     }
 }

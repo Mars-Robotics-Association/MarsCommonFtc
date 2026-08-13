@@ -133,7 +133,7 @@ class PositionTimingJitterTest {
                     power = max(-1.0, min(1.0, power))
 
                     if (ms / 1000.0 > 0.2) {
-                        val err = ekf.getPosition() - plant.getTrueAngleRad()
+                        val err = ekf.position - plant.getTrueAngleRad()
                         sumSq += err * err
                         n++
                     }

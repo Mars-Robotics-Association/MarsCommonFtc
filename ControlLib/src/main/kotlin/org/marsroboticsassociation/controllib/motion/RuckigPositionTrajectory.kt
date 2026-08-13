@@ -33,7 +33,7 @@ import kotlin.math.max
 class RuckigPositionTrajectory : PositionTrajectory {
 
     private val trajectory = Trajectory(1)
-    private val totalTime: Double
+    override val totalTime: Double
 
     // Sample cache: one at_time evaluation serves the p/v/a getter triple.
     private val p = DoubleArray(1)
@@ -117,8 +117,6 @@ class RuckigPositionTrajectory : PositionTrajectory {
         sample(t)
         return a[0]
     }
-
-    override fun getTotalTime(): Double = totalTime
 
     override fun isZeroJerk(t: Double): Boolean {
         sample(t)

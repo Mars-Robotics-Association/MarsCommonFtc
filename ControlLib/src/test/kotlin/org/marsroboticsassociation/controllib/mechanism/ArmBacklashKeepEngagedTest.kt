@@ -416,8 +416,7 @@ class ArmBacklashKeepEngagedTest {
                     plant.getPositionTicks() / TICKS_PER_RAD,
                     plant.getVelocityTps() / TICKS_PER_RAD,
                 )
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 lastLoopMs = ms
                 nextLoopMs = ms + 20 + rng.nextInt(10)
@@ -682,22 +681,21 @@ class ArmBacklashKeepEngagedTest {
                     plant.getPositionTicks() / TICKS_PER_RAD,
                     plant.getVelocityTps() / TICKS_PER_RAD,
                 )
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 if (ms >= 2600) {
                     System.out.printf(
                         "%5d, %+6.3f, %8.3f, %+7.3f, %8.3f, %8.3f, %+d, %8.3f, %+7.3f, %+7.2f%n",
                         ms,
                         voltage,
-                        Math.toDegrees(ekf.getPosition()),
-                        ekf.getVelocity(),
+                        Math.toDegrees(ekf.position),
+                        ekf.velocity,
                         Math.toDegrees(plant.getMotorPositionRad()),
                         Math.toDegrees(plant.getTruePositionRad()),
                         faceOf(plant, HALF_BACKLASH_RAD),
-                        Math.toDegrees(controller.getSetpointPosition()),
-                        controller.getSetpointVelocity(),
-                        controller.getSetpointAcceleration(),
+                        Math.toDegrees(controller.setpointPosition),
+                        controller.setpointVelocity,
+                        controller.setpointAcceleration,
                     )
                 }
                 lastLoopMs = ms
@@ -751,18 +749,17 @@ class ArmBacklashKeepEngagedTest {
                     plant.getPositionTicks() / TICKS_PER_RAD,
                     plant.getVelocityTps() / TICKS_PER_RAD,
                 )
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 if (ms >= 1900) {
                     System.out.printf(
                         "%5d, %8.2f, %+6.2f, %+7.2f, %8.2f, %+6.2f, %8.2f, %+6.2f, %8.2f, %+6.2f%n",
                         ms,
-                        Math.toDegrees(controller.getSetpointPosition()),
-                        controller.getSetpointVelocity(),
-                        controller.getSetpointAcceleration(),
-                        Math.toDegrees(ekf.getPosition()),
-                        ekf.getVelocity(),
+                        Math.toDegrees(controller.setpointPosition),
+                        controller.setpointVelocity,
+                        controller.setpointAcceleration,
+                        Math.toDegrees(ekf.position),
+                        ekf.velocity,
                         Math.toDegrees(plant.getMotorPositionRad()),
                         plant.getMotorVelocityRadPerSec(),
                         Math.toDegrees(plant.getTruePositionRad()),

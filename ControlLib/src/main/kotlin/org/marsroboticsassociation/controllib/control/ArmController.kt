@@ -144,8 +144,16 @@ class ArmController {
     private val trajectory: PositionTrajectoryManager
 
     // State
-    private var mode: Mode = Mode.COASTING
-    private var targetAngleRad: Double = 0.0
+    var mode: Mode = Mode.COASTING
+        private set
+
+    /**
+     * The target angle the trajectory actually drives to: the stated target plus any rest-only
+     * backlash bias, clamped to the hard stops.
+     */
+    var targetAngleRad: Double = 0.0
+        private set
+
     private var lastVoltageCmded: Double = 0.0
     /** Voltage with gravity+friction subtracted, consistent with the linear plant model. */
     private var lastLinearVoltage: Double = 0.0
@@ -319,9 +327,9 @@ class ArmController {
 
         // 6. Trajectory update
         trajectory.update()
-        var trajPos = trajectory.getPosition()
-        var trajVel = trajectory.getVelocity()
-        var trajAccel = trajectory.getAcceleration()
+        var trajPos = trajectory.position
+        var trajVel = trajectory.velocity
+        var trajAccel = trajectory.acceleration
 
         // 7. Replan check
         if (abs(predictedPosRad - trajPos) > PARAMS.replanThresholdRad) {
@@ -332,9 +340,9 @@ class ArmController {
             trajectory.resetFromMeasurement(predictedPosRad, predictedVelRad)
             // Re-read trajectory state after replan
             trajectory.update()
-            trajPos = trajectory.getPosition()
-            trajVel = trajectory.getVelocity()
-            trajAccel = trajectory.getAcceleration()
+            trajPos = trajectory.position
+            trajVel = trajectory.velocity
+            trajAccel = trajectory.acceleration
         }
 
         // 8. Feedforward (use deprecated overload for variable dt with RK4 accuracy)
@@ -364,32 +372,27 @@ class ArmController {
         lastLinearVoltage = actualVoltage - gravityVoltage - frictionVoltage
     }
 
-    /** Get the predicted position in radians (after latency compensation). */
-    fun getEstimatedPositionRad(): Double = predictedPosRad
+    /** Predicted position in radians (after latency compensation). */
+    val estimatedPositionRad: Double
+        get() = predictedPosRad
 
-    /** Get the predicted velocity in rad/s (after latency compensation). */
-    fun getEstimatedVelocityRadPerSec(): Double = predictedVelRad
+    /** Predicted velocity in rad/s (after latency compensation). */
+    val estimatedVelocityRadPerSec: Double
+        get() = predictedVelRad
 
-    /** Get the current trajectory setpoint position in radians. */
-    fun getTrajectoryPositionRad(): Double = trajectory.getPosition()
+    /** Current trajectory setpoint position in radians. */
+    val trajectoryPositionRad: Double
+        get() = trajectory.position
 
-    /** Get the current trajectory setpoint velocity in rad/s. */
-    fun getTrajectoryVelocityRadPerSec(): Double = trajectory.getVelocity()
+    /** Current trajectory setpoint velocity in rad/s. */
+    val trajectoryVelocityRadPerSec: Double
+        get() = trajectory.velocity
 
-    /**
-     * The target angle the trajectory actually drives to: the stated target plus any rest-only
-     * backlash bias, clamped to the hard stops.
-     */
-    fun getTargetAngleRad(): Double = targetAngleRad
-
-    /** Get the current controller mode. */
-    fun getMode(): Mode = mode
-
-    /** Returns true when the predicted position is near the target and velocity is near zero. */
-    fun isAtTarget(): Boolean {
-        return abs(predictedPosRad - targetAngleRad) < PARAMS.atTargetPositionTolerance &&
-            abs(predictedVelRad) < PARAMS.atTargetVelocityTolerance
-    }
+    /** True when the predicted position is near the target and velocity is near zero. */
+    val isAtTarget: Boolean
+        get() =
+            abs(predictedPosRad - targetAngleRad) < PARAMS.atTargetPositionTolerance &&
+                abs(predictedVelRad) < PARAMS.atTargetVelocityTolerance
 
     /**
      * Reset the observer to the current measured state. Call after long idle or mode transitions.
@@ -413,9 +416,9 @@ class ArmController {
         telemetry.addData(
             name + " arm traj pos deg",
             "%.1f",
-            Math.toDegrees(trajectory.getPosition()),
+            Math.toDegrees(trajectory.position),
         )
-        telemetry.addData(name + " arm traj vel", "%.1f", Math.toDegrees(trajectory.getVelocity()))
+        telemetry.addData(name + " arm traj vel", "%.1f", Math.toDegrees(trajectory.velocity))
         telemetry.addData(name + " arm voltage cmd", "%.2f V", lastVoltageCmded)
         telemetry.addData(name + " arm power", "%.3f", lastPower)
     }

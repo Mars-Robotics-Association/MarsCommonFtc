@@ -13,6 +13,7 @@ import java.awt.geom.Ellipse2D
 import java.awt.geom.Line2D
 import java.util.function.DoubleConsumer
 import javax.swing.JPanel
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -61,8 +62,8 @@ class ArmCanvas(
         val angle =
             unwrapIntoRange(
                 kotlin.math.atan2(dy, dx),
-                engine.getMinAngleRad(),
-                engine.getMaxAngleRad(),
+                engine.minAngleRad,
+                engine.maxAngleRad,
             )
         onTargetRad.accept(angle)
     }
@@ -77,8 +78,8 @@ class ArmCanvas(
         val armLen = min(width, height) * 0.38
 
         // Hard-stop arc (from min to max angle).
-        val minA = engine.getMinAngleRad()
-        val maxA = engine.getMaxAngleRad()
+        val minA = engine.minAngleRad
+        val maxA = engine.maxAngleRad
         g2.color = ARC_COLOR
         g2.stroke = BasicStroke(2f)
         // Arc2D uses degrees CCW from +x with +y up (matches our angle convention).
@@ -110,25 +111,25 @@ class ArmCanvas(
                 floatArrayOf(8f, 6f),
                 0f,
             )
-        drawLink(g2, px, py, engine.getTargetRad(), armLen)
+        drawLink(g2, px, py, engine.targetRad, armLen)
 
         // Motor-side link (thin, colored by engagement).
-        val engaged = engine.isEngaged()
+        val engaged = engine.isEngaged
         g2.color = if (engaged) ENGAGED_COLOR else SEPARATED_COLOR
         g2.stroke = BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-        drawLink(g2, px, py, engine.getMotorRad(), armLen * 0.92)
+        drawLink(g2, px, py, engine.motorRad, armLen * 0.92)
 
         // Load link (thick).
         g2.color = LOAD_COLOR
         g2.stroke = BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-        drawLink(g2, px, py, engine.getTrueLoadRad(), armLen)
+        drawLink(g2, px, py, engine.trueLoadRad, armLen)
 
         // Pivot.
         g2.color = Color.DARK_GRAY
         g2.fill(Ellipse2D.Double(px - 7.0, py - 7.0, 14.0, 14.0))
 
         // Load end knob.
-        val end = endPoint(px, py, engine.getTrueLoadRad(), armLen)
+        val end = endPoint(px, py, engine.trueLoadRad, armLen)
         g2.color = LOAD_COLOR
         g2.fill(Ellipse2D.Double(end[0] - 9, end[1] - 9, 18.0, 18.0))
 
@@ -179,7 +180,7 @@ class ArmCanvas(
             var bestDist = abs(principalRad - mid)
             for (k in -1..1) {
                 if (k == 0) continue
-                val cand = principalRad + k * 2.0 * Math.PI
+                val cand = principalRad + k * 2.0 * PI
                 val dist = abs(cand - mid)
                 if (dist < bestDist) {
                     bestDist = dist

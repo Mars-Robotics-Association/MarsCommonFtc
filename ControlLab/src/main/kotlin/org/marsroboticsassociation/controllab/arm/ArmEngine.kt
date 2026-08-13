@@ -43,17 +43,21 @@ class ArmEngine {
     private val random: Random
 
     private val cfg = ArmPlantConfig()
-    private var plantKind = PlantKind.BACKLASH
+    var plantKind = PlantKind.BACKLASH
+        private set
 
     private var plant: ArmPlant
     private var type: ArmControllerType
     private lateinit var adapter: ArmControlAdapter
 
     private var elapsedNanos = 0L
-    private var elapsedSec = 0.0
-    private var targetRad: Double
+    var elapsedSec = 0.0
+        private set
 
-    private val metrics = ArmMetrics()
+    var targetRad: Double
+        private set
+
+    val metrics = ArmMetrics()
 
     /** Optional per-tick CSV log (GUI sessions only; headless tests leave it null). */
     private var recorder: ArmFlightRecorder? = null
@@ -119,10 +123,10 @@ class ArmEngine {
 
         metrics.update(
             elapsedSec,
-            plant.getTruePositionRad(),
-            plant.getTrueVelocityRadPerSec(),
-            plant.getMotorPositionRad(),
-            plant.isEngaged(),
+            plant.truePositionRad,
+            plant.trueVelocityRadPerSec,
+            plant.motorPositionRad,
+            plant.isEngaged,
         )
 
         val rec = recorder
@@ -136,10 +140,10 @@ class ArmEngine {
                 adapter.trajAccelRad(),
                 adapter.estimatedPosRad(),
                 adapter.estimatedVelRad(),
-                plant.getTruePositionRad(),
-                plant.getTrueVelocityRadPerSec(),
-                plant.getMotorPositionRad(),
-                plant.isEngaged(),
+                plant.truePositionRad,
+                plant.trueVelocityRadPerSec,
+                plant.motorPositionRad,
+                plant.isEngaged,
                 adapter.commandedPower(),
             )
         }
@@ -206,7 +210,7 @@ class ArmEngine {
         p.maxDecelRad = 8.0
         p.maxJerkRad = 30.0
         // Rest compensation from the live plant's configured lash and compliance (0 on rigid).
-        p.backlashRad = plant.getBacklashRad()
+        p.backlashRad = plant.backlashRad
         p.restComplianceRadPerVolt = plant.restComplianceRadPerVolt()
         return p
     }
@@ -230,7 +234,7 @@ class ArmEngine {
         p.maxDecelRad = 8.0
         p.maxJerkRad = 30.0
         // Rest compensation from the live plant's configured lash and compliance (0 on rigid).
-        p.backlashRad = plant.getBacklashRad()
+        p.backlashRad = plant.backlashRad
         p.restComplianceRadPerVolt = plant.restComplianceRadPerVolt()
         return p
     }
@@ -275,7 +279,8 @@ class ArmEngine {
         recordEvent("controller=$newType mode=${adapter.modeLabel()}")
     }
 
-    fun getControllerType(): ArmControllerType = type
+    val controllerType: ArmControllerType
+        get() = type
 
     private fun buildPlant(initialAngleRad: Double): ArmPlant =
         when (plantKind) {
@@ -291,12 +296,10 @@ class ArmEngine {
         if (kind == plantKind) return
         plantKind = kind
         // The sims seed at rest, so the pose is preserved but velocity resets to zero on swap.
-        plant = buildPlant(plant.getTruePositionRad())
+        plant = buildPlant(plant.truePositionRad)
         reseedAdapterFromPlant()
         recordEvent("plant=$kind")
     }
-
-    fun getPlantKind(): PlantKind = plantKind
 
     /** Boolean shorthand for [setPlantKind], selecting only between BACKLASH and RIGID. */
     fun setBacklashEnabled(enabled: Boolean) {
@@ -304,7 +307,8 @@ class ArmEngine {
     }
 
     /** True when the live plant has a gearbox dead band (backlash or flex). */
-    fun isBacklashEnabled(): Boolean = plantKind != PlantKind.RIGID
+    val isBacklashEnabled: Boolean
+        get() = plantKind != PlantKind.RIGID
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Targets
@@ -313,7 +317,7 @@ class ArmEngine {
     fun setTargetRad(rad: Double) {
         targetRad = clampAngle(rad)
         adapter.setTargetRad(targetRad)
-        metrics.onTargetChanged(targetRad, plant.getTruePositionRad(), elapsedSec)
+        metrics.onTargetChanged(targetRad, plant.truePositionRad, elapsedSec)
         recordEvent(String.format(Locale.US, "target=%.2fdeg", Math.toDegrees(targetRad)))
     }
 
@@ -474,8 +478,8 @@ class ArmEngine {
     }
 
     private fun reseedPlantInPlace() {
-        val loadRad = plant.getTruePositionRad()
-        val loadVel = plant.getTrueVelocityRadPerSec()
+        val loadRad = plant.truePositionRad
+        val loadVel = plant.trueVelocityRadPerSec
         plant.seedFrom(loadRad, loadVel)
         // Sims always seed at rest; rebuild the controller so the profile/EKF match.
         reseedAdapterFromPlant()
@@ -562,46 +566,55 @@ class ArmEngine {
     // Accessors for the canvas / chart / metrics
     // ─────────────────────────────────────────────────────────────────────────────
 
-    fun getElapsedSec(): Double = elapsedSec
-
-    fun getTargetRad(): Double = targetRad
-
     /** The endpoint the profile actually drives to (stated target plus any backlash bias). */
-    fun getProfileTargetRad(): Double = adapter.profileTargetRad()
+    val profileTargetRad: Double
+        get() = adapter.profileTargetRad()
 
-    fun getTrueLoadRad(): Double = plant.getTruePositionRad()
+    val trueLoadRad: Double
+        get() = plant.truePositionRad
 
-    fun getTrueLoadVelRad(): Double = plant.getTrueVelocityRadPerSec()
+    val trueLoadVelRad: Double
+        get() = plant.trueVelocityRadPerSec
 
-    fun getMotorRad(): Double = plant.getMotorPositionRad()
+    val motorRad: Double
+        get() = plant.motorPositionRad
 
-    fun isEngaged(): Boolean = plant.isEngaged()
+    val isEngaged: Boolean
+        get() = plant.isEngaged
 
-    fun getBacklashRad(): Double = plant.getBacklashRad()
+    val backlashRad: Double
+        get() = plant.backlashRad
 
-    fun getMinAngleRad(): Double = cfg.minAngleRad
+    val minAngleRad: Double
+        get() = cfg.minAngleRad
 
-    fun getMaxAngleRad(): Double = cfg.maxAngleRad
+    val maxAngleRad: Double
+        get() = cfg.maxAngleRad
 
     /** Motor-side encoder angle the controller actually sees (ticks -> rad). */
-    fun getMeasuredEncoderRad(): Double =
-        plant.getPositionTicks() / cfg.ticksPerRad() + cfg.encoderZeroOffsetRad
+    val measuredEncoderRad: Double
+        get() = plant.positionTicks / cfg.ticksPerRad() + cfg.encoderZeroOffsetRad
 
-    fun getEstimatedPosRad(): Double = adapter.estimatedPosRad()
+    val estimatedPosRad: Double
+        get() = adapter.estimatedPosRad()
 
-    fun getEstimatedVelRad(): Double = adapter.estimatedVelRad()
+    val estimatedVelRad: Double
+        get() = adapter.estimatedVelRad()
 
-    fun getTrajPosRad(): Double = adapter.trajPosRad()
+    val trajPosRad: Double
+        get() = adapter.trajPosRad()
 
-    fun getTrajVelRad(): Double = adapter.trajVelRad()
+    val trajVelRad: Double
+        get() = adapter.trajVelRad()
 
-    fun getTrajAccelRad(): Double = adapter.trajAccelRad()
+    val trajAccelRad: Double
+        get() = adapter.trajAccelRad()
 
-    fun getCommandedPower(): Double = adapter.commandedPower()
+    val commandedPower: Double
+        get() = adapter.commandedPower()
 
-    fun getModeLabel(): String = adapter.modeLabel()
-
-    fun getMetrics(): ArmMetrics = metrics
+    val modeLabel: String
+        get() = adapter.modeLabel()
 
     // Editable-param initial values for the sidebar
     fun getFfKs(): Double = ffKs

@@ -313,65 +313,79 @@ class TrajectoryTab : JPanel() {
 
     private fun buildPosSlidersIfNeeded() {
         if (slVMax != null) return
-        slVMax = JSlider(0, 1000, l2s(72.0, 0.1, 500.0))
-        lbVMax = JLabel()
-        slAAccel = JSlider(0, 1000, l2s(52.0, 0.1, 500.0))
-        lbAAccel = JLabel()
-        slADecel = JSlider(0, 1000, l2s(52.0, 0.1, 500.0))
-        lbADecel = JLabel()
-        slJMax = JSlider(0, 1000, l2s(100.0, 1.0, 5000.0))
-        lbJMax = JLabel()
+        val slVMax = JSlider(0, 1000, l2s(72.0, 0.1, 500.0))
+        val lbVMax = JLabel()
+        val slAAccel = JSlider(0, 1000, l2s(52.0, 0.1, 500.0))
+        val lbAAccel = JLabel()
+        val slADecel = JSlider(0, 1000, l2s(52.0, 0.1, 500.0))
+        val lbADecel = JLabel()
+        val slJMax = JSlider(0, 1000, l2s(100.0, 1.0, 5000.0))
+        val lbJMax = JLabel()
+        this.slVMax = slVMax
+        this.lbVMax = lbVMax
+        this.slAAccel = slAAccel
+        this.lbAAccel = lbAAccel
+        this.slADecel = slADecel
+        this.lbADecel = lbADecel
+        this.slJMax = slJMax
+        this.lbJMax = lbJMax
 
-        slVMax!!.addChangeListener {
-            updateLabel(lbVMax!!, slVMax!!, "vMax", 0.1, 500.0)
+        slVMax.addChangeListener {
+            updateLabel(lbVMax, slVMax, "vMax", 0.1, 500.0)
             stagePosParams()
         }
-        slAAccel!!.addChangeListener {
-            updateLabel(lbAAccel!!, slAAccel!!, "aAccel", 0.1, 500.0)
+        slAAccel.addChangeListener {
+            updateLabel(lbAAccel, slAAccel, "aAccel", 0.1, 500.0)
             stagePosParams()
         }
-        slADecel!!.addChangeListener {
-            updateLabel(lbADecel!!, slADecel!!, "aDecel", 0.1, 500.0)
+        slADecel.addChangeListener {
+            updateLabel(lbADecel, slADecel, "aDecel", 0.1, 500.0)
             stagePosParams()
         }
-        slJMax!!.addChangeListener {
-            updateLabel(lbJMax!!, slJMax!!, "jMax", 1.0, 5000.0)
+        slJMax.addChangeListener {
+            updateLabel(lbJMax, slJMax, "jMax", 1.0, 5000.0)
             stagePosParams()
         }
-        updateLabel(lbVMax!!, slVMax!!, "vMax", 0.1, 500.0)
-        updateLabel(lbAAccel!!, slAAccel!!, "aAccel", 0.1, 500.0)
-        updateLabel(lbADecel!!, slADecel!!, "aDecel", 0.1, 500.0)
-        updateLabel(lbJMax!!, slJMax!!, "jMax", 1.0, 5000.0)
+        updateLabel(lbVMax, slVMax, "vMax", 0.1, 500.0)
+        updateLabel(lbAAccel, slAAccel, "aAccel", 0.1, 500.0)
+        updateLabel(lbADecel, slADecel, "aDecel", 0.1, 500.0)
+        updateLabel(lbJMax, slJMax, "jMax", 1.0, 5000.0)
         stagePosParams()
     }
 
     private fun buildVelSlidersIfNeeded() {
         if (slAMax != null) return
-        slAMax = JSlider(0, 1000, l2s(1197.0, 10.0, 5000.0))
-        lbAMax = JLabel()
-        slJInc = JSlider(0, 1000, l2s(2669.0, 10.0, 10000.0))
-        lbJInc = JLabel()
-        slJDec = JSlider(0, 1000, l2s(800.0, 10.0, 5000.0))
-        lbJDec = JLabel()
+        val slAMax = JSlider(0, 1000, l2s(1197.0, 10.0, 5000.0))
+        val lbAMax = JLabel()
+        val slJInc = JSlider(0, 1000, l2s(2669.0, 10.0, 10000.0))
+        val lbJInc = JLabel()
+        val slJDec = JSlider(0, 1000, l2s(800.0, 10.0, 5000.0))
+        val lbJDec = JLabel()
+        this.slAMax = slAMax
+        this.lbAMax = lbAMax
+        this.slJInc = slJInc
+        this.lbJInc = lbJInc
+        this.slJDec = slJDec
+        this.lbJDec = lbJDec
 
-        slAMax!!.addChangeListener {
-            updateLabel(lbAMax!!, slAMax!!, "aMax", 10.0, 5000.0)
+        slAMax.addChangeListener {
+            updateLabel(lbAMax, slAMax, "aMax", 10.0, 5000.0)
             stageVelParams()
             checkBackEmfViolation()
         }
-        slJInc!!.addChangeListener {
-            updateLabel(lbJInc!!, slJInc!!, "jInc", 10.0, 10000.0)
+        slJInc.addChangeListener {
+            updateLabel(lbJInc, slJInc, "jInc", 10.0, 10000.0)
             stageVelParams()
             checkBackEmfViolation()
         }
-        slJDec!!.addChangeListener {
-            updateLabel(lbJDec!!, slJDec!!, "jDec", 10.0, 5000.0)
+        slJDec.addChangeListener {
+            updateLabel(lbJDec, slJDec, "jDec", 10.0, 5000.0)
             stageVelParams()
             checkBackEmfViolation()
         }
-        updateLabel(lbAMax!!, slAMax!!, "aMax", 10.0, 5000.0)
-        updateLabel(lbJInc!!, slJInc!!, "jInc", 10.0, 10000.0)
-        updateLabel(lbJDec!!, slJDec!!, "jDec", 10.0, 5000.0)
+        updateLabel(lbAMax, slAMax, "aMax", 10.0, 5000.0)
+        updateLabel(lbJInc, slJInc, "jInc", 10.0, 10000.0)
+        updateLabel(lbJDec, slJDec, "jDec", 10.0, 5000.0)
         stageVelParams()
     }
 
@@ -443,7 +457,7 @@ class TrajectoryTab : JPanel() {
         limitPanel.revalidate()
         limitPanel.repaint()
 
-        chart.seriesMap["Position (units)"]!!.setEnabled(engine.hasPosition())
+        chart.seriesMap["Position (units)"]!!.setEnabled(engine.hasPosition)
         refreshExportButtonState()
         chartPanel.repaint()
     }
@@ -488,7 +502,7 @@ class TrajectoryTab : JPanel() {
 
     private fun onAutoTune() {
         val jInc = s2l(slJInc!!.value, 10.0, 10000.0)
-        val targetV = engine.getTarget()
+        val targetV = engine.target
 
         if (targetV <= 0) {
             JOptionPane.showMessageDialog(
@@ -533,10 +547,10 @@ class TrajectoryTab : JPanel() {
     }
 
     private fun onTick() {
-        if (!engine.isMoving()) return
+        if (!engine.isMoving) return
         engine.tick()
         elapsedSec += TrajectoryEngine.CYCLE_S
-        if (!engine.isMoving()) {
+        if (!engine.isMoving) {
             commitActiveExactPlanThrough(elapsedSec)
         }
         recordCurrentSample()
@@ -544,14 +558,14 @@ class TrajectoryTab : JPanel() {
     }
 
     private fun recordCurrentSample() {
-        val velocity = engine.getVelocity()
+        val velocity = engine.velocity
         val maxMotorAccel = maxMotorAcceleration(velocity)
         buffer.add(
             elapsedSec,
-            engine.getPosition(),
-            engine.getVelocity(),
-            engine.getAcceleration(),
-            engine.getTarget(),
+            engine.position,
+            engine.velocity,
+            engine.acceleration,
+            engine.target,
             maxMotorAccel,
         )
         val times = buffer.getTimes()
@@ -563,7 +577,7 @@ class TrajectoryTab : JPanel() {
             buffer.getAccelerations(),
             null,
         )
-        val showMaxMotorAccel = engine.getType() == TrajectoryType.SCURVE_VELOCITY
+        val showMaxMotorAccel = engine.type == TrajectoryType.SCURVE_VELOCITY
         chart.seriesMap["Max Motor Accel (units/s\u00b2)"]!!.setEnabled(showMaxMotorAccel)
         if (showMaxMotorAccel) {
             chart.updateXYSeries(
@@ -583,10 +597,10 @@ class TrajectoryTab : JPanel() {
     private fun refreshExportButtonState() {
         val visible = engine.supportsExactSvgExport()
         btnExportSvg.isVisible = visible
-        btnExportSvg.isEnabled = visible && !engine.isMoving()
+        btnExportSvg.isEnabled = visible && !engine.isMoving
         btnExportSvg.toolTipText =
             if (visible) {
-                if (engine.isMoving()) {
+                if (engine.isMoving) {
                     "Export becomes available once the graph settles"
                 } else {
                     "Export an exact SVG of the current trajectory"
@@ -599,7 +613,7 @@ class TrajectoryTab : JPanel() {
     }
 
     private fun onExportSvg() {
-        if (engine.isMoving()) {
+        if (engine.isMoving) {
             JOptionPane.showMessageDialog(
                 this,
                 "Wait for the trajectory to settle before exporting.",
@@ -762,7 +776,7 @@ class TrajectoryTab : JPanel() {
     }
 
     private fun checkBackEmfViolation() {
-        if (engine.getType() != TrajectoryType.SCURVE_VELOCITY) {
+        if (engine.type != TrajectoryType.SCURVE_VELOCITY) {
             backEmfViolation = false
             violationRanges.clear()
             updateViolationBandPanel()
@@ -770,7 +784,7 @@ class TrajectoryTab : JPanel() {
         }
 
         val ka = efKa!!.value
-        val targetV = engine.getTarget()
+        val targetV = engine.target
 
         if (targetV <= 0) {
             backEmfViolation = false
@@ -839,7 +853,7 @@ class TrajectoryTab : JPanel() {
 
     private fun defaultSvgFilename(): String {
         val timestamp = LocalDateTime.now().format(EXPORT_TIMESTAMP)
-        return when (engine.getType()) {
+        return when (engine.type) {
             TrajectoryType.SCURVE_POSITION -> "scurve-position-trajectory-$timestamp.svg"
             TrajectoryType.SCURVE_VELOCITY -> "scurve-velocity-trajectory-$timestamp.svg"
             else -> "trajectory-$timestamp.svg"

@@ -36,11 +36,11 @@ class ArmEngineSmokeTest {
     @Test
     fun armPd_reachesTargetOnBacklashPlant() {
         val engine = engine(ArmControllerType.ARM_PD) // backlash by default
-        assertTrue(engine.isBacklashEnabled())
+        assertTrue(engine.isBacklashEnabled)
         val target = MID_HOLD // big move from the parked back stop
         engine.setTargetRad(target)
         run(engine, 600)
-        val err = abs(engine.getTrueLoadRad() - target)
+        val err = abs(engine.trueLoadRad - target)
         assertTrue(
             err < Math.toRadians(8.0),
             "ARM_PD load should reach target through backlash, err(deg)=" + Math.toDegrees(err),
@@ -54,7 +54,7 @@ class ArmEngineSmokeTest {
         val target = MID_HOLD
         engine.setTargetRad(target)
         run(engine, 600)
-        val err = abs(engine.getTrueLoadRad() - target)
+        val err = abs(engine.trueLoadRad - target)
         assertTrue(
             err < Math.toRadians(8.0),
             "ARM_PD tip should reach target through lash + flex, err(deg)=" + Math.toDegrees(err),
@@ -67,18 +67,18 @@ class ArmEngineSmokeTest {
         engine.setPlantKind(ArmEngine.PlantKind.RIGID)
         engine.setTargetRad(NEAR_FRONT)
         run(engine, 400)
-        val before = engine.getTrueLoadRad()
+        val before = engine.trueLoadRad
         engine.setPlantKind(ArmEngine.PlantKind.FLEX)
-        val after = engine.getTrueLoadRad()
+        val after = engine.trueLoadRad
         assertTrue(
             abs(after - before) < Math.toRadians(1.0),
             "hot-swap to flex should not jump the pose, delta(deg)=" +
                 Math.toDegrees(after - before),
         )
         assertTrue(
-            abs(engine.getTrajVelRad()) < 0.5,
+            abs(engine.trajVelRad) < 0.5,
             "controller profile should reseed near rest after plant swap, trajVel=" +
-                engine.getTrajVelRad(),
+                engine.trajVelRad,
         )
         run(engine, 300) // keeps running without throwing
     }
@@ -90,7 +90,7 @@ class ArmEngineSmokeTest {
         val target = NEAR_FRONT
         engine.setTargetRad(target)
         run(engine, 500)
-        val err = abs(engine.getTrueLoadRad() - target)
+        val err = abs(engine.trueLoadRad - target)
         assertTrue(
             err < Math.toRadians(3.0),
             "ARM_PD should track tightly on rigid plant, err(deg)=" + Math.toDegrees(err),
@@ -103,19 +103,19 @@ class ArmEngineSmokeTest {
         engine.setBacklashEnabled(false) // start rigid
         engine.setTargetRad(NEAR_FRONT)
         run(engine, 400)
-        val before = engine.getTrueLoadRad()
+        val before = engine.trueLoadRad
         // Mid-move / mid-hold: plant was in motion; after swap the sim seeds at rest and the
         // adapter must reseed so the profile is not still flying.
         engine.setBacklashEnabled(true)
-        val after = engine.getTrueLoadRad()
+        val after = engine.trueLoadRad
         assertTrue(
             abs(after - before) < Math.toRadians(1.0),
             "hot-swap should not jump the pose, delta(deg)=" + Math.toDegrees(after - before),
         )
         assertTrue(
-            abs(engine.getTrajVelRad()) < 0.5,
+            abs(engine.trajVelRad) < 0.5,
             "controller profile should reseed near rest after plant swap, trajVel=" +
-                engine.getTrajVelRad(),
+                engine.trajVelRad,
         )
         run(engine, 300) // keeps running without throwing
     }
@@ -127,13 +127,13 @@ class ArmEngineSmokeTest {
         run(engine, 250)
         engine.setPlantDynamics(0.3, 3.5, 1.2, 0.4) // structural rebuild at current pose
         assertTrue(
-            abs(engine.getTrajVelRad()) < 0.5,
+            abs(engine.trajVelRad) < 0.5,
             "profile should reseed near rest after structural plant edit, trajVel=" +
-                engine.getTrajVelRad(),
+                engine.trajVelRad,
         )
         run(engine, 400)
         assertTrue(
-            abs(engine.getTrueLoadRad() - MID_HOLD) < Math.toRadians(5.0),
+            abs(engine.trueLoadRad - MID_HOLD) < Math.toRadians(5.0),
             "should re-acquire target after plant reseed",
         )
     }
@@ -143,16 +143,16 @@ class ArmEngineSmokeTest {
         val engine = engine(ArmControllerType.ARM_PD)
         engine.setTargetRad(MID_HOLD)
         run(engine, 400)
-        val before = engine.getTrueLoadRad()
+        val before = engine.trueLoadRad
         engine.setControllerType(ArmControllerType.ARM_LQR)
-        val after = engine.getTrueLoadRad()
+        val after = engine.trueLoadRad
         assertTrue(
             abs(after - before) < Math.toRadians(1.0),
             "type change should not jump the pose, delta(deg)=" + Math.toDegrees(after - before),
         )
         run(engine, 400)
         assertTrue(
-            abs(engine.getTrueLoadRad() - MID_HOLD) < Math.toRadians(8.0),
+            abs(engine.trueLoadRad - MID_HOLD) < Math.toRadians(8.0),
             "ARM_LQR should hold the target after reseed",
         )
     }
@@ -163,7 +163,7 @@ class ArmEngineSmokeTest {
         val target = MID_HOLD
         engine.setTargetRad(target)
         run(engine, 700)
-        val backlashErr = abs(engine.getTrueLoadRad() - target)
+        val backlashErr = abs(engine.trueLoadRad - target)
         assertTrue(
             backlashErr < Math.toRadians(6.0),
             "MECHANISM_PIDF should track on backlash plant, err(deg)=" +
@@ -173,7 +173,7 @@ class ArmEngineSmokeTest {
         engine.setBacklashEnabled(false)
         engine.setTargetRad(NEAR_FRONT)
         run(engine, 700)
-        val rigidErr = abs(engine.getTrueLoadRad() - NEAR_FRONT)
+        val rigidErr = abs(engine.trueLoadRad - NEAR_FRONT)
         assertTrue(
             rigidErr < Math.toRadians(3.0),
             "MECHANISM_PIDF should track tightly on rigid plant, err(deg)=" +
@@ -196,6 +196,6 @@ class ArmEngineSmokeTest {
         engine.setPlantKind(ArmEngine.PlantKind.FLEX)
         engine.setFlexParams(2.5, 0.05)
         run(engine, 300)
-        assertTrue(engine.getMetrics().pctEngaged() >= 0)
+        assertTrue(engine.metrics.pctEngaged() >= 0)
     }
 }

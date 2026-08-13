@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllib.mechanism
 
+import kotlin.math.PI
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -109,7 +110,7 @@ class ArmSysIdTest {
             }
             // Gravity-rich: horizontals in range
             val gravityStarts = ArrayList<Double>()
-            for (h in doubleArrayOf(0.0, Math.PI, -Math.PI)) {
+            for (h in doubleArrayOf(0.0, PI, -PI)) {
                 if (h > MIN + margin && h < MAX - margin) {
                     gravityStarts.add(h)
                 }
@@ -156,7 +157,7 @@ class ArmSysIdTest {
             kV: Double,
             kA: Double,
         ): DoubleArray {
-            val ticksPerRad = TICKS_PER_REV * GEAR / (2.0 * Math.PI)
+            val ticksPerRad = TICKS_PER_REV * GEAR / (2.0 * PI)
             val sim = ArmMotorSim(kS, kG, kV, kA, TICKS_PER_REV, GEAR, ZERO, MIN, MAX, startRad)
             sim.setEncoder(EncoderSim())
             val theta = DoubleArray(RUN_STEPS)

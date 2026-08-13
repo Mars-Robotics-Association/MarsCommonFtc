@@ -261,9 +261,8 @@ class SCurveVelocity : VelocityTrajectory {
         return v0 + dir * abs(v - v0)
     }
 
-    override fun getTotalTime(): Double {
-        return tf
-    }
+    override val totalTime: Double
+        get() = tf
 
     override fun isZeroJerk(t: Double): Boolean {
         return trivial || singlePhase || t <= 0 || (t >= t1 && t < t1 + t2) || t > tf
@@ -557,7 +556,7 @@ class SCurveVelocity : VelocityTrajectory {
                 val mid = (low + high) / 2.0
 
                 val traj = SCurveVelocity(v0, v1, 0.0, mid, jInc, jInc)
-                val totalTime = traj.getTotalTime()
+                val totalTime = traj.totalTime
 
                 var violates = false
                 val samples = 1000

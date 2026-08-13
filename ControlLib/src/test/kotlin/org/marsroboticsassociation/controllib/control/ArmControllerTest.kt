@@ -1,6 +1,7 @@
 package org.marsroboticsassociation.controllib.control
 
 import java.util.Random
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sign
@@ -32,9 +33,9 @@ class ArmControllerTest {
 
         // Arm geometry: front hard stop at -45 deg, back hard stop at -225 deg
         // Encoder reads 0 at the front hard stop.
-        val ENCODER_ZERO_OFFSET_RAD = -Math.PI / 4
-        val MIN_ANGLE_RAD = -Math.PI * 5 / 4 // -225 deg (back stop)
-        val MAX_ANGLE_RAD = -Math.PI / 4 // -45 deg  (front stop)
+        val ENCODER_ZERO_OFFSET_RAD = -PI / 4
+        val MIN_ANGLE_RAD = -PI * 5 / 4 // -225 deg (back stop)
+        val MAX_ANGLE_RAD = -PI / 4 // -45 deg  (front stop)
     }
 
     // ── sim clock ───────────────────────────────────────────────────────────────
@@ -220,7 +221,7 @@ class ArmControllerTest {
 
         assertEquals(
             ArmController.Mode.COASTING,
-            controller.getMode(),
+            controller.mode,
             "should be coasting near hard stop",
         )
         assertEquals(0.0, adapter.lastPower, 0.001, "power should be 0 when coasting")
@@ -242,13 +243,13 @@ class ArmControllerTest {
         for (i in 0 until 20) {
             step(controller, adapter, sim, rng)
         }
-        assertEquals(ArmController.Mode.COASTING, controller.getMode())
+        assertEquals(ArmController.Mode.COASTING, controller.mode)
 
         // Now wake it up
         controller.setTarget(targetAngle)
         assertEquals(
             ArmController.Mode.TRACKING,
-            controller.getMode(),
+            controller.mode,
             "should switch to TRACKING after setTarget",
         )
 
@@ -341,7 +342,7 @@ class ArmControllerTest {
 
         for (i in 0 until 500) {
             val dt = step(controller, adapter, sim, rng)
-            val vel = controller.getTrajectoryVelocityRadPerSec()
+            val vel = controller.trajectoryVelocityRadPerSec
             if (i > 0) {
                 val accel = (vel - prevVel) / dt
 
@@ -392,7 +393,7 @@ class ArmControllerTest {
     @Test
     fun testWorstCaseAngle_rangeCrossingNegativePi() {
         val result = ArmController.worstCaseAngle(Math.toRadians(-150.0), Math.toRadians(-210.0))
-        assertEquals(-Math.PI, result, 0.01, "should pick horizontal crossing at -pi")
+        assertEquals(-PI, result, 0.01, "should pick horizontal crossing at -pi")
     }
 
     @Test
@@ -485,7 +486,7 @@ class ArmControllerTest {
         for (i in 0 until 500) {
             step(ctrl1, adapter1, sim1, rng1)
             steps1++
-            if (ctrl1.isAtTarget()) break
+            if (ctrl1.isAtTarget) break
         }
 
         // Move crossing horizontal: +10 to -10 deg (high gravity torque, lower limits)
@@ -501,7 +502,7 @@ class ArmControllerTest {
         for (i in 0 until 500) {
             step(ctrl2, adapter2, sim2, rng2)
             steps2++
-            if (ctrl2.isAtTarget()) break
+            if (ctrl2.isAtTarget) break
         }
 
         System.out.printf(

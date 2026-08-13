@@ -2,6 +2,7 @@ package org.marsroboticsassociation.controllab.flywheel
 
 import java.util.Random
 import java.util.function.LongSupplier
+import kotlin.math.PI
 import kotlin.math.max
 import org.marsroboticsassociation.controllib.control.FlywheelSimple
 import org.marsroboticsassociation.controllib.control.FlywheelStateSpace
@@ -51,7 +52,8 @@ class FlywheelEngine(private var type: FlywheelControllerType) : IMotor {
     private var targetTps = 0.0
     private var currentPower = 0.0
     private var elapsedNanos = 0L
-    private var elapsedSec = 0.0
+    var elapsedSec = 0.0
+        private set
 
     private val noOp = TelemetryAddData { _, _, _ -> }
 
@@ -85,8 +87,8 @@ class FlywheelEngine(private var type: FlywheelControllerType) : IMotor {
             cfg.measurementLpfCutoffHz = velLpfCutoffHz
         }
         if (ss != null) {
-            FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * Math.PI) // Convert to rad/s
-            FlywheelStateSpace.PARAMS.kA = max(kA, 1e-6) * 28 / (2 * Math.PI)
+            FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * PI) // Convert to rad/s
+            FlywheelStateSpace.PARAMS.kA = max(kA, 1e-6) * 28 / (2 * PI)
             rebuildController() // StateSpace plant is defined at construction, so we rebuild.
         }
     }
@@ -151,8 +153,8 @@ class FlywheelEngine(private var type: FlywheelControllerType) : IMotor {
                 ss = null
             }
             FlywheelControllerType.FLYWHEEL_STATE_SPACE -> {
-                FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * Math.PI)
-                FlywheelStateSpace.PARAMS.kA = max(kA, 1e-6) * 28 / (2 * Math.PI)
+                FlywheelStateSpace.PARAMS.kV = kV * 28 / (2 * PI)
+                FlywheelStateSpace.PARAMS.kA = max(kA, 1e-6) * 28 / (2 * PI)
                 FlywheelStateSpace.PARAMS.modelStdDevRadPerSec = ssModelStdDev
                 FlywheelStateSpace.PARAMS.measurementStdDevRadPerSec = ssMeasurementStdDev
                 ss = FlywheelStateSpace(this, noOp)
@@ -262,13 +264,8 @@ class FlywheelEngine(private var type: FlywheelControllerType) : IMotor {
         return currentPower
     }
 
-    fun getTarget(): Double {
-        return targetTps
-    }
-
-    fun getElapsedSec(): Double {
-        return elapsedSec
-    }
+    val target: Double
+        get() = targetTps
 
     fun getKV(): Double = kV
 

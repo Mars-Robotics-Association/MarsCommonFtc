@@ -53,8 +53,8 @@ import kotlin.math.min
  * <pre>
  *   filter.predict(dt, commandedPower, busVoltage);
  *   filter.correct(measuredPosition, measuredVelocity);
- *   double position = filter.getPosition();
- *   double velocity = filter.getVelocity();
+ *   double position = filter.position;
+ *   double velocity = filter.velocity;
  * </pre>
  */
 class MotorMechanismEkf(
@@ -212,10 +212,12 @@ class MotorMechanismEkf(
     }
 
     /** The filtered position estimate. */
-    fun getPosition(): Double = x.get(0, 0)
+    val position: Double
+        get() = x.get(0, 0)
 
     /** The filtered velocity estimate, de-lagged and ready for a PIDF D term. */
-    fun getVelocity(): Double = x.get(1, 0)
+    val velocity: Double
+        get() = x.get(1, 0)
 
     /**
      * Project the current estimate forward by `horizonSec` under a held command, *without* mutating

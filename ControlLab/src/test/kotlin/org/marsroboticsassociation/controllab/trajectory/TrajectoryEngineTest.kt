@@ -12,11 +12,11 @@ class TrajectoryEngineTest {
     fun scurvePosition_initialState_atZeroAtRest() {
         val engine = TrajectoryEngine(TrajectoryType.SCURVE_POSITION)
         engine.setPositionParams(10.0, 5.0, 5.0, 50.0)
-        assertEquals(0.0, engine.getPosition(), 1e-9)
-        assertEquals(0.0, engine.getVelocity(), 1e-9)
-        assertEquals(0.0, engine.getAcceleration(), 1e-9)
-        assertFalse(engine.isMoving())
-        assertTrue(engine.hasPosition())
+        assertEquals(0.0, engine.position, 1e-9)
+        assertEquals(0.0, engine.velocity, 1e-9)
+        assertEquals(0.0, engine.acceleration, 1e-9)
+        assertFalse(engine.isMoving)
+        assertTrue(engine.hasPosition)
     }
 
     @Test
@@ -24,14 +24,14 @@ class TrajectoryEngineTest {
         val engine = TrajectoryEngine(TrajectoryType.SCURVE_POSITION)
         engine.setPositionParams(10.0, 5.0, 5.0, 50.0)
         engine.applyParamsAndGoTo(100.0)
-        assertTrue(engine.isMoving())
+        assertTrue(engine.isMoving)
 
         // Step 30 seconds worth of 20 ms ticks
         for (i in 0 until 1500) engine.tick()
 
-        assertFalse(engine.isMoving(), "should have stopped")
-        assertEquals(100.0, engine.getPosition(), 0.1)
-        assertEquals(0.0, engine.getVelocity(), 0.1)
+        assertFalse(engine.isMoving, "should have stopped")
+        assertEquals(100.0, engine.position, 0.1)
+        assertEquals(0.0, engine.velocity, 0.1)
     }
 
     @Test
@@ -42,16 +42,16 @@ class TrajectoryEngineTest {
 
         // Advance partway
         for (i in 0 until 50) engine.tick() // 1 second
-        val midPos = engine.getPosition()
+        val midPos = engine.position
         assertTrue(midPos > 0 && midPos < 100, "should be mid-trajectory")
 
         // Interrupt — go back toward -100
         engine.applyParamsAndGoTo(-100.0)
-        assertTrue(engine.isMoving())
+        assertTrue(engine.isMoving)
 
         // Advance to completion
         for (i in 0 until 2500) engine.tick()
-        assertEquals(-100.0, engine.getPosition(), 0.5)
+        assertEquals(-100.0, engine.position, 0.5)
     }
 
     @Test
@@ -67,23 +67,23 @@ class TrajectoryEngineTest {
         // Position should still be progressing at the original (fast) rate.
         // At 1.0 s with vMax=10, aMax=5, jMax=50, position ≈ 2.26 (clearly > 1.0).
         // If slow params (vMax=2, aMax=1) had taken effect it would be only ~0.09.
-        assertTrue(engine.getPosition() > 1.0, "original fast params still in effect")
+        assertTrue(engine.position > 1.0, "original fast params still in effect")
 
         // Now press button — new params apply
         engine.applyParamsAndGoTo(0.0)
         for (i in 0 until 3000) engine.tick()
-        assertEquals(0.0, engine.getPosition(), 0.5)
+        assertEquals(0.0, engine.position, 0.5)
     }
 
     @Test
     fun sinCurvePosition_initialState_atZeroAtRest() {
         val engine = TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION)
         engine.setPositionParams(10.0, 5.0, 5.0, 50.0)
-        assertEquals(0.0, engine.getPosition(), 1e-9)
-        assertEquals(0.0, engine.getVelocity(), 1e-9)
-        assertEquals(0.0, engine.getAcceleration(), 1e-9)
-        assertFalse(engine.isMoving())
-        assertTrue(engine.hasPosition())
+        assertEquals(0.0, engine.position, 1e-9)
+        assertEquals(0.0, engine.velocity, 1e-9)
+        assertEquals(0.0, engine.acceleration, 1e-9)
+        assertFalse(engine.isMoving)
+        assertTrue(engine.hasPosition)
     }
 
     @Test
@@ -91,21 +91,21 @@ class TrajectoryEngineTest {
         val engine = TrajectoryEngine(TrajectoryType.SIN_CURVE_POSITION)
         engine.setPositionParams(10.0, 5.0, 5.0, 50.0)
         engine.applyParamsAndGoTo(100.0)
-        assertTrue(engine.isMoving())
+        assertTrue(engine.isMoving)
 
         // Step 30 seconds worth of 20 ms ticks
         for (i in 0 until 1500) engine.tick()
 
-        assertFalse(engine.isMoving(), "should have stopped")
-        assertEquals(100.0, engine.getPosition(), 0.1)
-        assertEquals(0.0, engine.getVelocity(), 0.1)
+        assertFalse(engine.isMoving, "should have stopped")
+        assertEquals(100.0, engine.position, 0.1)
+        assertEquals(0.0, engine.velocity, 0.1)
     }
 
     @Test
     fun scurveVelocity_hasNoPosition() {
         val engine = TrajectoryEngine(TrajectoryType.SCURVE_VELOCITY)
         engine.setVelocityParams(1197.0, 2669.0, 800.0)
-        assertFalse(engine.hasPosition())
+        assertFalse(engine.hasPosition)
     }
 
     @Test
@@ -116,8 +116,8 @@ class TrajectoryEngineTest {
 
         for (i in 0 until 500) engine.tick()
 
-        assertFalse(engine.isMoving(), "should have settled")
-        assertEquals(3000.0, engine.getVelocity(), 5.0)
+        assertFalse(engine.isMoving, "should have settled")
+        assertEquals(3000.0, engine.velocity, 5.0)
     }
 
     @Test

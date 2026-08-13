@@ -20,7 +20,9 @@ constructor(
     private var jDec: Double = 0.0
 
     private val targetVelocity: SetOnChange<Double>
-    private lateinit var currentTrajectory: VelocityTrajectory
+    lateinit var currentTrajectory: VelocityTrajectory
+        private set
+
     private var startTime: Long = 0
     private var lastV: Double = 0.0
     private var lastA: Double = 0.0
@@ -104,8 +106,7 @@ constructor(
         this.lastV = measuredV
         this.lastA = measuredA
         this.pendingTarget = Double.NaN
-        val currentTarget = targetVelocity.get()
-        changeTrajectory(currentTarget)
+        changeTrajectory(target)
     }
 
     /** Command a new target velocity at any time */
@@ -113,11 +114,12 @@ constructor(
         targetVelocity.setDouble(vTarget)
     }
 
-    fun getTarget(): Double = targetVelocity.get()
+    val target: Double
+        get() = targetVelocity.get()
 
-    fun getVelocity(): Double = lastV
+    val velocity: Double
+        get() = lastV
 
-    fun getAcceleration(): Double = lastA
-
-    fun getCurrentTrajectory(): VelocityTrajectory = currentTrajectory
+    val acceleration: Double
+        get() = lastA
 }

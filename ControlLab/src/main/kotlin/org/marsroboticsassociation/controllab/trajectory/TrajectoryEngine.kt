@@ -25,7 +25,8 @@ class TrajectoryEngine(type: TrajectoryType) {
     // ------------------------------------------------------------------
     // State
     // ------------------------------------------------------------------
-    private var type: TrajectoryType = type
+    var type: TrajectoryType = type
+        private set
 
     // --- SCurvePosition ---
     private var posManager: PositionTrajectoryManager? = null
@@ -85,9 +86,9 @@ class TrajectoryEngine(type: TrajectoryType) {
                 pos.updateConfig(pendingVMax, pendingAAccel, pendingADecel, pendingJMax)
                 pos.setTarget(target)
                 pos.update()
-                lastP = pos.getPosition()
-                lastV = pos.getVelocity()
-                lastA = pos.getAcceleration()
+                lastP = pos.position
+                lastV = pos.velocity
+                lastA = pos.acceleration
             }
             TrajectoryType.SCURVE_VELOCITY -> {
                 val vel = velManager!!
@@ -95,8 +96,8 @@ class TrajectoryEngine(type: TrajectoryType) {
                 vel.setTarget(target)
                 vel.update()
                 lastP = 0.0
-                lastV = vel.getVelocity()
-                lastA = vel.getAcceleration()
+                lastV = vel.velocity
+                lastA = vel.acceleration
             }
         }
     }
@@ -112,8 +113,8 @@ class TrajectoryEngine(type: TrajectoryType) {
         if (vel != null) {
             vel.updateConfig(pendingAMax, pendingJInc, pendingJDec)
             vel.resetFromMeasurement(0.0, 0.0)
-            lastV = vel.getVelocity()
-            lastA = vel.getAcceleration()
+            lastV = vel.velocity
+            lastA = vel.acceleration
         }
     }
 
@@ -130,9 +131,9 @@ class TrajectoryEngine(type: TrajectoryType) {
             TrajectoryType.SIN_CURVE_POSITION -> {
                 val pos = posManager!!
                 pos.update()
-                lastP = pos.getPosition()
-                lastV = pos.getVelocity()
-                lastA = pos.getAcceleration()
+                lastP = pos.position
+                lastV = pos.velocity
+                lastA = pos.acceleration
                 if (abs(lastP - currentTarget) < 0.01 && abs(lastV) < 0.01) {
                     moving = false
                 }
@@ -141,8 +142,8 @@ class TrajectoryEngine(type: TrajectoryType) {
                 val vel = velManager!!
                 vel.update()
                 lastP = 0.0
-                lastV = vel.getVelocity()
-                lastA = vel.getAcceleration()
+                lastV = vel.velocity
+                lastA = vel.acceleration
                 if (abs(lastV - currentTarget) < 1.0 && abs(lastA) < 1.0) {
                     moving = false
                 }
@@ -163,19 +164,23 @@ class TrajectoryEngine(type: TrajectoryType) {
     // Accessors
     // ------------------------------------------------------------------
 
-    fun getPosition(): Double = lastP
+    val position: Double
+        get() = lastP
 
-    fun getVelocity(): Double = lastV
+    val velocity: Double
+        get() = lastV
 
-    fun getAcceleration(): Double = lastA
+    val acceleration: Double
+        get() = lastA
 
-    fun isMoving(): Boolean = moving
+    val isMoving: Boolean
+        get() = moving
 
-    fun getTarget(): Double = currentTarget
+    val target: Double
+        get() = currentTarget
 
-    fun hasPosition(): Boolean = type != TrajectoryType.SCURVE_VELOCITY
-
-    fun getType(): TrajectoryType = type
+    val hasPosition: Boolean
+        get() = type != TrajectoryType.SCURVE_VELOCITY
 
     fun supportsExactSvgExport(): Boolean =
         type == TrajectoryType.SCURVE_POSITION ||
@@ -260,7 +265,7 @@ class TrajectoryEngine(type: TrajectoryType) {
     }
 
     private fun buildPositionSvgModel(): TrajectorySvgModel? {
-        val profile = posManager!!.getCurrentTrajectory() as? SCurvePosition ?: return null
+        val profile = posManager!!.currentTrajectory as? SCurvePosition ?: return null
         val series = ArrayList<TrajectorySvgSeries>()
         series.add(
             TrajectorySvgSeries(
@@ -292,7 +297,7 @@ class TrajectoryEngine(type: TrajectoryType) {
         series.add(
             TrajectorySvgSeries(
                 "Target",
-                horizontalSegments(profile.getTotalTime(), currentTarget),
+                horizontalSegments(profile.totalTime, currentTarget),
                 chartColor(3),
                 1.5f,
                 BasicStroke(
@@ -305,11 +310,11 @@ class TrajectoryEngine(type: TrajectoryType) {
                 ),
             )
         )
-        return TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series)
+        return TrajectorySvgModel(0.0, profile.totalTime, minY(series), maxY(series), series)
     }
 
     private fun buildVelocitySvgModel(): TrajectorySvgModel? {
-        val profile = velManager!!.getCurrentTrajectory() as? SCurveVelocity ?: return null
+        val profile = velManager!!.currentTrajectory as? SCurveVelocity ?: return null
         val series = ArrayList<TrajectorySvgSeries>()
         series.add(
             TrajectorySvgSeries(
@@ -332,7 +337,7 @@ class TrajectoryEngine(type: TrajectoryType) {
         series.add(
             TrajectorySvgSeries(
                 "Target",
-                horizontalSegments(profile.getTotalTime(), currentTarget),
+                horizontalSegments(profile.totalTime, currentTarget),
                 chartColor(3),
                 1.5f,
                 BasicStroke(
@@ -345,11 +350,11 @@ class TrajectoryEngine(type: TrajectoryType) {
                 ),
             )
         )
-        return TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series)
+        return TrajectorySvgModel(0.0, profile.totalTime, minY(series), maxY(series), series)
     }
 
     private fun buildSinPositionSvgModel(): TrajectorySvgModel? {
-        val profile = posManager!!.getCurrentTrajectory() as? SinCurvePosition ?: return null
+        val profile = posManager!!.currentTrajectory as? SinCurvePosition ?: return null
         val series = ArrayList<TrajectorySvgSeries>()
         series.add(
             TrajectorySvgSeries(
@@ -381,7 +386,7 @@ class TrajectoryEngine(type: TrajectoryType) {
         series.add(
             TrajectorySvgSeries(
                 "Target",
-                horizontalSegments(profile.getTotalTime(), currentTarget),
+                horizontalSegments(profile.totalTime, currentTarget),
                 chartColor(3),
                 1.5f,
                 BasicStroke(
@@ -394,7 +399,7 @@ class TrajectoryEngine(type: TrajectoryType) {
                 ),
             )
         )
-        return TrajectorySvgModel(0.0, profile.getTotalTime(), minY(series), maxY(series), series)
+        return TrajectorySvgModel(0.0, profile.totalTime, minY(series), maxY(series), series)
     }
 
     companion object {

@@ -64,8 +64,8 @@ class LiftEkfTest {
 
                 val t = ms / 1000.0
                 if (t > 0.2) {
-                    ekfVelSq += sq(ekf.getVelocity() - trueVel)
-                    ekfPosSq += sq(ekf.getPosition() - truePos)
+                    ekfVelSq += sq(ekf.velocity - trueVel)
+                    ekfPosSq += sq(ekf.position - truePos)
                     samples++
                 }
 

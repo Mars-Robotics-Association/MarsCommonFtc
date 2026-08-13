@@ -5,7 +5,38 @@ import kotlin.math.abs
 import org.marsroboticsassociation.controllib.util.SetOnChange
 import org.marsroboticsassociation.controllib.util.TelemetryAddData
 
-class PositionTrajectoryManager {
+class PositionTrajectoryManager
+@JvmOverloads
+constructor(
+    vMax: Double,
+    aMaxAccel: Double,
+    aMaxDecel: Double,
+    jMax: Double,
+    pChangeTolerance: Double,
+    private val telemetry: TelemetryAddData,
+    private val clock: LongSupplier = LongSupplier { System.nanoTime() },
+    private val factory: TrajectoryFactory = TrajectoryFactory(::SCurvePosition),
+) {
+
+    /** Production constructor with a custom factory and the system clock. */
+    constructor(
+        vMax: Double,
+        aMaxAccel: Double,
+        aMaxDecel: Double,
+        jMax: Double,
+        pChangeTolerance: Double,
+        telemetry: TelemetryAddData,
+        factory: TrajectoryFactory,
+    ) : this(
+        vMax,
+        aMaxAccel,
+        aMaxDecel,
+        jMax,
+        pChangeTolerance,
+        telemetry,
+        LongSupplier { System.nanoTime() },
+        factory,
+    )
 
     /**
      * Factory for creating [PositionTrajectory] instances. Implement this to swap in a different
@@ -34,101 +65,33 @@ class PositionTrajectoryManager {
     private var aMaxDecel: Double = 0.0
     private var jMax: Double = 0.0
 
-    private val clock: LongSupplier
-    private val telemetry: TelemetryAddData
-    private val factory: TrajectoryFactory
     private val targetPosition: SetOnChange<Double>
-    private lateinit var currentTrajectory: PositionTrajectory
+    var currentTrajectory: PositionTrajectory
+        private set
+
     private var startTime: Long = 0
     private var lastP: Double = 0.0
     private var lastV: Double = 0.0
     private var lastA: Double = 0.0
     private var pendingTarget: Double = Double.NaN
 
-    /** Production constructor — uses System.nanoTime as the clock and SCurvePosition. */
-    constructor(
-        vMax: Double,
-        aMaxAccel: Double,
-        aMaxDecel: Double,
-        jMax: Double,
-        pChangeTolerance: Double,
-        telemetry: TelemetryAddData,
-    ) : this(
-        vMax,
-        aMaxAccel,
-        aMaxDecel,
-        jMax,
-        pChangeTolerance,
-        telemetry,
-        LongSupplier { System.nanoTime() },
-        TrajectoryFactory { p0, pTarget, v0, a0, vMax, aMaxAccel, aMaxDecel, jMax ->
-            SCurvePosition(p0, pTarget, v0, a0, vMax, aMaxAccel, aMaxDecel, jMax)
-        },
-    )
+    val target: Double
+        get() = targetPosition.get()
 
-    /** Test constructor — allows injecting a simulated clock. Uses SCurvePosition. */
-    constructor(
-        vMax: Double,
-        aMaxAccel: Double,
-        aMaxDecel: Double,
-        jMax: Double,
-        pChangeTolerance: Double,
-        telemetry: TelemetryAddData,
-        clock: LongSupplier,
-    ) : this(
-        vMax,
-        aMaxAccel,
-        aMaxDecel,
-        jMax,
-        pChangeTolerance,
-        telemetry,
-        clock,
-        TrajectoryFactory { p0, pTarget, v0, a0, vMax, aMaxAccel, aMaxDecel, jMax ->
-            SCurvePosition(p0, pTarget, v0, a0, vMax, aMaxAccel, aMaxDecel, jMax)
-        },
-    )
+    val position: Double
+        get() = lastP
 
-    /** Production constructor with custom trajectory factory. Uses System.nanoTime as the clock. */
-    constructor(
-        vMax: Double,
-        aMaxAccel: Double,
-        aMaxDecel: Double,
-        jMax: Double,
-        pChangeTolerance: Double,
-        telemetry: TelemetryAddData,
-        factory: TrajectoryFactory,
-    ) : this(
-        vMax,
-        aMaxAccel,
-        aMaxDecel,
-        jMax,
-        pChangeTolerance,
-        telemetry,
-        LongSupplier { System.nanoTime() },
-        factory,
-    )
+    val velocity: Double
+        get() = lastV
 
-    /** Base constructor — all others delegate here. */
-    constructor(
-        vMax: Double,
-        aMaxAccel: Double,
-        aMaxDecel: Double,
-        jMax: Double,
-        pChangeTolerance: Double,
-        telemetry: TelemetryAddData,
-        clock: LongSupplier,
-        factory: TrajectoryFactory,
-    ) {
-        this.clock = clock
-        this.telemetry = telemetry
-        this.factory = factory
-        pendingTarget = Double.NaN
+    val acceleration: Double
+        get() = lastA
+
+    init {
         updateConfig(vMax, aMaxAccel, aMaxDecel, jMax)
-        lastP = 0.0
-        lastV = 0.0
-        lastA = 0.0
         startTime = clock.asLong
-        changeTrajectory(0.0)
+        currentTrajectory =
+            factory.create(0.0, 0.0, 0.0, 0.0, this.vMax, this.aMaxAccel, this.aMaxDecel, this.jMax)
         targetPosition =
             SetOnChange.ofDouble(0.0, pChangeTolerance) { p ->
                 pendingTarget = p
@@ -190,11 +153,11 @@ class PositionTrajectoryManager {
      * acceleration.
      */
     fun resetFromMeasurement(measuredP: Double, measuredV: Double, measuredA: Double) {
-        this.lastP = measuredP
-        this.lastV = measuredV
-        this.lastA = measuredA
-        this.pendingTarget = Double.NaN
-        changeTrajectory(targetPosition.get())
+        lastP = measuredP
+        lastV = measuredV
+        lastA = measuredA
+        pendingTarget = Double.NaN
+        changeTrajectory(target)
     }
 
     /**
@@ -208,14 +171,4 @@ class PositionTrajectoryManager {
     fun setTarget(pTarget: Double) {
         targetPosition.setDouble(pTarget)
     }
-
-    fun getTarget(): Double = targetPosition.get()
-
-    fun getPosition(): Double = lastP
-
-    fun getVelocity(): Double = lastV
-
-    fun getAcceleration(): Double = lastA
-
-    fun getCurrentTrajectory(): PositionTrajectory = currentTrajectory
 }

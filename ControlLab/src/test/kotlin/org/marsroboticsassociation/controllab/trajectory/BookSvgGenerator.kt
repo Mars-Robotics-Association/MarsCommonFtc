@@ -22,7 +22,7 @@ class BookSvgGenerator {
 
         private fun runToCompletion(engine: TrajectoryEngine) {
             var limit = 100_000
-            while (engine.isMoving() && limit-- > 0) {
+            while (engine.isMoving && limit-- > 0) {
                 engine.tick()
             }
         }
@@ -71,9 +71,7 @@ class BookSvgGenerator {
             series.add(
                 TrajectorySvgSeries(
                     "Target",
-                    listOf(
-                        PolynomialCurveSegment(0.0, profile.getTotalTime(), target, 0.0, 0.0, 0.0)
-                    ),
+                    listOf(PolynomialCurveSegment(0.0, profile.totalTime, target, 0.0, 0.0, 0.0)),
                     Color(0x95, 0xA5, 0xA6),
                     1.5f,
                     BasicStroke(
@@ -96,7 +94,7 @@ class BookSvgGenerator {
             }
             return TrajectorySvgModel(
                 0.0,
-                profile.getTotalTime(),
+                profile.totalTime,
                 if (minVal.isFinite()) minVal else -1.0,
                 if (maxVal.isFinite()) maxVal else 1.0,
                 series,

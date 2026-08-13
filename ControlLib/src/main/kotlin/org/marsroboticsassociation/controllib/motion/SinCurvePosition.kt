@@ -689,7 +689,7 @@ class SinCurvePosition(
     override fun getPosition(t: Double): Double {
         if (trivial) return p0
         if (t <= 0) return p0
-        val tf = getTotalTime()
+        val tf = totalTime
         if (t >= tf) return pTarget
 
         if (tPrefix > 0 && t < tPrefix) {
@@ -735,7 +735,7 @@ class SinCurvePosition(
     override fun getVelocity(t: Double): Double {
         if (trivial) return v0
         if (t <= 0) return v0
-        val tf = getTotalTime()
+        val tf = totalTime
         if (t >= tf) return 0.0
 
         if (tPrefix > 0 && t < tPrefix) {
@@ -772,7 +772,7 @@ class SinCurvePosition(
     override fun getAcceleration(t: Double): Double {
         if (trivial) return a0
         if (t <= 0) return a0
-        val tf = getTotalTime()
+        val tf = totalTime
         if (t >= tf) return 0.0
 
         if (tPrefix > 0 && t < tPrefix) {
@@ -807,13 +807,12 @@ class SinCurvePosition(
         return evalA(phaseAmpl[ph], phaseSign[ph], dt, T)
     }
 
-    override fun getTotalTime(): Double {
-        return if (trivial) 0.0 else phaseStartT[7]
-    }
+    override val totalTime: Double
+        get() = if (trivial) 0.0 else phaseStartT[7]
 
     override fun isZeroJerk(t: Double): Boolean {
         if (trivial) return true
-        if (t <= 0 || t >= getTotalTime()) return true
+        if (t <= 0 || t >= totalTime) return true
         if (tPrefix > 0 && t < tPrefix) return false // active sinusoidal prefix
         val tBrakeEnd = tPrefix + tBrake
         if (tBrake > 0 && t < tBrakeEnd) {
@@ -826,7 +825,7 @@ class SinCurvePosition(
 
     fun getJerk(t: Double): Double {
         if (trivial) return 0.0
-        if (t <= 0 || t >= getTotalTime()) return 0.0
+        if (t <= 0 || t >= totalTime) return 0.0
 
         if (tPrefix > 0 && t < tPrefix) {
             if (prefixMergedWithBrake) {

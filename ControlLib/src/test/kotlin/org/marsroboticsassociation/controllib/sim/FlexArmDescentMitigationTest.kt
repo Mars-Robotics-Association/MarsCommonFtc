@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllib.sim
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
@@ -67,7 +68,7 @@ class FlexArmDescentMitigationTest {
         val gTip = 0.85
         val kc = 500.0
         val cc = 2.0
-        val kf = (2 * Math.PI * FLEX_HZ).pow(2) * kAt
+        val kf = (2 * PI * FLEX_HZ).pow(2) * kAt
         val cf = 2 * FLEX_ZETA * sqrt(kf * kAt)
         var tm = 0.0
         var wm = 0.0
@@ -249,7 +250,7 @@ class FlexArmDescentMitigationTest {
 
             sim.step(DT, u / VBUS, VBUS)
 
-            val eng = sim.isEngaged()
+            val eng = sim.isEngaged
             val moving = abs(spv) > 0.1
             if (moving && wasEng && !eng) seps++
             wasEng = eng

@@ -24,10 +24,10 @@ class RuckigPositionTrajectoryTest {
         val sc = SCurvePosition(0.0, 2.0, 0.0, 0.0, 1.5, 2.0, 3.0, 8.0)
         val rk = RuckigPositionTrajectory(0.0, 2.0, 0.0, 0.0, 1.5, 2.0, 3.0, 8.0)
 
-        assertEquals(sc.getTotalTime(), rk.getTotalTime(), 1e-6, "optimal duration")
-        assertEquals(2.0, rk.getPosition(rk.getTotalTime()), 1e-8)
-        assertEquals(0.0, rk.getVelocity(rk.getTotalTime()), 1e-8)
-        assertEquals(0.0, rk.getAcceleration(rk.getTotalTime()), 1e-8)
+        assertEquals(sc.totalTime, rk.totalTime, 1e-6, "optimal duration")
+        assertEquals(2.0, rk.getPosition(rk.totalTime), 1e-8)
+        assertEquals(0.0, rk.getVelocity(rk.totalTime), 1e-8)
+        assertEquals(0.0, rk.getAcceleration(rk.totalTime), 1e-8)
     }
 
     @Test
@@ -40,8 +40,8 @@ class RuckigPositionTrajectoryTest {
         val rk = RuckigPositionTrajectory(2.0, 0.0, 0.0, 0.0, 1.5, aAccel, aDecel, 8.0)
 
         assertEquals(
-            sc.getTotalTime(),
-            rk.getTotalTime(),
+            sc.totalTime,
+            rk.totalTime,
             1e-6,
             "asymmetric negative-move duration",
         )
@@ -49,7 +49,7 @@ class RuckigPositionTrajectoryTest {
         // Signed acceleration must stay within the mapped bounds: speeding up in − is bounded by
         // aAccel (a >= -1), braking in − is bounded by aDecel (a <= +4).
         for (i in 0..200) {
-            val t = rk.getTotalTime() * i / 200.0
+            val t = rk.totalTime * i / 200.0
             val a = rk.getAcceleration(t)
             assertTrue(a >= -aAccel - 1e-9, "accel bound at t=$t: $a")
             assertTrue(a <= aDecel + 1e-9, "decel bound at t=$t: $a")
@@ -63,7 +63,7 @@ class RuckigPositionTrajectoryTest {
     @Test
     fun wrongWayInitialStateEndsAtRestOnTarget() {
         val rk = RuckigPositionTrajectory(0.0, 1.0, -0.8, 0.5, 1.0, 1.0, 1.0, 4.0)
-        val tf = rk.getTotalTime()
+        val tf = rk.totalTime
         assertTrue(tf > 0)
         assertEquals(1.0, rk.getPosition(tf), 1e-8)
         assertEquals(0.0, rk.getVelocity(tf), 1e-8)
@@ -79,7 +79,7 @@ class RuckigPositionTrajectoryTest {
         // v0 far above vMax: Ruckig plans a brake pre-trajectory. Velocity must come down
         // continuously (bounded by decel+jerk), never jump.
         val rk = RuckigPositionTrajectory(0.0, 2.0, 3.0, 0.0, 1.0, 1.0, 2.0, 8.0)
-        val tf = rk.getTotalTime()
+        val tf = rk.totalTime
         var prevV = rk.getVelocity(0.0)
         assertEquals(3.0, prevV, 1e-12)
         val n = 400
@@ -100,7 +100,7 @@ class RuckigPositionTrajectoryTest {
     fun nonzeroTargetVelocityPassThrough() {
         val vf = 0.5
         val rk = RuckigPositionTrajectory(0.0, 2.0, 0.0, 0.0, vf, 0.0, 1.0, 1.0, 1.0, 4.0)
-        val tf = rk.getTotalTime()
+        val tf = rk.totalTime
         assertEquals(2.0, rk.getPosition(tf), 1e-8)
         assertEquals(vf, rk.getVelocity(tf), 1e-8)
     }
@@ -114,7 +114,7 @@ class RuckigPositionTrajectoryTest {
         val rk = RuckigPositionTrajectory(1.0, 3.0, 0.2, 0.0, 1.0, 1.0, 1.0, 4.0)
         assertEquals(1.0, rk.getPosition(-0.5), 1e-12, "t<0 returns initial state")
         assertEquals(0.2, rk.getVelocity(-0.5), 1e-12)
-        val after = rk.getTotalTime() + 5.0
+        val after = rk.totalTime + 5.0
         assertEquals(3.0, rk.getPosition(after), 1e-8, "t>tf holds target")
         assertEquals(0.0, rk.getVelocity(after), 1e-8)
         assertTrue(rk.isZeroJerk(after))
@@ -125,7 +125,7 @@ class RuckigPositionTrajectoryTest {
         // A long move with a cruise: jerk is nonzero in the accel ramps, zero mid-cruise.
         val rk = RuckigPositionTrajectory(0.0, 10.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0)
         assertTrue(!rk.isZeroJerk(1e-3), "jerk active at start of accel ramp")
-        assertTrue(rk.isZeroJerk(rk.getTotalTime() / 2), "cruise is zero-jerk")
+        assertTrue(rk.isZeroJerk(rk.totalTime / 2), "cruise is zero-jerk")
     }
 
     @Test
@@ -158,9 +158,9 @@ class RuckigPositionTrajectoryTest {
         m.setTarget(50.0)
         clock.set(2e9.toLong()) // mid-flight, at cruise
         m.update()
-        val pBefore = m.getPosition()
-        val vBefore = m.getVelocity()
-        val aBefore = m.getAcceleration()
+        val pBefore = m.position
+        val vBefore = m.velocity
+        val aBefore = m.acceleration
         assertTrue(vBefore > 0.1, "should be moving mid-flight")
 
         // Retarget: replan must start from the sampled p/v/a state.
@@ -170,21 +170,21 @@ class RuckigPositionTrajectoryTest {
         m.update()
         assertEquals(
             pBefore + vBefore * 1e-3,
-            m.getPosition(),
+            m.position,
             5 * 3 * 1e-6 + 1e-6,
             "position continuous across replan",
         )
-        assertEquals(vBefore, m.getVelocity(), 3 * 1e-3 + 1e-6, "velocity continuous across replan")
+        assertEquals(vBefore, m.velocity, 3 * 1e-3 + 1e-6, "velocity continuous across replan")
         assertEquals(
             aBefore,
-            m.getAcceleration(),
+            m.acceleration,
             10 * 1e-3 + 1e-6,
             "accel continuous across replan",
         )
 
         clock.set(60e9.toLong())
         m.update()
-        assertEquals(-20.0, m.getPosition(), 1e-2, "reaches the new target")
-        assertEquals(0.0, m.getVelocity(), 0.1, "at rest on the new target")
+        assertEquals(-20.0, m.position, 1e-2, "reaches the new target")
+        assertEquals(0.0, m.velocity, 0.1, "at rest on the new target")
     }
 }

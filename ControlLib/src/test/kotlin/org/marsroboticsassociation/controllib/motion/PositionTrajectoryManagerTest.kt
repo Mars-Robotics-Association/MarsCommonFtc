@@ -67,8 +67,8 @@ class PositionTrajectoryManagerTest {
         clock.set(tfNs)
         m.update()
 
-        assertEquals(50.0, m.getPosition(), 1e-2, "should reach target after tf")
-        assertEquals(0.0, m.getVelocity(), 0.1, "should be at rest")
+        assertEquals(50.0, m.position, 1e-2, "should reach target after tf")
+        assertEquals(0.0, m.velocity, 0.1, "should be at rest")
     }
 
     @Test
@@ -84,13 +84,13 @@ class PositionTrajectoryManagerTest {
         m.resetFromMeasurement(20.0, 0.0, 0.0)
 
         // Verify getters reflect injected state immediately
-        assertEquals(20.0, m.getPosition(), 1e-9)
-        assertEquals(0.0, m.getVelocity(), 1e-9)
+        assertEquals(20.0, m.position, 1e-9)
+        assertEquals(0.0, m.velocity, 1e-9)
 
         // Advance well past end of new trajectory
         clock.set(30e9.toLong())
         m.update()
-        assertEquals(100.0, m.getPosition(), 1e-2, "should still reach original target")
+        assertEquals(100.0, m.position, 1e-2, "should still reach original target")
     }
 
     @Test
@@ -104,7 +104,7 @@ class PositionTrajectoryManagerTest {
         // Advance a bit so the trajectory starts
         clock.set(0.5e9.toLong())
         m.update()
-        val posAfterFirst = m.getPosition()
+        val posAfterFirst = m.position
 
         // Command a target within tolerance — should NOT replan
         m.setTarget(50.4)
@@ -115,7 +115,7 @@ class PositionTrajectoryManagerTest {
         // If replanning had occurred, the position trajectory would restart from 0
         // and the value would likely be < posAfterFirst. Without replan, it continues.
         assertTrue(
-            m.getPosition() >= posAfterFirst,
+            m.position >= posAfterFirst,
             "position should continue increasing (no replan within tolerance)",
         )
     }
@@ -128,18 +128,18 @@ class PositionTrajectoryManagerTest {
         m.setTarget(100.0)
         clock.set(1e9.toLong())
         m.update()
-        val tfFast = SCurvePosition(0.0, 100.0, 0.0, 0.0, 5.0, 3.0, 3.0, 10.0).getTotalTime()
+        val tfFast = SCurvePosition(0.0, 100.0, 0.0, 0.0, 5.0, 3.0, 3.0, 10.0).totalTime
 
         // Slow it down
         m.updateConfig(2.0, 1.0, 1.0, 5.0)
         m.resetFromMeasurement(0.0, 0.0, 0.0)
 
-        val tfSlow = SCurvePosition(0.0, 100.0, 0.0, 0.0, 2.0, 1.0, 1.0, 5.0).getTotalTime()
+        val tfSlow = SCurvePosition(0.0, 100.0, 0.0, 0.0, 2.0, 1.0, 1.0, 5.0).totalTime
 
         assertTrue(tfSlow > tfFast, "slower config should take longer")
         clock.set((tfSlow * 1.05e9).toLong())
         m.update()
-        assertEquals(100.0, m.getPosition(), 0.5, "should reach target with slow config")
+        assertEquals(100.0, m.position, 0.5, "should reach target with slow config")
     }
 
     /**
@@ -156,13 +156,13 @@ class PositionTrajectoryManagerTest {
         m.setTarget(100.0)
         clock.set(1e9.toLong())
         m.update()
-        val vBefore = m.getVelocity()
+        val vBefore = m.velocity
 
         // Change target to +50 (same direction, still forward)
         m.setTarget(50.0)
         clock.set(1e9.toLong() + 20_000_000L) // +20 ms
         m.update()
-        val vAfter = m.getVelocity()
+        val vAfter = m.velocity
 
         assertEquals(
             vBefore,
@@ -195,13 +195,13 @@ class PositionTrajectoryManagerTest {
         m.setTarget(100.0)
         clock.set(1e9.toLong())
         m.update()
-        val vBefore = m.getVelocity()
+        val vBefore = m.velocity
 
         // Reverse target mid-move (vBefore ≈ +10, new direction is negative)
         m.setTarget(-100.0)
         clock.set(1e9.toLong() + 20_000_000L) // +20 ms
         m.update()
-        val vAfter = m.getVelocity()
+        val vAfter = m.velocity
 
         // BUG: vAfter ≈ 0 instead of continuing from vBefore ≈ +10
         assertEquals(
@@ -225,12 +225,12 @@ class PositionTrajectoryManagerTest {
         m.setTarget(100.0)
         clock.set(1e9.toLong())
         m.update()
-        val vBefore = m.getVelocity()
+        val vBefore = m.velocity
 
         m.setTarget(50.0)
         clock.set(1e9.toLong() + 20_000_000L)
         m.update()
-        val vAfter = m.getVelocity()
+        val vAfter = m.velocity
 
         assertEquals(
             vBefore,
@@ -253,12 +253,12 @@ class PositionTrajectoryManagerTest {
         m.setTarget(100.0)
         clock.set(1e9.toLong())
         m.update()
-        val vBefore = m.getVelocity()
+        val vBefore = m.velocity
 
         m.setTarget(-100.0)
         clock.set(1e9.toLong() + 20_000_000L)
         m.update()
-        val vAfter = m.getVelocity()
+        val vAfter = m.velocity
 
         assertEquals(
             vBefore,
@@ -286,9 +286,9 @@ class PositionTrajectoryManagerTest {
             m.update()
         }
 
-        assertEquals(-97.5, m.getPosition(), 1e-2, "should stop with minimum overshoot")
-        assertEquals(0.0, m.getVelocity(), 1e-2, "should be stopped after 1 second")
-        assertEquals(5.0, m.getAcceleration(), 1e-2, "should keep helpful braking acceleration")
+        assertEquals(-97.5, m.position, 1e-2, "should stop with minimum overshoot")
+        assertEquals(0.0, m.velocity, 1e-2, "should be stopped after 1 second")
+        assertEquals(5.0, m.acceleration, 1e-2, "should keep helpful braking acceleration")
     }
 
     @Test
@@ -303,20 +303,19 @@ class PositionTrajectoryManagerTest {
         // Advance clock further WITHOUT calling update — getters should return stale values
         clock.set(5e9.toLong())
 
-        val p = m.getPosition()
-        val v = m.getVelocity()
-        val a = m.getAcceleration()
+        val p = m.position
+        val v = m.velocity
+        val a = m.acceleration
 
         // Call update now
         m.update()
 
         // After update the position should have advanced (trajectory is in progress)
         assertTrue(
-            m.getPosition() > p,
-            "position should increase after update at later time; cached=$p" +
-                " new=${m.getPosition()}",
+            m.position > p,
+            "position should increase after update at later time; cached=$p" + " new=${m.position}",
         )
-        assertTrue(m.getVelocity().isFinite())
-        assertTrue(m.getAcceleration().isFinite())
+        assertTrue(m.velocity.isFinite())
+        assertTrue(m.acceleration.isFinite())
     }
 }

@@ -76,30 +76,30 @@ class MechanismProfilerTest {
                 PIN_AMAX,
                 PIN_JMAX,
             )
-            if (plant != engine.getPlantKind()) {
+            if (plant != engine.plantKind) {
                 engine.setPlantKind(plant)
             }
 
             val results = ArrayList<MoveResult>()
             for (seg in script) {
                 engine.setTargetRad(Math.toRadians(seg.targetDeg))
-                val segStart = engine.getElapsedSec()
-                var prevA = engine.getTrajAccelRad()
-                var prevT = engine.getElapsedSec()
+                val segStart = engine.elapsedSec
+                var prevA = engine.trajAccelRad
+                var prevT = engine.elapsedSec
                 var peakJerk = 0.0
                 var lastOutsideBand = segStart // time the load was last outside the settle band
                 for (i in 0 until seg.ticks) {
                     engine.tick()
-                    val dt = engine.getElapsedSec() - prevT
-                    val a = engine.getTrajAccelRad()
+                    val dt = engine.elapsedSec - prevT
+                    val a = engine.trajAccelRad
                     peakJerk = max(peakJerk, abs(a - prevA) / dt)
                     val errDeg =
-                        abs(Math.toDegrees(engine.getTrueLoadRad() - Math.toRadians(seg.targetDeg)))
+                        abs(Math.toDegrees(engine.trueLoadRad - Math.toRadians(seg.targetDeg)))
                     if (errDeg > SETTLE_BAND_DEG) {
-                        lastOutsideBand = engine.getElapsedSec()
+                        lastOutsideBand = engine.elapsedSec
                     }
                     prevA = a
-                    prevT = engine.getElapsedSec()
+                    prevT = engine.elapsedSec
                 }
                 if (!seg.measured) {
                     continue
@@ -107,11 +107,11 @@ class MechanismProfilerTest {
                 val r = MoveResult()
                 r.name = seg.name
                 val insideAtEnd =
-                    abs(Math.toDegrees(engine.getTrueLoadRad() - Math.toRadians(seg.targetDeg))) <=
+                    abs(Math.toDegrees(engine.trueLoadRad - Math.toRadians(seg.targetDeg))) <=
                         SETTLE_BAND_DEG
                 r.settleSec = if (insideAtEnd) lastOutsideBand - segStart else Double.NaN
                 r.finalErrDeg =
-                    abs(Math.toDegrees(engine.getTrueLoadRad() - Math.toRadians(seg.targetDeg)))
+                    abs(Math.toDegrees(engine.trueLoadRad - Math.toRadians(seg.targetDeg)))
                 r.peakTrajJerk = peakJerk
                 results.add(r)
             }
@@ -225,7 +225,7 @@ class MechanismProfilerTest {
             // Score the profile against the endpoint it actually chases — with the backlash
             // plant live, rest-only compensation biases that up to a half-lash off the stated
             // target.
-            val profErrDeg = abs(Math.toDegrees(e.getTrajPosRad() - e.getProfileTargetRad()))
+            val profErrDeg = abs(Math.toDegrees(e.trajPosRad - e.profileTargetRad))
             assertTrue(
                 profErrDeg < 1.0,
                 "profile arrives at " +

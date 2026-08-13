@@ -1,8 +1,5 @@
 package org.marsroboticsassociation.controllib.localization.vision
 
-import java.util.Collections
-import java.util.HashMap
-
 /**
  * Geometry wiring for the [VisionPoseSolver]: an explicit camera extrinsic plus an explicit field
  * tag-pose table. Both are **caller-supplied** — extrinsics are per-robot and the tag map is
@@ -40,8 +37,7 @@ class VisionPoseSolverConfig(
     tagFieldPoses: Map<Int, Transform3D>,
 ) {
     private val robotFromCameraExtrinsic: Transform3D = robotFromCamera
-    private val tagFieldPosesTable: Map<Int, Transform3D> =
-        Collections.unmodifiableMap(HashMap(tagFieldPoses))
+    private val tagFieldPosesTable: Map<Int, Transform3D> = tagFieldPoses.toMap()
 
     /** Camera optical frame expressed in the robot frame (metres). */
     fun robotFromCamera(): Transform3D = robotFromCameraExtrinsic

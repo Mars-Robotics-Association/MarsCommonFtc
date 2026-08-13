@@ -118,8 +118,7 @@ class VelocityMotorSdkPidf : VelocityMotorBase {
     }
 
     override fun isAtTargetSpeed(): Boolean {
-        return trajectory.getAcceleration() == 0.0 &&
-            abs(getTpsFiltered() - trajectory.getTarget()) < 30
+        return trajectory.acceleration == 0.0 && abs(getTpsFiltered() - trajectory.target) < 30
     }
 
     override fun setPower(power: Double) {
@@ -138,10 +137,10 @@ class VelocityMotorSdkPidf : VelocityMotorBase {
         Kv.set(config.Kv)
         voltageFactor.set(config.nominalVoltage / getVoltage())
         trajectory.update()
-        if (abs(trajectory.getTarget()) < 1e-6) {
+        if (abs(trajectory.target) < 1e-6) {
             stop()
         } else {
-            motorVelocitySetpoint.set(trajectory.getVelocity())
+            motorVelocitySetpoint.set(trajectory.velocity)
         }
     }
 

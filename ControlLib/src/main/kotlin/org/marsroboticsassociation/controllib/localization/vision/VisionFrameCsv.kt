@@ -2,9 +2,6 @@ package org.marsroboticsassociation.controllib.localization.vision
 
 import edu.wpi.first.math.geometry.Pose2d
 import edu.wpi.first.math.geometry.Rotation2d
-import java.util.ArrayList
-import java.util.LinkedHashMap
-import java.util.function.Function
 import kotlin.math.round
 
 /**
@@ -39,7 +36,7 @@ object VisionFrameCsv {
         cam: DoubleArray?,
         dist: DoubleArray?,
     ): LinkedHashMap<String, Double> {
-        val m = LinkedHashMap<String, Double>()
+        val m = linkedMapOf<String, Double>()
 
         // Frame meta.
         m["vis_newFrame"] = if (f.valid) 1.0 else 0.0
@@ -82,14 +79,11 @@ object VisionFrameCsv {
 
         // ALL detected tags (up to 4 slots): id + 4 image corners each — the raw per-landmark
         // observations an offline PnP re-solve consumes. Empty slots are id -1 / NaN corners.
+        val tagIds = f.allTagIds
+        val tagCorners = f.allTagCorners
         for (k in 0 until 4) {
-            val id = if (f.allTagIds != null && k < f.allTagIds!!.size) f.allTagIds!![k] else -1
-            val c =
-                if (f.allTagCorners != null && k < f.allTagCorners!!.size) {
-                    f.allTagCorners!![k]
-                } else {
-                    null
-                }
+            val id = if (tagIds != null && k < tagIds.size) tagIds[k] else -1
+            val c = if (tagCorners != null && k < tagCorners.size) tagCorners[k] else null
             m["tag${k}_id"] = id.toDouble()
             for (j in 0 until 4) {
                 m["tag${k}_c${j}x"] = if (c != null && 2 * j < c.size) c[2 * j] else Double.NaN
@@ -113,7 +107,7 @@ object VisionFrameCsv {
 
     /** The frame column names, in write order (derived from an empty [toMap]). */
     @JvmField
-    val COLUMNS: List<String> = ArrayList(toMap(VisionFrame(), DoubleArray(4), DoubleArray(5)).keys)
+    val COLUMNS: List<String> = toMap(VisionFrame(), DoubleArray(4), DoubleArray(5)).keys.toList()
 
     /** The frame columns joined as a CSV header fragment. */
     @JvmField val HEADER: String = COLUMNS.joinToString(",")
@@ -133,15 +127,15 @@ object VisionFrameCsv {
      * assigns them from `vis_newFrame` and the frame clock.
      */
     @JvmStatic
-    fun parse(get: Function<String, Double>): Parsed {
+    fun parse(get: (String) -> Double): Parsed {
         val f = VisionFrame()
-        f.tagCount = round(nz(get.apply("vis_tagCount"))).toInt()
-        f.avgDistM = get.apply("vis_avgDistM")
-        f.latencySec = get.apply("vis_latencyMs") / 1e3
+        f.tagCount = round(nz(get("vis_tagCount"))).toInt()
+        f.avgDistM = get("vis_avgDistM")
+        f.latencySec = get("vis_latencyMs") / 1e3
 
-        val vx = get.apply("vision_x")
-        val vy = get.apply("vision_y")
-        val vh = get.apply("vision_headingDeg")
+        val vx = get("vision_x")
+        val vy = get("vision_y")
+        val vh = get("vision_headingDeg")
         f.mt1Pose =
             if (vx.isFinite()) {
                 Pose2d(vx, vy, Rotation2d(Math.toRadians(vh)))
@@ -149,12 +143,12 @@ object VisionFrameCsv {
                 null
             }
 
-        f.ambiguity = get.apply("vis_ambiguity")
-        f.reprojErrPx = get.apply("vis_reprojErrPx")
-        f.focusMetric = get.apply("focus_metric")
-        f.skew = get.apply("tag_skew")
+        f.ambiguity = get("vis_ambiguity")
+        f.reprojErrPx = get("vis_reprojErrPx")
+        f.focusMetric = get("focus_metric")
+        f.skew = get("tag_skew")
 
-        f.solTagId = round(nz(get.apply("sol_tagId"), -1.0)).toInt()
+        f.solTagId = round(nz(get("sol_tagId"), -1.0)).toInt()
         f.solBestRvec = vec3(get, "sol_best_r")
         f.solBestTvec = vec3(get, "sol_best_t")
         f.solAltRvec = vec3(get, "sol_alt_r")
@@ -164,45 +158,45 @@ object VisionFrameCsv {
         f.t6tRs = vec6(get, "t6tRs")
         f.t6rFs = vec6(get, "t6rFs")
 
-        f.tagTxDeg = get.apply("vis_tagTxDeg")
-        f.tagTyDeg = get.apply("vis_tagTyDeg")
-        f.tagMinXPx = get.apply("vis_tagMinXPx")
-        f.tagMaxXPx = get.apply("vis_tagMaxXPx")
-        f.tagMinYPx = get.apply("vis_tagMinYPx")
-        f.tagMaxYPx = get.apply("vis_tagMaxYPx")
+        f.tagTxDeg = get("vis_tagTxDeg")
+        f.tagTyDeg = get("vis_tagTyDeg")
+        f.tagMinXPx = get("vis_tagMinXPx")
+        f.tagMaxXPx = get("vis_tagMaxXPx")
+        f.tagMinYPx = get("vis_tagMinYPx")
+        f.tagMaxYPx = get("vis_tagMaxYPx")
 
-        val ids = ArrayList<Int>()
-        val corners = ArrayList<DoubleArray>()
+        val ids = mutableListOf<Int>()
+        val corners = mutableListOf<DoubleArray>()
         for (k in 0 until 4) {
-            val id = get.apply("tag${k}_id")
+            val id = get("tag${k}_id")
             if (!id.isFinite() || id < 0) {
                 continue
             }
             ids.add(round(id).toInt())
             val c = DoubleArray(8)
             for (j in 0 until 4) {
-                c[2 * j] = get.apply("tag${k}_c${j}x")
-                c[2 * j + 1] = get.apply("tag${k}_c${j}y")
+                c[2 * j] = get("tag${k}_c${j}x")
+                c[2 * j + 1] = get("tag${k}_c${j}y")
             }
             corners.add(c)
         }
         if (ids.isNotEmpty()) {
-            f.allTagIds = ids.stream().mapToInt { it }.toArray()
+            f.allTagIds = ids.toIntArray()
             f.allTagCorners = corners.toTypedArray()
         }
 
-        val fx = get.apply("vis_calFx")
-        val fy = get.apply("vis_calFy")
-        val cx = get.apply("vis_calCx")
-        val cy = get.apply("vis_calCy")
+        val fx = get("vis_calFx")
+        val fy = get("vis_calFy")
+        val cx = get("vis_calCx")
+        val cy = get("vis_calCy")
         val cameraMatrix = doubleArrayOf(fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0)
         val dist =
             doubleArrayOf(
-                get.apply("vis_dist_k1"),
-                get.apply("vis_dist_k2"),
-                get.apply("vis_dist_p1"),
-                get.apply("vis_dist_p2"),
-                get.apply("vis_dist_k3"),
+                get("vis_dist_k1"),
+                get("vis_dist_k2"),
+                get("vis_dist_p1"),
+                get("vis_dist_p2"),
+                get("vis_dist_k3"),
             )
         return Parsed(f, cameraMatrix, dist)
     }
@@ -222,10 +216,10 @@ object VisionFrameCsv {
     }
 
     /** Reads `<prefix>0..2`, or null if all three are NaN. */
-    private fun vec3(get: Function<String, Double>, prefix: String): DoubleArray? {
-        val x = get.apply(prefix + "0")
-        val y = get.apply(prefix + "1")
-        val z = get.apply(prefix + "2")
+    private fun vec3(get: (String) -> Double, prefix: String): DoubleArray? {
+        val x = get(prefix + "0")
+        val y = get(prefix + "1")
+        val z = get(prefix + "2")
         return if (x.isFinite() || y.isFinite() || z.isFinite()) {
             doubleArrayOf(x, y, z)
         } else {
@@ -234,11 +228,11 @@ object VisionFrameCsv {
     }
 
     /** Reads the six `<prefix>{_x,_y,_z,_yaw,_pitch,_roll}` columns, or null if all NaN. */
-    private fun vec6(get: Function<String, Double>, prefix: String): DoubleArray? {
+    private fun vec6(get: (String) -> Double, prefix: String): DoubleArray? {
         val v = DoubleArray(6)
         var any = false
         for (i in 0 until 6) {
-            v[i] = get.apply(prefix + T6_SUFFIX[i])
+            v[i] = get(prefix + T6_SUFFIX[i])
             any = any || v[i].isFinite()
         }
         return if (any) v else null

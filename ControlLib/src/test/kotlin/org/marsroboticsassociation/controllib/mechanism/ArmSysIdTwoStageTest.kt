@@ -1,6 +1,7 @@
 package org.marsroboticsassociation.controllib.mechanism
 
 import java.util.Random
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -302,7 +303,7 @@ class ArmSysIdTwoStageTest {
         for (i in 0 until n) {
             t += 0.010 * (0.8 + 0.4 * rng.nextDouble())
             time[i] = t
-            theta[i] = 1.2 + 0.05 * exp(-0.6 * t) * sin(2 * Math.PI * 3.0 * t)
+            theta[i] = 1.2 + 0.05 * exp(-0.6 * t) * sin(2 * PI * 3.0 * t)
         }
         val period = ArmSysId.estimateFlexPeriod(theta, time)
         assertEquals(1.0 / 3.0, period, 0.02, "3 Hz ring-down period")
@@ -362,7 +363,7 @@ class ArmSysIdTwoStageTest {
             pos += vel * dt
             time[i] = t
             voltage[i] = volts
-            theta[i] = pos + 0.015 * exp(-0.5 * t) * sin(2 * Math.PI * 3.0 * t)
+            theta[i] = pos + 0.015 * exp(-0.5 * t) * sin(2 * PI * 3.0 * t)
         }
         val rows = ArrayList<DoubleArray>()
         val rhs = ArrayList<Double>()

@@ -50,7 +50,8 @@ class MotorMechanismController {
     private var restComplianceRadPerVolt = 0.0
     private var staticFrictionTaperVelocity = 0.0
     private var integral = 0.0
-    private var lastVoltage = 0.0
+    var lastVoltage = 0.0
+        private set
 
     /**
      * Build with the default profiler, a [ModelAwareRuckigProfiler] under symmetric accel/decel
@@ -265,9 +266,9 @@ class MotorMechanismController {
         profile.setAvailableVoltage(availableVoltage)
 
         profile.update(target, dt)
-        val setpointPosition = profile.getPosition()
-        val setpointVelocity = profile.getVelocity()
-        val setpointAcceleration = profile.getAcceleration()
+        val setpointPosition = profile.position
+        val setpointVelocity = profile.velocity
+        val setpointAcceleration = profile.acceleration
 
         // F: feedforward from the model (back-EMF aware), with the static-friction term tapered
         // through an arrival so an over-estimated kS cannot fight the brake (see
@@ -298,14 +299,14 @@ class MotorMechanismController {
         return clamped
     }
 
-    /** The voltage returned by the most recent [calculate]. */
-    fun getLastVoltage(): Double = lastVoltage
+    val setpointPosition: Double
+        get() = profile.position
 
-    fun getSetpointPosition(): Double = profile.getPosition()
+    val setpointVelocity: Double
+        get() = profile.velocity
 
-    fun getSetpointVelocity(): Double = profile.getVelocity()
-
-    fun getSetpointAcceleration(): Double = profile.getAcceleration()
+    val setpointAcceleration: Double
+        get() = profile.acceleration
 
     /**
      * The target the profile actually chases for a stated target: the stated position plus the

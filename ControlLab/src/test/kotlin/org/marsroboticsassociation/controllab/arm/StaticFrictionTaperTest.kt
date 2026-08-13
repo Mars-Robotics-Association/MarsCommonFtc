@@ -53,7 +53,7 @@ class StaticFrictionTaperTest {
     /** Peak past-target tip swing after the profile lands, and the move time to landing. */
     private fun runMove(e: ArmEngine, targetDeg: Double): DoubleArray {
         e.setTargetDeg(targetDeg)
-        val statedDeg = Math.toDegrees(e.getTargetRad())
+        val statedDeg = Math.toDegrees(e.targetRad)
 
         var tick = 0
         val maxTicks = (20.0 / NOMINAL_DT).toInt()
@@ -61,8 +61,8 @@ class StaticFrictionTaperTest {
             e.tick()
             tick++
             val landed =
-                abs(e.getTrajVelRad()) < 1e-4 &&
-                    abs(e.getTrajPosRad() - e.getProfileTargetRad()) < Math.toRadians(0.05)
+                abs(e.trajVelRad) < 1e-4 &&
+                    abs(e.trajPosRad - e.profileTargetRad) < Math.toRadians(0.05)
             if (landed) break
         }
         val moveSec = tick * NOMINAL_DT
@@ -71,7 +71,7 @@ class StaticFrictionTaperTest {
         val watchTicks = (WATCH_SEC / NOMINAL_DT).toInt()
         for (i in 0 until watchTicks) {
             e.tick()
-            peak = max(peak, abs(Math.toDegrees(e.getTrueLoadRad()) - statedDeg))
+            peak = max(peak, abs(Math.toDegrees(e.trueLoadRad) - statedDeg))
         }
         return doubleArrayOf(peak, moveSec)
     }

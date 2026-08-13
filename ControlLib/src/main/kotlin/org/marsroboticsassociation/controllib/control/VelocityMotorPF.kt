@@ -227,13 +227,13 @@ class VelocityMotorPF : VelocityMotorBase {
         trajectory.updateConfig(_config.accelMax, _config.jerkIncreasing, _config.jerkDecreasing)
         trajectory.update()
 
-        if (trajectory.getAcceleration() == 0.0) {
+        if (trajectory.acceleration == 0.0) {
             voltage = getVoltage()
         }
 
-        val v = trajectory.getVelocity()
-        val t = if (_config.ffFromTrajectory) v else trajectory.getTarget()
-        val a = trajectory.getAcceleration()
+        val v = trajectory.velocity
+        val t = if (_config.ffFromTrajectory) v else trajectory.target
+        val a = trajectory.acceleration
         var ff = _config.kS * sign(t) + _config.kV * t + _config.kA * a
         ff /= voltage
         val tpsFiltered = getTpsFiltered()
@@ -259,7 +259,7 @@ class VelocityMotorPF : VelocityMotorBase {
             }
         val power = ff + kPEffective * ve
 
-        if (abs(trajectory.getTarget()) < 1e-6) {
+        if (abs(trajectory.target) < 1e-6) {
             setPower(0.0)
         } else {
             setPower(power)
@@ -267,9 +267,9 @@ class VelocityMotorPF : VelocityMotorBase {
     }
 
     override fun isAtTargetSpeed(): Boolean {
-        return abs(trajectory.getTarget()) > 200 &&
-            trajectory.getAcceleration() == 0.0 &&
-            abs(trajectory.getTarget() - getTpsFiltered()) < _config.targetSpeedTolerance &&
+        return abs(trajectory.target) > 200 &&
+            trajectory.acceleration == 0.0 &&
+            abs(trajectory.target - getTpsFiltered()) < _config.targetSpeedTolerance &&
             abs(accelLpf.value) < _config.accelerationTolerance
     }
 

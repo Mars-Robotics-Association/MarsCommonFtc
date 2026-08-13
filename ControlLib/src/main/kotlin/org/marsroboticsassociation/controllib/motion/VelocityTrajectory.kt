@@ -5,7 +5,7 @@ interface VelocityTrajectory {
 
     fun getVelocity(t: Double): Double
 
-    fun getTotalTime(): Double
+    val totalTime: Double
 
     fun isZeroJerk(t: Double): Boolean
 }

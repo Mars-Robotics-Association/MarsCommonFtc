@@ -407,12 +407,12 @@ class FlywheelTab : JPanel() {
 
     private fun recordCurrentSample() {
         buffer.add(
-            engine.getElapsedSec(),
+            engine.elapsedSec,
             engine.getTrueVelocity(),
             engine.getMeasuredVelocity(),
             engine.getFilteredVelocity(),
             engine.getProfiledVelocity(),
-            engine.getTarget(),
+            engine.target,
         )
 
         val times = buffer.getTimes()

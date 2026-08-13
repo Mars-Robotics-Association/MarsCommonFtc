@@ -61,13 +61,13 @@ abstract class VelocityMotorBase : MotorBase {
 
     abstract fun setTPS(tps: Double)
 
-    fun getProfiledVelocity(): Double = trajectory.getVelocity()
+    fun getProfiledVelocity(): Double = trajectory.velocity
 
     fun setRPM(rpm: Double) {
         setTPS(rpmToTps(rpm))
     }
 
-    fun getTpsSetpoint(): Double = trajectory.getTarget()
+    fun getTpsSetpoint(): Double = trajectory.target
 
     fun getRpmSetpoint(): Double = tpsToRpm(getTpsSetpoint())
 

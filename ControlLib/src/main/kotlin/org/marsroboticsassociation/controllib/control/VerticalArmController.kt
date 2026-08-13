@@ -152,8 +152,16 @@ class VerticalArmController {
     private val trajectory: PositionTrajectoryManager
 
     // State
-    private var mode: Mode = Mode.COASTING
-    private var targetAngleRad: Double = 0.0
+    var mode: Mode = Mode.COASTING
+        private set
+
+    /**
+     * The target angle the trajectory actually drives to: the stated target plus any rest-only
+     * backlash bias, clamped to the hard stops.
+     */
+    var targetAngleRad: Double = 0.0
+        private set
+
     private var lastVoltageCmded: Double = 0.0
     private var lastLinearVoltage: Double = 0.0
     private var lastPower: Double = 0.0
@@ -324,18 +332,18 @@ class VerticalArmController {
 
         // 5. Trajectory update + replan check
         trajectory.update()
-        var trajPos = trajectory.getPosition()
-        var trajVel = trajectory.getVelocity()
-        var trajAccel = trajectory.getAcceleration()
+        var trajPos = trajectory.position
+        var trajVel = trajectory.velocity
+        var trajAccel = trajectory.acceleration
 
         if (abs(predictedPosRad - trajPos) > PARAMS.replanThresholdRad) {
             val limits = computeMoveLimits(predictedPosRad, targetAngleRad, hubVoltage)
             trajectory.updateConfig(limits[0], limits[1], limits[2], PARAMS.maxJerkRad)
             trajectory.resetFromMeasurement(predictedPosRad, predictedVelRad)
             trajectory.update()
-            trajPos = trajectory.getPosition()
-            trajVel = trajectory.getVelocity()
-            trajAccel = trajectory.getAcceleration()
+            trajPos = trajectory.position
+            trajVel = trajectory.velocity
+            trajAccel = trajectory.acceleration
         }
 
         // 6. Layer 1: Feedback linearization — cancel gravity + friction at predicted angle
@@ -362,26 +370,22 @@ class VerticalArmController {
         lastLinearVoltage = actualVoltage - uCancel
     }
 
-    fun getEstimatedPositionRad(): Double = predictedPosRad
+    val estimatedPositionRad: Double
+        get() = predictedPosRad
 
-    fun getEstimatedVelocityRadPerSec(): Double = predictedVelRad
+    val estimatedVelocityRadPerSec: Double
+        get() = predictedVelRad
 
-    fun getTrajectoryPositionRad(): Double = trajectory.getPosition()
+    val trajectoryPositionRad: Double
+        get() = trajectory.position
 
-    fun getTrajectoryVelocityRadPerSec(): Double = trajectory.getVelocity()
+    val trajectoryVelocityRadPerSec: Double
+        get() = trajectory.velocity
 
-    /**
-     * The target angle the trajectory actually drives to: the stated target plus any rest-only
-     * backlash bias, clamped to the hard stops.
-     */
-    fun getTargetAngleRad(): Double = targetAngleRad
-
-    fun getMode(): Mode = mode
-
-    fun isAtTarget(): Boolean {
-        return abs(predictedPosRad - targetAngleRad) < PARAMS.atTargetPositionTolerance &&
-            abs(predictedVelRad) < PARAMS.atTargetVelocityTolerance
-    }
+    val isAtTarget: Boolean
+        get() =
+            abs(predictedPosRad - targetAngleRad) < PARAMS.atTargetPositionTolerance &&
+                abs(predictedVelRad) < PARAMS.atTargetVelocityTolerance
 
     fun reset() {
         val posRad = ticksToRad(motor.position)
@@ -401,9 +405,9 @@ class VerticalArmController {
         telemetry.addData(
             name + " arm traj pos deg",
             "%.1f",
-            Math.toDegrees(trajectory.getPosition()),
+            Math.toDegrees(trajectory.position),
         )
-        telemetry.addData(name + " arm traj vel", "%.1f", Math.toDegrees(trajectory.getVelocity()))
+        telemetry.addData(name + " arm traj vel", "%.1f", Math.toDegrees(trajectory.velocity))
         telemetry.addData(name + " arm voltage cmd", "%.2f V", lastVoltageCmded)
         telemetry.addData(name + " arm power", "%.3f", lastPower)
     }

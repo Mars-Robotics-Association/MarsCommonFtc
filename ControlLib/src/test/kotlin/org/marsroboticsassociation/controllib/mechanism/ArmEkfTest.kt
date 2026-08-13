@@ -74,12 +74,12 @@ class ArmEkfTest {
                 power = max(-1.0, min(1.0, power))
 
                 val trueVelRad = plant.getTrueAngularVelocityRadPerSec()
-                val velErr = ekf.getVelocity() - trueVelRad
+                val velErr = ekf.velocity - trueVelRad
 
                 val t = ms / 1000.0
                 if (t > 0.2) {
                     ekfVelSqAll += velErr * velErr
-                    ekfAngleSq += sq(ekf.getPosition() - plant.getTrueAngleRad())
+                    ekfAngleSq += sq(ekf.position - plant.getTrueAngleRad())
                     allSamples++
                     if (abs(trueVelRad) > 0.5) {
                         ekfVelSqMoving += velErr * velErr

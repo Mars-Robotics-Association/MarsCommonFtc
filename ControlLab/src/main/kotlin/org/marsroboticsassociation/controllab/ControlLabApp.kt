@@ -279,8 +279,8 @@ class ControlLabApp {
 
             signal.select(selectedTimeCol, selectedDataCol)
 
-            val min = signal.minTime().orElse(0.0)
-            val max = signal.maxTime().orElse(1.0)
+            val min = signal.minTime() ?: 0.0
+            val max = signal.maxTime() ?: 1.0
             startField.text = String.format("%.3f", min)
             endField.text = String.format("%.3f", max)
         } catch (ex: Exception) {
@@ -290,11 +290,12 @@ class ControlLabApp {
     }
 
     private fun onApplyFilter() {
-        val signal = loadedSignal
-        if (signal == null) {
-            JOptionPane.showMessageDialog(frame, "Load a CSV first.")
-            return
-        }
+        val signal =
+            loadedSignal
+                ?: run {
+                    JOptionPane.showMessageDialog(frame, "Load a CSV first.")
+                    return
+                }
 
         val timeCol = timeColCombo.selectedItem as String?
         val dataCol = dataColCombo.selectedItem as String?
@@ -319,20 +320,28 @@ class ControlLabApp {
         val sel = filterTypeCombo.selectedItem as String
         val type = FilterFactory.Type.valueOf(sel.replace('-', '_').uppercase(Locale.ROOT))
         val filter: Filter =
-            if (type == FilterFactory.Type.LOWPASS) {
-                val cutoff = sliderToCutoff(cutoffSlider.value)
-                FilterFactory.create(FilterFactory.Type.LOWPASS, cutoff, Double.NaN, Double.NaN)
-            } else if (type == FilterFactory.Type.BIQUAD) {
-                val cutoff = sliderToCutoff(cutoffSlider.value)
-                val q = sliderToQ(qSlider.value)
-                FilterFactory.create(FilterFactory.Type.BIQUAD, cutoff, q, Double.NaN)
-            } else {
-                FilterFactory.create(FilterFactory.Type.NONE, Double.NaN, Double.NaN, Double.NaN)
+            when (type) {
+                FilterFactory.Type.LOWPASS -> {
+                    val cutoff = sliderToCutoff(cutoffSlider.value)
+                    FilterFactory.create(FilterFactory.Type.LOWPASS, cutoff, Double.NaN, Double.NaN)
+                }
+                FilterFactory.Type.BIQUAD -> {
+                    val cutoff = sliderToCutoff(cutoffSlider.value)
+                    val q = sliderToQ(qSlider.value)
+                    FilterFactory.create(FilterFactory.Type.BIQUAD, cutoff, q, Double.NaN)
+                }
+                else ->
+                    FilterFactory.create(
+                        FilterFactory.Type.NONE,
+                        Double.NaN,
+                        Double.NaN,
+                        Double.NaN,
+                    )
             }
 
         // apply variable-dt filtering
         val filtered = ArrayList<Double>(raw.size)
-        var derivative: MutableList<Double>? = ArrayList(1)
+        val derivative = ArrayList<Double>(raw.size)
         filter.reset()
         var prevT = time[0]
         for (i in raw.indices) {
@@ -341,18 +350,14 @@ class ControlLabApp {
             prevT = t
             filtered.add(filter.update(raw[i], dt))
             val deriv = filter.rate
-            if (!deriv.isNaN()) derivative!!.add(deriv)
-        }
-
-        if (derivative!!.isEmpty()) {
-            derivative = null
+            if (!deriv.isNaN()) derivative.add(deriv)
         }
 
         lastTime = time
         lastRaw = raw
         lastFiltered = filtered
 
-        redrawChart(time, raw, filtered, derivative)
+        redrawChart(time, raw, filtered, derivative.takeIf { it.isNotEmpty() })
     }
 
     private fun onEstimateLag() {

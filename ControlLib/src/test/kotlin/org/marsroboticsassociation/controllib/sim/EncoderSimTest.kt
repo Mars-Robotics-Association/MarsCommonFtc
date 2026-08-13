@@ -11,8 +11,8 @@ class EncoderSimTest {
     @Test
     fun beforeAnyAdvance_positionAndVelocityAreZero() {
         val enc = EncoderSim()
-        assertEquals(0, enc.getPosition())
-        assertEquals(0.0, enc.getVelocityTps())
+        assertEquals(0, enc.position)
+        assertEquals(0.0, enc.velocityTps)
     }
 
     @Test
@@ -20,8 +20,8 @@ class EncoderSimTest {
         val enc = EncoderSim()
         enc.advance(0.010, 1000.0)
 
-        assertEquals(10, enc.getPosition())
-        assertEquals(0.0, enc.getVelocityTps())
+        assertEquals(10, enc.position)
+        assertEquals(0.0, enc.velocityTps)
     }
 
     @Test
@@ -30,9 +30,9 @@ class EncoderSimTest {
         enc.advance(0.010, 1000.0)
         enc.advance(0.010, 1000.0)
 
-        assertEquals(20, enc.getPosition())
+        assertEquals(20, enc.position)
         // Velocity = (20 - 10) / 0.010 = 1000 TPS
-        assertEquals(1000.0, enc.getVelocityTps(), 1e-9)
+        assertEquals(1000.0, enc.velocityTps, 1e-9)
     }
 
     @Test
@@ -44,9 +44,9 @@ class EncoderSimTest {
         }
 
         // Positions: 10, 20, 30, 40, 50, 60
-        assertEquals(60, enc.getPosition())
+        assertEquals(60, enc.position)
         // Velocity = (60 - 10) / 0.050 = 1000 TPS
-        assertEquals(1000.0, enc.getVelocityTps(), 1e-9)
+        assertEquals(1000.0, enc.velocityTps, 1e-9)
     }
 
     @Test
@@ -58,7 +58,7 @@ class EncoderSimTest {
         for (i in 0 until 6) {
             enc.advance(0.010, 505.0)
         }
-        val v = enc.getVelocityTps()
+        val v = enc.velocityTps
         assertEquals(0.0, v % 20.0, 1e-9, "velocity should be a multiple of 20 TPS")
     }
 
@@ -68,10 +68,10 @@ class EncoderSimTest {
         // 60 ms at 1000 TPS should produce 6 samples in one call
         enc.advance(0.060, 1000.0)
 
-        assertEquals(60, enc.getPosition())
+        assertEquals(60, enc.position)
         // 6 samples → span = 5 * 0.010 = 0.050 s
         // Velocity = (60 - 10) / 0.050 = 1000 TPS
-        assertEquals(1000.0, enc.getVelocityTps(), 1e-9)
+        assertEquals(1000.0, enc.velocityTps, 1e-9)
     }
 
     @Test
@@ -80,8 +80,8 @@ class EncoderSimTest {
         for (i in 0 until 10) {
             enc.advance(0.010, 0.0)
         }
-        assertEquals(0, enc.getPosition())
-        assertEquals(0.0, enc.getVelocityTps())
+        assertEquals(0, enc.position)
+        assertEquals(0.0, enc.velocityTps)
     }
 
     @Test
@@ -90,11 +90,11 @@ class EncoderSimTest {
         for (i in 0 until 6) {
             enc.advance(0.010, 1000.0)
         }
-        assertNotEquals(0, enc.getPosition())
+        assertNotEquals(0, enc.position)
 
         enc.reset()
-        assertEquals(0, enc.getPosition())
-        assertEquals(0.0, enc.getVelocityTps())
+        assertEquals(0, enc.position)
+        assertEquals(0.0, enc.velocityTps)
     }
 
     @Test
@@ -103,10 +103,10 @@ class EncoderSimTest {
         // 200 TPS → 2 ticks per 10 ms sample
         for (i in 1..6) {
             enc.advance(0.010, 200.0)
-            assertEquals(2 * i, enc.getPosition(), "position after sample $i should be exact")
+            assertEquals(2 * i, enc.position, "position after sample $i should be exact")
         }
         // Full buffer: velocity = (12 - 2) / 0.050 = 200 TPS
-        assertEquals(200.0, enc.getVelocityTps(), 1e-9)
+        assertEquals(200.0, enc.velocityTps, 1e-9)
     }
 
     @Test
@@ -114,25 +114,25 @@ class EncoderSimTest {
         val enc = EncoderSim()
         // Position is a live counter: it moves on every read, not only at 10 ms latch boundaries.
         enc.advance(0.003, 1000.0)
-        assertEquals(3, enc.getPosition(), "position should advance ~3 ticks after 3 ms")
+        assertEquals(3, enc.position, "position should advance ~3 ticks after 3 ms")
 
         enc.advance(0.003, 1000.0)
-        assertEquals(6, enc.getPosition(), "position should keep advancing mid-window")
+        assertEquals(6, enc.position, "position should keep advancing mid-window")
 
         enc.advance(0.003, 1000.0)
-        assertEquals(9, enc.getPosition(), "position should keep advancing mid-window")
+        assertEquals(9, enc.position, "position should keep advancing mid-window")
     }
 
     @Test
     fun positionIsLive_neverPlateausAcrossSuccessiveReads() {
         val enc = EncoderSim()
-        var previous = enc.getPosition()
+        var previous = enc.position
         // March forward in 1 ms steps through more than one latch window; the live count must
         // increase essentially every read, never plateauing between 10 ms latches.
         var increases = 0
         for (i in 0 until 25) {
             enc.advance(0.001, 1000.0)
-            val now = enc.getPosition()
+            val now = enc.position
             if (now > previous) increases++
             previous = now
         }
@@ -153,15 +153,15 @@ class EncoderSimTest {
             b.advance(0.010, 2000.0)
         }
         assertEquals(
-            a.getPosition(),
-            b.getPosition(),
+            a.position,
+            b.position,
             "same seed must give identical jittered reads",
         )
 
         // Stationary: no velocity means no read-timing error, so the read is exact.
         val still = EncoderSim.expansionHub(7L)
         for (i in 0 until 6) still.advance(0.010, 0.0)
-        assertEquals(0, still.getPosition(), "a stationary encoder has no v*delta error")
+        assertEquals(0, still.position, "a stationary encoder has no v*delta error")
     }
 
     @Test
@@ -199,7 +199,7 @@ class EncoderSimTest {
             for (i in 0 until 200) {
                 enc.advance(0.010, velTps)
                 val exact = velTps * 0.010 * (i + 1) // exact live count after (i+1) steps
-                val err = enc.getPosition() - exact
+                val err = enc.position - exact
                 sumSq += err * err
                 n++
             }

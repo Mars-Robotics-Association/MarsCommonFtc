@@ -122,12 +122,12 @@ class ArmMotorSim(
 
     /** Returns the most recent integer tick position from the encoder ring buffer. */
     fun getPositionTicks(): Int {
-        return encoder.getPosition()
+        return encoder.position
     }
 
     /** Returns the velocity in TPS from the encoder ring buffer. */
     fun getVelocityTps(): Double {
-        return encoder.getVelocityTps()
+        return encoder.velocityTps
     }
 
     /** Returns the true (noiseless) position in radians from horizontal. */

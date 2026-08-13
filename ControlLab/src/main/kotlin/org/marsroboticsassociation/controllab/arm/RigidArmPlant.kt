@@ -49,20 +49,27 @@ internal class RigidArmPlant(
         sim.step(dt, power, hubVoltage)
     }
 
-    override fun getPositionTicks(): Int = sim.getPositionTicks()
+    override val positionTicks: Int
+        get() = sim.getPositionTicks()
 
-    override fun getVelocityTps(): Double = sim.getVelocityTps()
+    override val velocityTps: Double
+        get() = sim.getVelocityTps()
 
-    override fun getTruePositionRad(): Double = sim.getTruePositionRad()
+    override val truePositionRad: Double
+        get() = sim.getTruePositionRad()
 
-    override fun getTrueVelocityRadPerSec(): Double = sim.getTrueVelocityRadPerSec()
+    override val trueVelocityRadPerSec: Double
+        get() = sim.getTrueVelocityRadPerSec()
 
     // Rigid: the motor side is the load side.
-    override fun getMotorPositionRad(): Double = sim.getTruePositionRad()
+    override val motorPositionRad: Double
+        get() = sim.getTruePositionRad()
 
-    override fun isEngaged(): Boolean = true
+    override val isEngaged: Boolean
+        get() = true
 
-    override fun getBacklashRad(): Double = 0.0
+    override val backlashRad: Double
+        get() = 0.0
 
     override fun restComplianceRadPerVolt(): Double = 0.0
 

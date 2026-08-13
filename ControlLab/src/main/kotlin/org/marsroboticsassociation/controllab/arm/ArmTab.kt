@@ -113,7 +113,7 @@ class ArmTab : JPanel(BorderLayout()) {
         buildCenter()
         buildSidebar()
         buildTimer()
-        syncTargetUi(engine.getTargetRad())
+        syncTargetUi(engine.targetRad)
         updateControllerPanel()
     }
 
@@ -205,7 +205,7 @@ class ArmTab : JPanel(BorderLayout()) {
 
         sidebar.add(boldLabel("Plant model"))
         plantCombo = JComboBox(ArmEngine.PlantKind.entries.toTypedArray())
-        plantCombo.selectedItem = engine.getPlantKind()
+        plantCombo.selectedItem = engine.plantKind
         plantCombo.maximumSize = Dimension(Int.MAX_VALUE, 28)
         plantCombo.addActionListener {
             engine.setPlantKind(plantCombo.selectedItem as ArmEngine.PlantKind)
@@ -217,13 +217,13 @@ class ArmTab : JPanel(BorderLayout()) {
         sidebar.add(boldLabel("Target"))
         targetLabel = JLabel()
         sidebar.add(targetLabel)
-        val minDeg = floor(Math.toDegrees(engine.getMinAngleRad())).toInt()
-        val maxDeg = ceil(Math.toDegrees(engine.getMaxAngleRad())).toInt()
+        val minDeg = floor(Math.toDegrees(engine.minAngleRad)).toInt()
+        val maxDeg = ceil(Math.toDegrees(engine.maxAngleRad)).toInt()
         targetSlider =
             JSlider(
                 minDeg,
                 maxDeg,
-                Math.toDegrees(engine.getTargetRad()).roundToInt(),
+                Math.toDegrees(engine.targetRad).roundToInt(),
             )
         targetSlider.maximumSize = Dimension(Int.MAX_VALUE, 40)
         targetSlider.addChangeListener {
@@ -238,7 +238,7 @@ class ArmTab : JPanel(BorderLayout()) {
         resetBtn.addActionListener {
             engine.reset()
             buffer.clear()
-            syncTargetUi(engine.getTargetRad())
+            syncTargetUi(engine.targetRad)
         }
         sidebar.add(resetBtn)
         sidebar.add(Box.createVerticalStrut(6))
@@ -470,12 +470,12 @@ class ArmTab : JPanel(BorderLayout()) {
     private fun onRunSysId() {
         sysIdBtn?.isEnabled = false
         sysIdBtn?.text = "Running SysID…"
-        val plantKind = engine.getPlantKind()
+        val plantKind = engine.plantKind
         val plantKs = engine.getPlantKs()
         val plantKv = engine.getPlantKv()
         val plantKa = engine.getPlantKa()
         val plantKg = engine.getPlantKg()
-        val plantHalfLash = engine.getBacklashRad() / 2.0
+        val plantHalfLash = engine.backlashRad / 2.0
 
         val worker =
             object : SwingWorker<ArmSysId.Result, Void>() {
@@ -680,7 +680,7 @@ class ArmTab : JPanel(BorderLayout()) {
 
     private fun applyTargetRad(rad: Double, fromSlider: Boolean) {
         engine.setTargetRad(rad)
-        val deg = Math.toDegrees(engine.getTargetRad())
+        val deg = Math.toDegrees(engine.targetRad)
         if (!fromSlider) {
             updatingSlider = true
             targetSlider.value = deg.roundToInt()
@@ -714,15 +714,15 @@ class ArmTab : JPanel(BorderLayout()) {
 
     private fun recordSample() {
         buffer.add(
-            engine.getElapsedSec(),
-            Math.toDegrees(engine.getTargetRad()),
-            Math.toDegrees(engine.getTrajPosRad()),
-            Math.toDegrees(engine.getMeasuredEncoderRad()),
-            Math.toDegrees(engine.getTrueLoadRad()),
-            Math.toDegrees(engine.getMotorRad()),
-            Math.toDegrees(engine.getTrueLoadVelRad()),
-            Math.toDegrees(engine.getTrajVelRad()),
-            Math.toDegrees(engine.getEstimatedVelRad()),
+            engine.elapsedSec,
+            Math.toDegrees(engine.targetRad),
+            Math.toDegrees(engine.trajPosRad),
+            Math.toDegrees(engine.measuredEncoderRad),
+            Math.toDegrees(engine.trueLoadRad),
+            Math.toDegrees(engine.motorRad),
+            Math.toDegrees(engine.trueLoadVelRad),
+            Math.toDegrees(engine.trajVelRad),
+            Math.toDegrees(engine.estimatedVelRad),
         )
 
         val times = buffer.getTimes()
@@ -741,7 +741,7 @@ class ArmTab : JPanel(BorderLayout()) {
     }
 
     private fun updateMetricsLabel() {
-        val m = engine.getMetrics()
+        val m = engine.metrics
         val settle =
             if (m.settleTimeSec().isNaN()) "—" else String.format("%.2f s", m.settleTimeSec())
         metricsLabel.text =
@@ -750,11 +750,11 @@ class ArmTab : JPanel(BorderLayout()) {
                     "Target %.1f° &nbsp; Load %.1f° &nbsp; Est %.1f°<br>" +
                     "SS err %.1f° &nbsp; Overshoot %.1f° &nbsp; Settle %s<br>" +
                     "Lash gap %.1f° &nbsp; Lost motion (peak) %.1f°</html>",
-                engine.getModeLabel(),
+                engine.modeLabel,
                 m.pctEngaged(),
-                Math.toDegrees(engine.getTargetRad()),
-                Math.toDegrees(engine.getTrueLoadRad()),
-                Math.toDegrees(engine.getEstimatedPosRad()),
+                Math.toDegrees(engine.targetRad),
+                Math.toDegrees(engine.trueLoadRad),
+                Math.toDegrees(engine.estimatedPosRad),
                 m.steadyStateErrorDeg(),
                 m.overshootDeg(),
                 settle,

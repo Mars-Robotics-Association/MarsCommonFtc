@@ -74,9 +74,9 @@ class ArmPlantControlTest {
                 filter.predict(dt, power, VOLTAGE)
                 filter.correct(position / TICKS_PER_RAD, velocityTps / TICKS_PER_RAD)
 
-                val estAngleRad = filter.getPosition()
+                val estAngleRad = filter.position
                 val estAngleTicks = estAngleRad * TICKS_PER_RAD
-                val estVelocityTps = filter.getVelocity() * TICKS_PER_RAD
+                val estVelocityTps = filter.velocity * TICKS_PER_RAD
 
                 power =
                     K_P * (targetTicks - estAngleTicks) - K_D * estVelocityTps +

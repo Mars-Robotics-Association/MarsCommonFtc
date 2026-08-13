@@ -43,7 +43,7 @@ import kotlin.math.min
  * negligible speed — effectively a hold. If no valid plan exists from the exact current state
  * (per-loop ceiling rewrites can strand it just outside the fresh bounds with no matching
  * authority), the state is clamped into the band and replanned, and only if that also fails does
- * the setpoint hold for the step ([getLastResult] exposes the Ruckig result code for debugging).
+ * the setpoint hold for the step ([lastResult] exposes the Ruckig result code for debugging).
  *
  * <p>Steady-state `update` does not allocate. Not thread-safe.
  */
@@ -66,16 +66,22 @@ open class RuckigProfiler(
     private val jOut = DoubleArray(1)
     private val sectionOut = IntArray(1)
 
-    private var position: Double
-    private var velocity = 0.0
-    private var acceleration = 0.0
+    final override var position: Double
+        protected set
+
+    final override var velocity = 0.0
+        protected set
+
+    final override var acceleration = 0.0
+        protected set
 
     private var maxVelocity: Double
     private var maxAcceleration: Double
     private var maxDeceleration: Double
     private var maxJerk: Double
 
-    private var lastResult = com.ruckig.Result.Finished
+    var lastResult = com.ruckig.Result.Finished
+        private set
 
     init {
         this.maxVelocity = requireNonNegative(maxVelocity, "maxVelocity")
@@ -174,15 +180,7 @@ open class RuckigProfiler(
         acceleration = aOut[0]
     }
 
-    override fun getPosition(): Double = position
-
-    override fun getVelocity(): Double = velocity
-
-    override fun getAcceleration(): Double = acceleration
-
     /** Ruckig [com.ruckig.Result] code of the most recent replan, for telemetry/debugging. */
-    fun getLastResult(): Int = lastResult
-
     companion object {
         /** Pass as `maxJerk` to disable the jerk limit (second-order, bang-bang acceleration). */
         @JvmField val UNLIMITED_JERK: Double = Double.POSITIVE_INFINITY

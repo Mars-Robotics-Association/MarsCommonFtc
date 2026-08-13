@@ -123,7 +123,7 @@ class FlexRingTuningTest {
     /** Drive one move and score the arrival. */
     private fun runMove(e: ArmEngine, targetDeg: Double): Arrival {
         e.setTargetDeg(targetDeg)
-        val statedDeg = Math.toDegrees(e.getTargetRad()) // after hard-stop clamp
+        val statedDeg = Math.toDegrees(e.targetRad) // after hard-stop clamp
 
         val a = Arrival()
 
@@ -134,8 +134,8 @@ class FlexRingTuningTest {
             e.tick()
             tick++
             val landed =
-                abs(e.getTrajVelRad()) < 1e-4 &&
-                    abs(e.getTrajPosRad() - e.getProfileTargetRad()) < Math.toRadians(0.05)
+                abs(e.trajVelRad) < 1e-4 &&
+                    abs(e.trajPosRad - e.profileTargetRad) < Math.toRadians(0.05)
             if (landed) break
         }
         a.moveSec = tick * NOMINAL_DT
@@ -145,7 +145,7 @@ class FlexRingTuningTest {
         val tip = ArrayList<Double>(watchTicks)
         for (i in 0 until watchTicks) {
             e.tick()
-            tip.add(Math.toDegrees(e.getTrueLoadRad()))
+            tip.add(Math.toDegrees(e.trueLoadRad))
         }
 
         var peak = 0.0

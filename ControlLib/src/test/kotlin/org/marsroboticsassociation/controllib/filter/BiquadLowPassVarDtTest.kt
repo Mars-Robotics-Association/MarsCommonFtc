@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllib.filter
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -51,7 +52,7 @@ class BiquadLowPassVarDtTest {
         val samples = 200
         var peakOutput = 0.0
         for (i in 0 until samples) {
-            val x = sin(2 * Math.PI * 20.0 * i * dt)
+            val x = sin(2 * PI * 20.0 * i * dt)
             val y = f.update(x, dt)
             if (i > 50) { // skip transient
                 peakOutput = maxOf(peakOutput, abs(y))
@@ -75,7 +76,7 @@ class BiquadLowPassVarDtTest {
         val samples = 500
         var peakOutput = 0.0
         for (i in 0 until samples) {
-            val x = sin(2 * Math.PI * 1.0 * i * dt)
+            val x = sin(2 * PI * 1.0 * i * dt)
             val y = f.update(x, dt)
             if (i > 100) {
                 peakOutput = maxOf(peakOutput, abs(y))
@@ -118,7 +119,7 @@ class BiquadLowPassVarDtTest {
         for (i in 0 until 300) {
             // dt jitters between 15-25 ms
             val dt = 0.020 + 0.005 * sin(i * 0.7)
-            val x = sin(2 * Math.PI * 20.0 * time)
+            val x = sin(2 * PI * 20.0 * time)
             val y = f.update(x, dt)
             time += dt
             if (i > 80) {

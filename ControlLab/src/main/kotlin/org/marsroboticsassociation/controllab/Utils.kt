@@ -19,8 +19,8 @@ object Utils {
         if (n < 3) return 0.0
 
         // zero-mean
-        val meanR = raw.stream().mapToDouble { it }.average().orElse(0.0)
-        val meanF = filt.stream().mapToDouble { it }.average().orElse(0.0)
+        val meanR = raw.take(n).average()
+        val meanF = filt.take(n).average()
 
         val r = DoubleArray(n)
         val f = DoubleArray(n)
@@ -90,9 +90,9 @@ object Utils {
         Files.newBufferedWriter(outFile).use { bw: BufferedWriter ->
             bw.write("time,raw,filtered")
             bw.newLine()
-            val n = minOf(minOf(time.size, raw.size), filtered.size)
+            val n = minOf(time.size, raw.size, filtered.size)
             for (i in 0 until n) {
-                bw.write(String.format("%f,%f,%f", time[i], raw[i], filtered[i]))
+                bw.write("${time[i]},${raw[i]},${filtered[i]}")
                 bw.newLine()
             }
         }

@@ -1,6 +1,7 @@
 package org.marsroboticsassociation.controllib.control
 
 import java.util.Random
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -27,9 +28,9 @@ class VerticalArmControllerTest {
         const val TICKS_PER_REV = 28
         const val GEAR_RATIO = 100.0
 
-        val ENCODER_ZERO_OFFSET_RAD = -Math.PI / 4
-        val MIN_ANGLE_RAD = -Math.PI * 5 / 4
-        val MAX_ANGLE_RAD = -Math.PI / 4
+        val ENCODER_ZERO_OFFSET_RAD = -PI / 4
+        val MIN_ANGLE_RAD = -PI * 5 / 4
+        val MAX_ANGLE_RAD = -PI / 4
     }
 
     // ── sim clock ───────────────────────────────────────────────────────────────
@@ -208,7 +209,7 @@ class VerticalArmControllerTest {
 
         assertEquals(
             VerticalArmController.Mode.COASTING,
-            controller.getMode(),
+            controller.mode,
             "should be coasting near hard stop",
         )
         assertEquals(0.0, adapter.lastPower, 0.001, "power should be 0 when coasting")
@@ -228,12 +229,12 @@ class VerticalArmControllerTest {
         for (i in 0 until 20) {
             step(controller, adapter, sim, rng)
         }
-        assertEquals(VerticalArmController.Mode.COASTING, controller.getMode())
+        assertEquals(VerticalArmController.Mode.COASTING, controller.mode)
 
         controller.setTarget(targetAngle)
         assertEquals(
             VerticalArmController.Mode.TRACKING,
-            controller.getMode(),
+            controller.mode,
             "should switch to TRACKING after setTarget",
         )
 
@@ -386,7 +387,7 @@ class VerticalArmControllerTest {
                 Math.toRadians(-150.0),
                 Math.toRadians(-210.0),
             )
-        assertEquals(-Math.PI, result, 0.01, "should pick horizontal crossing at -pi")
+        assertEquals(-PI, result, 0.01, "should pick horizontal crossing at -pi")
     }
 
     @Test

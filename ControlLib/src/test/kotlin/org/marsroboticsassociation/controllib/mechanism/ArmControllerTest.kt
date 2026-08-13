@@ -62,8 +62,7 @@ class ArmControllerTest {
                     plant.getEncoderVelocityTps() / TICKS_PER_RAD,
                 )
 
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 maxVoltage = max(maxVoltage, abs(voltage))
                 power = voltage / VOLTAGE // voltage compensation; clamped inside the controller
                 // already

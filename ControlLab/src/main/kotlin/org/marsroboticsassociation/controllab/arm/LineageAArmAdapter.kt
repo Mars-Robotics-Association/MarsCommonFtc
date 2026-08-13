@@ -27,8 +27,13 @@ internal class LineageAArmAdapter(
     private var plant: ArmPlant = plant
     private var lastPower = 0.0
 
-    private var armPd: ArmController? = null
-    private var armLqr: VerticalArmController? = null
+    private sealed class Wrapped {
+        class Pd(val impl: ArmController) : Wrapped()
+
+        class Lqr(val impl: VerticalArmController) : Wrapped()
+    }
+
+    private lateinit var wrapped: Wrapped
 
     private var targetRad = 0.0
     private var hasTarget = false
@@ -41,10 +46,10 @@ internal class LineageAArmAdapter(
                 get() = "arm"
 
             override val position: Int
-                get() = plant.getPositionTicks()
+                get() = plant.positionTicks
 
             override val velocity: Double
-                get() = plant.getVelocityTps()
+                get() = plant.velocityTps
 
             override fun setPower(power: Double) {
                 lastPower = power
@@ -67,13 +72,12 @@ internal class LineageAArmAdapter(
 
     /** (Re)construct the wrapped controller, reseeding its estimate from the current plant pose. */
     private fun build() {
-        if (type == ArmControllerType.ARM_PD) {
-            armPd = ArmController(motorView, NO_OP, clock)
-            armLqr = null
-        } else {
-            armLqr = VerticalArmController(motorView, NO_OP, clock)
-            armPd = null
-        }
+        wrapped =
+            if (type == ArmControllerType.ARM_PD) {
+                Wrapped.Pd(ArmController(motorView, NO_OP, clock))
+            } else {
+                Wrapped.Lqr(VerticalArmController(motorView, NO_OP, clock))
+            }
     }
 
     /**
@@ -103,73 +107,68 @@ internal class LineageAArmAdapter(
         targetRad = rad
         hasTarget = true
         reapplyTargetPending = false
-        val pd = armPd
-        if (pd != null) {
-            pd.setTarget(rad, hubVoltageNominal)
-        } else {
-            armLqr!!.setTarget(rad, hubVoltageNominal)
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.setTarget(rad, hubVoltageNominal)
+            is Wrapped.Lqr -> controller.impl.setTarget(rad, hubVoltageNominal)
         }
     }
 
     override fun step(dt: Double, hubVoltage: Double) {
-        val pd = armPd
-        if (pd != null) {
-            pd.update(dt, hubVoltage)
-        } else {
-            armLqr!!.update(dt, hubVoltage)
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.update(dt, hubVoltage)
+            is Wrapped.Lqr -> controller.impl.update(dt, hubVoltage)
         }
 
         // Re-apply a target queued by a rebuild, now that the controller has run one cycle and
         // established its mode (TRACKING mid-range, avoiding the wake-from-coast hard-stop snap).
         if (reapplyTargetPending && hasTarget) {
             reapplyTargetPending = false
-            if (pd != null) {
-                pd.setTarget(targetRad, hubVoltageNominal)
-            } else {
-                armLqr!!.setTarget(targetRad, hubVoltageNominal)
+            when (val controller = wrapped) {
+                is Wrapped.Pd -> controller.impl.setTarget(targetRad, hubVoltageNominal)
+                is Wrapped.Lqr -> controller.impl.setTarget(targetRad, hubVoltageNominal)
             }
         }
     }
 
     override fun commandedPower(): Double = lastPower
 
-    override fun profileTargetRad(): Double {
-        val pd = armPd
-        return if (pd != null) pd.getTargetAngleRad() else armLqr!!.getTargetAngleRad()
-    }
-
-    override fun estimatedPosRad(): Double {
-        val pd = armPd
-        return if (pd != null) pd.getEstimatedPositionRad() else armLqr!!.getEstimatedPositionRad()
-    }
-
-    override fun estimatedVelRad(): Double {
-        val pd = armPd
-        return if (pd != null) {
-            pd.getEstimatedVelocityRadPerSec()
-        } else {
-            armLqr!!.getEstimatedVelocityRadPerSec()
+    override fun profileTargetRad(): Double =
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.targetAngleRad
+            is Wrapped.Lqr -> controller.impl.targetAngleRad
         }
-    }
 
-    override fun trajPosRad(): Double {
-        val pd = armPd
-        return if (pd != null) pd.getTrajectoryPositionRad()
-        else armLqr!!.getTrajectoryPositionRad()
-    }
-
-    override fun trajVelRad(): Double {
-        val pd = armPd
-        return if (pd != null) {
-            pd.getTrajectoryVelocityRadPerSec()
-        } else {
-            armLqr!!.getTrajectoryVelocityRadPerSec()
+    override fun estimatedPosRad(): Double =
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.estimatedPositionRad
+            is Wrapped.Lqr -> controller.impl.estimatedPositionRad
         }
-    }
+
+    override fun estimatedVelRad(): Double =
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.estimatedVelocityRadPerSec
+            is Wrapped.Lqr -> controller.impl.estimatedVelocityRadPerSec
+        }
+
+    override fun trajPosRad(): Double =
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.trajectoryPositionRad
+            is Wrapped.Lqr -> controller.impl.trajectoryPositionRad
+        }
+
+    override fun trajVelRad(): Double =
+        when (val controller = wrapped) {
+            is Wrapped.Pd -> controller.impl.trajectoryVelocityRadPerSec
+            is Wrapped.Lqr -> controller.impl.trajectoryVelocityRadPerSec
+        }
 
     override fun modeLabel(): String {
-        val mode = if (armPd != null) armPd!!.getMode().name else armLqr!!.getMode().name
-        return type.name + " / " + mode
+        val mode =
+            when (val controller = wrapped) {
+                is Wrapped.Pd -> controller.impl.mode.name
+                is Wrapped.Lqr -> controller.impl.mode.name
+            }
+        return "${type.name} / $mode"
     }
 
     companion object {

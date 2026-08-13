@@ -235,12 +235,12 @@ class BacklashArmMotorSim(
      * lash).
      */
     fun getPositionTicks(): Int {
-        return encoder.getPosition()
+        return encoder.position
     }
 
     /** Returns the velocity in TPS from the encoder ring buffer (motor side). */
     fun getVelocityTps(): Double {
-        return encoder.getVelocityTps()
+        return encoder.velocityTps
     }
 
     // ── ground truth (for scoring in sim only) ───────────────────────────────────
@@ -266,14 +266,12 @@ class BacklashArmMotorSim(
     }
 
     /** True if the gear teeth are currently in contact (outside the dead band). */
-    fun isEngaged(): Boolean {
-        return abs(motorPositionRad - loadPositionRad) > halfBacklashRad
-    }
+    val isEngaged: Boolean
+        get() = abs(motorPositionRad - loadPositionRad) > halfBacklashRad
 
     /** Total backlash at the output shaft, in radians. */
-    fun getBacklashRad(): Double {
-        return 2.0 * halfBacklashRad
-    }
+    val backlashRad: Double
+        get() = 2.0 * halfBacklashRad
 
     /**
      * The load's static rest compliance: radians of motor-to-load droop per volt of gravity

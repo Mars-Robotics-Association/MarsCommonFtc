@@ -43,8 +43,8 @@ class EncoderSim {
     }
 
     /**
-     * Velocity in ticks/sec over the current 50 ms ring-buffer window, like
-     * `DcMotorEx.getVelocity()`. Returns 0 until at least two samples exist.
+     * Velocity in ticks/sec over the current 50 ms ring-buffer window, like `DcMotorEx.velocity`.
+     * Returns 0 until at least two samples exist.
      */
     fun getVelocityTps(): Double = windowVelocity(0)
 

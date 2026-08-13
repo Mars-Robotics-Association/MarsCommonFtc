@@ -3,7 +3,6 @@ package org.marsroboticsassociation.controllib.localization.vision
 import edu.wpi.first.math.geometry.Pose2d
 import edu.wpi.first.math.geometry.Rotation2d
 import java.util.ArrayList
-import java.util.Collections
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -246,10 +245,9 @@ class PoseHypothesisBank(private val params: Params) {
         val implied = ArrayList<Pose2d>(2)
         val conf = ArrayList<Double>(2)
         for (i in branchPoses.indices) {
-            if (branchPoses[i] != null) {
-                implied.add(impliedDatum(branchPoses[i]!!, odoPose))
-                conf.add(if (branchConf != null && i < branchConf.size) branchConf[i] else 1.0)
-            }
+            val pose = branchPoses[i] ?: continue
+            implied.add(impliedDatum(pose, odoPose))
+            conf.add(if (branchConf != null && i < branchConf.size) branchConf[i] else 1.0)
         }
         if (implied.isEmpty()) {
             return
@@ -349,7 +347,7 @@ class PoseHypothesisBank(private val params: Params) {
     fun lastSigmaInflation(): Double = lastSigmaInflation
 
     /** Immutable snapshot of the live hypotheses (for diagnostics/tests). */
-    fun hypotheses(): List<Hypothesis> = Collections.unmodifiableList(ArrayList(hyps))
+    fun hypotheses(): List<Hypothesis> = hyps.toList()
 
     /**
      * Seed a hypothesis directly (for tests, or to inject a known prior such as a

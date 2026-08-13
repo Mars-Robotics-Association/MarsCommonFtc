@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllib.sim
 
+import kotlin.math.PI
 import kotlin.math.abs
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -19,10 +20,10 @@ class ArmMotorSimTest {
         const val KA = 0.15
         const val TICKS_PER_REV = 28
         const val GEAR_RATIO = 100.0
-        val TICKS_PER_RAD = (TICKS_PER_REV * GEAR_RATIO) / (2.0 * Math.PI)
-        val ENCODER_ZERO_OFFSET_RAD = -Math.PI / 4
-        val MIN_ANGLE_RAD = -Math.PI * 5 / 4
-        val MAX_ANGLE_RAD = -Math.PI / 4
+        val TICKS_PER_RAD = (TICKS_PER_REV * GEAR_RATIO) / (2.0 * PI)
+        val ENCODER_ZERO_OFFSET_RAD = -PI / 4
+        val MIN_ANGLE_RAD = -PI * 5 / 4
+        val MAX_ANGLE_RAD = -PI / 4
         const val HUB_VOLTAGE = 12.0
         const val DT = 0.016
     }

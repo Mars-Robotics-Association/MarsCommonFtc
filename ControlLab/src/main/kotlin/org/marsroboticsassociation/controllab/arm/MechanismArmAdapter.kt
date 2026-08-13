@@ -120,7 +120,7 @@ class MechanismArmAdapter(
      */
     private fun applyRestCompensation() {
         controller.setBacklashCompensation(
-            plant.getBacklashRad(),
+            plant.backlashRad,
             BACKLASH_TAPER_VOLTS,
             plant.restComplianceRadPerVolt(),
         )
@@ -129,13 +129,12 @@ class MechanismArmAdapter(
     override fun step(dt: Double, hubVoltage: Double) {
         applyRestCompensation()
         val posRad = currentMeasuredPosRad()
-        val velRad = tpsToRadPerSec(plant.getVelocityTps())
+        val velRad = tpsToRadPerSec(plant.velocityTps)
 
         ekf.predict(dt, lastPower, hubVoltage)
         ekf.correct(posRad, velRad)
 
-        val volts =
-            controller.calculate(targetRad, ekf.getPosition(), ekf.getVelocity(), hubVoltage, dt)
+        val volts = controller.calculate(targetRad, ekf.position, ekf.velocity, hubVoltage, dt)
         lastPower = volts / hubVoltage
     }
 
@@ -143,19 +142,19 @@ class MechanismArmAdapter(
 
     override fun profileTargetRad(): Double = controller.compensatedTarget(targetRad)
 
-    override fun estimatedPosRad(): Double = ekf.getPosition()
+    override fun estimatedPosRad(): Double = ekf.position
 
-    override fun estimatedVelRad(): Double = ekf.getVelocity()
+    override fun estimatedVelRad(): Double = ekf.velocity
 
-    override fun trajPosRad(): Double = controller.getSetpointPosition()
+    override fun trajPosRad(): Double = controller.setpointPosition
 
-    override fun trajVelRad(): Double = controller.getSetpointVelocity()
+    override fun trajVelRad(): Double = controller.setpointVelocity
 
-    override fun trajAccelRad(): Double = controller.getSetpointAcceleration()
+    override fun trajAccelRad(): Double = controller.setpointAcceleration
 
     override fun modeLabel(): String = "MECHANISM_PIDF"
 
-    private fun currentMeasuredPosRad(): Double = ticksToRad(plant.getPositionTicks())
+    private fun currentMeasuredPosRad(): Double = ticksToRad(plant.positionTicks)
 
     private fun ticksToRad(ticks: Int): Double =
         ticksToRad(ticks, ticksPerRev, gearRatio, encoderZeroOffsetRad)

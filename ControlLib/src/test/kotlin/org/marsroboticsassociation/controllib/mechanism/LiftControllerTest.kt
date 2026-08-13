@@ -56,8 +56,7 @@ class LiftControllerTest {
                 ekf.predict(dt, power, VOLTAGE)
                 ekf.correct(plant.getEncoderPosition().toDouble(), plant.getEncoderVelocityTps())
 
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 maxVoltage = max(maxVoltage, abs(voltage))
                 power = voltage / VOLTAGE
 
@@ -130,8 +129,7 @@ class LiftControllerTest {
                 ekf.predict(dt, power, VOLTAGE)
                 ekf.correct(plant.getEncoderPosition().toDouble(), plant.getEncoderVelocityTps())
 
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 maxVoltage = max(maxVoltage, abs(voltage))
                 power = voltage / VOLTAGE
 

@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllib.sim
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sign
@@ -27,7 +28,7 @@ class FlexArmMotorSimTest {
 
         const val TICKS_PER_REV = 28
         const val GEAR_RATIO = 100.0
-        val TICKS_PER_RAD = (TICKS_PER_REV * GEAR_RATIO) / (2.0 * Math.PI)
+        val TICKS_PER_RAD = (TICKS_PER_REV * GEAR_RATIO) / (2.0 * PI)
 
         const val ENCODER_ZERO_OFFSET_RAD = 0.0
         val MIN_ANGLE_RAD = Math.toRadians(-45.0)

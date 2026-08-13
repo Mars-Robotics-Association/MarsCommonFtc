@@ -31,9 +31,9 @@ import kotlin.math.hypot
  * @see LUT for a nearest-value lookup table without interpolation
  */
 class InterpLUT {
-    private var mX: MutableList<Double> = ArrayList()
-    private var mY: MutableList<Double> = ArrayList()
-    private var mM: List<Double> = ArrayList()
+    private var mX: MutableList<Double> = mutableListOf()
+    private var mY: MutableList<Double> = mutableListOf()
+    private var mM: List<Double> = emptyList()
 
     /**
      * Adds a control point to the table. Points must be added in strictly increasing order of
@@ -62,10 +62,8 @@ class InterpLUT {
         val x = mX
         val y = mY
 
-        if (x.size != y.size || x.size < 2) {
-            throw IllegalArgumentException(
-                "There must be at least two control points and the arrays must be of equal length."
-            )
+        require(x.size == y.size && x.size >= 2) {
+            "There must be at least two control points and the arrays must be of equal length."
         }
 
         val n = x.size
@@ -75,11 +73,7 @@ class InterpLUT {
         // Compute slopes of secant lines between successive points.
         for (i in 0 until n - 1) {
             val h = x[i + 1] - x[i]
-            if (h <= 0.0) {
-                throw IllegalArgumentException(
-                    "The control points must all have strictly increasing X values."
-                )
-            }
+            require(h > 0.0) { "The control points must all have strictly increasing X values." }
             d[i] = (y[i + 1] - y[i]) / h
         }
 
@@ -162,19 +156,8 @@ class InterpLUT {
             (mY[i + 1] * (3 - 2 * t) + h * mM[i + 1] * (t - 1)) * t * t
     }
 
-    override fun toString(): String {
-        val n = mX.size
-        val str = StringBuilder()
-        str.append("[")
-        for (i in 0 until n) {
-            if (i != 0) {
-                str.append(", ")
-            }
-            str.append("(").append(mX[i])
-            str.append(", ").append(mY[i])
-            str.append(": ").append(mM.getOrElse(i) { 0.0 }).append(")")
+    override fun toString(): String =
+        mX.indices.joinToString(prefix = "[", postfix = "]") { i ->
+            "(${mX[i]}, ${mY[i]}: ${mM.getOrElse(i) { 0.0 }})"
         }
-        str.append("]")
-        return str.toString()
-    }
 }

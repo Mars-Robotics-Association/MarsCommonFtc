@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllab.arm
 
+import kotlin.math.PI
 import kotlin.math.round
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -14,7 +15,7 @@ class MechanismArmAdapterConversionTest {
     companion object {
         private const val TICKS_PER_REV = 28
         private const val GEAR_RATIO = 100.0
-        private val TICKS_PER_RAD = TICKS_PER_REV * GEAR_RATIO / (2.0 * Math.PI)
+        private val TICKS_PER_RAD = TICKS_PER_REV * GEAR_RATIO / (2.0 * PI)
     }
 
     @Test
@@ -26,7 +27,7 @@ class MechanismArmAdapterConversionTest {
 
     @Test
     fun ticksToRad_appliesEncoderZeroOffset() {
-        val offset = -Math.PI / 4
+        val offset = -PI / 4
         val rad = MechanismArmAdapter.ticksToRad(0, TICKS_PER_REV, GEAR_RATIO, offset)
         assertEquals(offset, rad, 1e-12)
     }
@@ -36,7 +37,7 @@ class MechanismArmAdapterConversionTest {
         // Half an output-shaft revolution = 28*100/2 ticks = pi radians.
         val ticks = TICKS_PER_REV * GEAR_RATIO.toInt() / 2
         val rad = MechanismArmAdapter.ticksToRad(ticks, TICKS_PER_REV, GEAR_RATIO, 0.0)
-        assertEquals(Math.PI, rad, 1e-9)
+        assertEquals(PI, rad, 1e-9)
     }
 
     @Test

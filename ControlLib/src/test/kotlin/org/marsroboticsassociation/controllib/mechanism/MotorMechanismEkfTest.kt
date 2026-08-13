@@ -27,12 +27,12 @@ class MotorMechanismEkfTest {
         val full = newEkf()
         full.predict(dt, 1.0, busVoltage)
 
-        assertEquals(full.getPosition(), over.getPosition(), 1e-9)
-        assertEquals(full.getVelocity(), over.getVelocity(), 1e-9)
+        assertEquals(full.position, over.position, 1e-9)
+        assertEquals(full.velocity, over.velocity, 1e-9)
         // Guard against a vacuous pass: full power should actually move the mechanism.
         assertTrue(
-            full.getVelocity() > 0.0,
-            "full power should produce motion, got ${full.getVelocity()}",
+            full.velocity > 0.0,
+            "full power should produce motion, got ${full.velocity}",
         )
 
         // The clamp is symmetric: an over-command the other way matches full reverse power.
@@ -40,7 +40,7 @@ class MotorMechanismEkfTest {
         overReverse.predict(dt, -100.0, busVoltage)
         val fullReverse = newEkf()
         fullReverse.predict(dt, -1.0, busVoltage)
-        assertEquals(fullReverse.getVelocity(), overReverse.getVelocity(), 1e-9)
+        assertEquals(fullReverse.velocity, overReverse.velocity, 1e-9)
     }
 
     @Test
@@ -56,8 +56,8 @@ class MotorMechanismEkfTest {
         val fullOnHalf = newEkf()
         fullOnHalf.predict(dt, 1.0, 6.0)
 
-        assertEquals(fullOnHalf.getPosition(), halfOnFull.getPosition(), 1e-12)
-        assertEquals(fullOnHalf.getVelocity(), halfOnFull.getVelocity(), 1e-12)
+        assertEquals(fullOnHalf.position, halfOnFull.position, 1e-12)
+        assertEquals(fullOnHalf.velocity, halfOnFull.velocity, 1e-12)
     }
 
     companion object {

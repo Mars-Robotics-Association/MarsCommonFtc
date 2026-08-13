@@ -97,12 +97,12 @@ constructor(
      * test.
      */
     fun getVelocityTps(): Double {
-        return encoder.getVelocityTps()
+        return encoder.velocityTps
     }
 
     /** Returns the most recent integer tick position from the encoder. */
     fun getPositionTicks(): Int {
-        return encoder.getPosition()
+        return encoder.position
     }
 
     /** Returns the true (noiseless) velocity in TPS. Use this for assertions in tests. */

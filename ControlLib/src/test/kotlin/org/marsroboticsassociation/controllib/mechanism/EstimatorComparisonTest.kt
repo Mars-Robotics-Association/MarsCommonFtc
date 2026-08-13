@@ -111,10 +111,10 @@ class EstimatorComparisonTest {
                 if (ms / 1000.0 > 0.2) {
                     val trueAngle = plant.getTrueAngleRad()
                     val trueVel = plant.getTrueAngularVelocityRadPerSec()
-                    blendPosSq += sq(blending.getPosition() - trueAngle)
-                    blendVelSq += sq(blending.getVelocity() - trueVel)
-                    wpiPosSq += sq(wpilib.getPosition() - trueAngle)
-                    wpiVelSq += sq(wpilib.getVelocity() - trueVel)
+                    blendPosSq += sq(blending.position - trueAngle)
+                    blendVelSq += sq(blending.velocity - trueVel)
+                    wpiPosSq += sq(wpilib.position - trueAngle)
+                    wpiVelSq += sq(wpilib.velocity - trueVel)
                     n++
                 }
 
@@ -577,7 +577,7 @@ class EstimatorComparisonTest {
                     val volts = ctrl.calculate(targetRad, proj[0], proj[1], VOLTAGE, 0.02)
                     lastPower = clamp(volts / VOLTAGE, -1.0, 1.0)
                 }
-                currentSetpoint = ctrl.getSetpointPosition()
+                currentSetpoint = ctrl.setpointPosition
             }
             plant.integrate(0.001, lastPower, VOLTAGE)
             if (ms % 10 == 0) {
@@ -632,9 +632,11 @@ class EstimatorComparisonTest {
             lastLinearVoltage = appliedVoltage - gravity - friction
         }
 
-        fun getPosition(): Double = estPos
+        val position: Double
+            get() = estPos
 
-        fun getVelocity(): Double = estVel
+        val velocity: Double
+            get() = estVel
     }
 
     companion object {

@@ -111,12 +111,13 @@ class EncoderSim(private val jitterStdSec: Double, seed: Long) {
      * by the snapshot's transport delay {@code delta >= 0}: {@code round(livePosition - velocity *
      * delta)}. With jitter disabled this is just the rounded live count.
      */
-    fun getPosition(): Int {
-        // Position is live: it comes from the continuously-integrated count, not the ring buffer,
-        // so it is available immediately (no wait for the first 10 ms sample).
-        val delta = snapshotDelta()
-        return round(fractionalTicks - lastVelocityTps * delta).toInt()
-    }
+    val position: Int
+        get() {
+            // Position is live: it comes from the continuously-integrated count, not the ring
+            // buffer, so it is available immediately (no wait for the first 10 ms sample).
+            val delta = snapshotDelta()
+            return round(fractionalTicks - lastVelocityTps * delta).toInt()
+        }
 
     /**
      * Returns the windowed velocity in TPS, matching the REV Hub algorithm, as seen through the
@@ -125,9 +126,8 @@ class EncoderSim(private val jitterStdSec: Double, seed: Long) {
      * <p>Velocity = (newest &minus; oldest) / span over the 50 ms window. Returns 0 before 2
      * samples exist.
      */
-    fun getVelocityTps(): Double {
-        return velocityTpsStaledBy(snapshotDelta())
-    }
+    val velocityTps: Double
+        get() = velocityTpsStaledBy(snapshotDelta())
 
     /**
      * The windowed velocity as it would read through a bulk read delayed by [deltaSec]: the current

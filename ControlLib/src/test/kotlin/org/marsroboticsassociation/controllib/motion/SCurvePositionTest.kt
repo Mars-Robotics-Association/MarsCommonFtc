@@ -78,7 +78,7 @@ class SCurvePositionTest {
         val s = SCurvePosition(0.0, 200.0, 0.0, 0.0, 5.0, 3.0, 3.0, 10.0)
         assertEquals(5.0, s.vPeak, 1e-6, "should reach vMax")
         assertTrue(s.T4 > 0, "cruise phase should exist")
-        assertEquals(200.0, s.getPosition(s.getTotalTime()), 1e-4, "end position")
+        assertEquals(200.0, s.getPosition(s.totalTime), 1e-4, "end position")
     }
 
     @Test
@@ -91,7 +91,7 @@ class SCurvePositionTest {
     @Test
     fun negative_direction_mirrored() {
         val s = SCurvePosition(50.0, -50.0, 0.0, 0.0, 8.0, 4.0, 4.0, 10.0)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertTrue(tf > 0)
         assertEquals(-50.0, s.getPosition(tf), 1e-4, "should arrive at pTarget")
         assertEquals(0.0, s.getVelocity(tf), 1e-4, "should come to rest")
@@ -100,7 +100,7 @@ class SCurvePositionTest {
     @Test
     fun trivial_zeroDistance() {
         val s = SCurvePosition(5.0, 5.0, 2.0, 1.0, 8.0, 4.0, 4.0, 10.0)
-        assertEquals(0.0, s.getTotalTime(), "trivial: zero total time")
+        assertEquals(0.0, s.totalTime, "trivial: zero total time")
         assertEquals(5.0, s.getPosition(0.0))
         assertEquals(5.0, s.getPosition(1.0))
         assertDoesNotThrow { s.getVelocity(0.0) }
@@ -110,7 +110,7 @@ class SCurvePositionTest {
     fun nonZeroV0_forward_endConditionsMet() {
         // Start already moving toward target
         val s = SCurvePosition(0.0, 100.0, 3.0, 0.0, 8.0, 4.0, 4.0, 10.0)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertEquals(100.0, s.getPosition(tf), 1e-3)
         assertEquals(0.0, s.getVelocity(tf), 1e-3)
         assertEquals(0.0, s.getAcceleration(tf), 1e-3)
@@ -120,7 +120,7 @@ class SCurvePositionTest {
     fun nonZeroA0_positive_endConditionsMet() {
         // Start with non-zero positive acceleration
         val s = SCurvePosition(0.0, 80.0, 0.0, 2.0, 8.0, 4.0, 4.0, 10.0)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertEquals(80.0, s.getPosition(tf), 1e-3)
         assertEquals(0.0, s.getVelocity(tf), 1e-3)
         assertEquals(0.0, s.getAcceleration(tf), 1e-3)
@@ -147,7 +147,7 @@ class SCurvePositionTest {
     @MethodSource("allConfigs")
     fun endConditions(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         assertEquals(c.pTarget, s.getPosition(tf), 1e-3, "p(tf) == pTarget")
         assertEquals(0.0, s.getVelocity(tf), 1e-3, "v(tf) == 0")
         assertEquals(0.0, s.getAcceleration(tf), 1e-3, "a(tf) == 0")
@@ -161,7 +161,7 @@ class SCurvePositionTest {
     @MethodSource("allConfigs")
     fun kinematicContinuity_velocity(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         if (tf < 1e-9) return // trivial, skip
         val h = 1e-5
         val samples = 100
@@ -178,7 +178,7 @@ class SCurvePositionTest {
     @MethodSource("allConfigs")
     fun kinematicContinuity_acceleration(c: Config) {
         val s = make(c)
-        val tf = s.getTotalTime()
+        val tf = s.totalTime
         if (tf < 1e-9) return
         val h = 1e-5
         val samples = 100

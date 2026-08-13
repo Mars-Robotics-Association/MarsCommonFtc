@@ -35,19 +35,19 @@ class ModelAwareRuckigProfilerTest {
             val ceiling =
                 model.maxSustainableVelocity(
                     AVAILABLE_VOLTS,
-                    p.getPosition(),
-                    target - p.getPosition(),
+                    p.position,
+                    target - p.position,
                 )
             assertTrue(
-                abs(p.getVelocity()) <= ceiling + 1e-3,
+                abs(p.velocity) <= ceiling + 1e-3,
                 "cruise inside the local ceiling at step $steps" +
-                    ": |v|=${abs(p.getVelocity())} ceiling=$ceiling",
+                    ": |v|=${abs(p.velocity)} ceiling=$ceiling",
             )
-            if (p.getPosition() == target && p.getVelocity() == 0.0) {
+            if (p.position == target && p.velocity == 0.0) {
                 break
             }
         }
-        assertEquals(target, p.getPosition(), 0.0, "arrives exactly")
+        assertEquals(target, p.position, 0.0, "arrives exactly")
         assertTrue(steps < 3000, "settled")
     }
 
@@ -57,22 +57,22 @@ class ModelAwareRuckigProfilerTest {
         val target = 0.0
         val p = profiler(model, Math.toRadians(90.0))
 
-        var prevA = p.getAcceleration()
+        var prevA = p.acceleration
         var steps = 0
         while (steps < 3000) {
             p.setAvailableVoltage(AVAILABLE_VOLTS)
             p.update(target, DT)
             steps++
             assertTrue(
-                abs(p.getAcceleration() - prevA) <= 480.0 * DT * 1.05 + 1e-9,
+                abs(p.acceleration - prevA) <= 480.0 * DT * 1.05 + 1e-9,
                 "jerk bounded under model ceilings at step $steps",
             )
-            prevA = p.getAcceleration()
-            if (p.getPosition() == target && p.getVelocity() == 0.0) {
+            prevA = p.acceleration
+            if (p.position == target && p.velocity == 0.0) {
                 break
             }
         }
-        assertEquals(target, p.getPosition(), 0.0)
+        assertEquals(target, p.position, 0.0)
         assertTrue(steps < 3000, "settled")
     }
 
@@ -95,12 +95,12 @@ class ModelAwareRuckigProfilerTest {
             p.setAvailableVoltage(AVAILABLE_VOLTS)
             p.update(target, DT)
             steps++
-            maxOvershootDeg = max(maxOvershootDeg, Math.toDegrees(target - p.getPosition()))
-            if (p.getPosition() == target && p.getVelocity() == 0.0) {
+            maxOvershootDeg = max(maxOvershootDeg, Math.toDegrees(target - p.position))
+            if (p.position == target && p.velocity == 0.0) {
                 break
             }
         }
-        assertEquals(target, p.getPosition(), 0.0, "descent lands at the target")
+        assertEquals(target, p.position, 0.0, "descent lands at the target")
         assertTrue(steps < 4000, "descent settled")
         // The target-position braking ceiling keeps the planned stop honest: overshoot past the
         // horizontal target stays negligible.
@@ -113,11 +113,11 @@ class ModelAwareRuckigProfilerTest {
             p.setAvailableVoltage(AVAILABLE_VOLTS)
             p.update(up, DT)
             steps++
-            if (p.getPosition() == up && p.getVelocity() == 0.0) {
+            if (p.position == up && p.velocity == 0.0) {
                 break
             }
         }
-        assertEquals(up, p.getPosition(), 0.0, "ascent arrives against heavy gravity")
+        assertEquals(up, p.position, 0.0, "ascent arrives against heavy gravity")
         assertTrue(steps < 4000, "ascent settled")
     }
 
@@ -130,7 +130,7 @@ class ModelAwareRuckigProfilerTest {
         for (i in 0 until 100) {
             p.update(Math.toRadians(90.0), DT)
         }
-        assertEquals(Math.toRadians(45.0), p.getPosition(), 1e-6, "no volts, no motion")
+        assertEquals(Math.toRadians(45.0), p.position, 1e-6, "no volts, no motion")
     }
 
     @Test
@@ -147,12 +147,12 @@ class ModelAwareRuckigProfilerTest {
             p.setAvailableVoltage(AVAILABLE_VOLTS)
             p.update(target, DT)
             steps++
-            peakVel = max(peakVel, abs(p.getVelocity()))
-            if (p.getPosition() == target && p.getVelocity() == 0.0) {
+            peakVel = max(peakVel, abs(p.velocity))
+            if (p.position == target && p.velocity == 0.0) {
                 break
             }
         }
-        assertEquals(target, p.getPosition(), 0.0)
+        assertEquals(target, p.position, 0.0)
         assertTrue(peakVel <= maxVel + 1e-9, "configured cap binds: peak=$peakVel")
         assertTrue(peakVel > maxVel * 0.95, "cruises near the configured cap: peak=$peakVel")
     }

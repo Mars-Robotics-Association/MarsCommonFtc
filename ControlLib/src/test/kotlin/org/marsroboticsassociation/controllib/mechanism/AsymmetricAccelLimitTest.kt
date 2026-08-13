@@ -62,20 +62,20 @@ class AsymmetricAccelLimitTest {
         for (i in 0 until 4000) {
             controller.calculate(
                 TARGET,
-                controller.getSetpointPosition(),
-                controller.getSetpointVelocity(),
+                controller.setpointPosition,
+                controller.setpointVelocity,
                 VOLTAGE,
                 DT,
             )
-            val v = controller.getSetpointVelocity()
-            val a = controller.getSetpointAcceleration()
+            val v = controller.setpointVelocity
+            val a = controller.setpointAcceleration
             if (v * a > 0) {
                 peakSpeedUpAccel = maxOf(peakSpeedUpAccel, abs(a))
             } else if (v * a < 0) {
                 peakBrakingAccel = maxOf(peakBrakingAccel, abs(a))
             }
         }
-        assertEquals(TARGET, controller.getSetpointPosition(), 1e-6, "did not land on the target")
+        assertEquals(TARGET, controller.setpointPosition, 1e-6, "did not land on the target")
         assertTrue(
             peakSpeedUpAccel > MAX_DECEL * 1.5,
             "launch never used the headroom above the decel cap: $peakSpeedUpAccel",

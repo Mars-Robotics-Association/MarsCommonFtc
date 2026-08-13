@@ -133,7 +133,7 @@ class ArmSysIdTest {
         // With backlash on (the default), the engine identifies through the motor-side encoder and
         // still corrects the mechanism model's inertia.
         val e = ArmEngine(ArmControllerType.MECHANISM_PIDF, 11L)
-        assertTrue(e.isBacklashEnabled())
+        assertTrue(e.isBacklashEnabled)
         e.setPlantDynamics(0.3, 2.8, 1.2, 0.55)
         e.applyIdentifiedGains(e.runSysId())
         assertEquals(0.55, e.getMechGains().kA, 0.55 * 0.15, "kA identified through backlash")

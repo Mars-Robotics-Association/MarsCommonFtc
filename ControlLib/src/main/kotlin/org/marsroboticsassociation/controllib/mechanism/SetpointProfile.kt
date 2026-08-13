@@ -1,24 +1,22 @@
 package org.marsroboticsassociation.controllib.mechanism
 
 /**
- * A per-loop setpoint profiler: turns a raw target position into a smooth setpoint whose
- * velocity, acceleration, and jerk are bounded, under limits that may be rewritten every loop
- * (e.g. from back-EMF headroom).
+ * A per-loop setpoint profiler: turns a raw target position into a smooth setpoint whose velocity,
+ * acceleration, and jerk are bounded, under limits that may be rewritten every loop (e.g. from
+ * back-EMF headroom).
  *
- * <p>The concrete implementation is [RuckigProfiler] — online trajectory generation
- * (replans a time-optimal, jerk-limited profile from the setpoint's own state every loop), so the
- * stop is a planned jerk ramp-out that lands exactly at rest on the target. [MotorMechanismController]
- * drives the [ModelAwareSetpointProfile] extension of this surface.
+ * <p>The concrete implementation is [RuckigProfiler] — online trajectory generation (replans a
+ * time-optimal, jerk-limited profile from the setpoint's own state every loop), so the stop is a
+ * planned jerk ramp-out that lands exactly at rest on the target. [MotorMechanismController] drives
+ * the [ModelAwareSetpointProfile] extension of this surface.
  *
  * <p>Contract notes:
- *
  * <ul>
- *   <li>`update` advances the setpoint by wall-clock `dt`; non-positive or NaN
- *       `dt` is a no-op.
- *   <li>Velocity/acceleration/deceleration limits accept zero, meaning "no authority right now";
- *       the setpoint should hold rather than teleport.
- *   <li>Acceleration and deceleration are expressed in the travel frame: acceleration limits
- *       speeding up, deceleration limits braking, regardless of the direction of motion.
+ * <li>`update` advances the setpoint by wall-clock `dt`; non-positive or NaN `dt` is a no-op.
+ * <li>Velocity/acceleration/deceleration limits accept zero, meaning "no authority right now"; the
+ *   setpoint should hold rather than teleport.
+ * <li>Acceleration and deceleration are expressed in the travel frame: acceleration limits speeding
+ *   up, deceleration limits braking, regardless of the direction of motion.
  * </ul>
  */
 interface SetpointProfile {
@@ -45,9 +43,9 @@ interface SetpointProfile {
      */
     fun update(targetPosition: Double, dt: Double)
 
-    fun getPosition(): Double
+    val position: Double
 
-    fun getVelocity(): Double
+    val velocity: Double
 
-    fun getAcceleration(): Double
+    val acceleration: Double
 }

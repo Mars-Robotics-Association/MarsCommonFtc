@@ -30,7 +30,7 @@ class SCurveVelocityTest {
         val a0 = 0.0
 
         val trajectory = SCurveVelocity(v0, targetV, a0, aMax, jInc, jDec)
-        val totalTime = trajectory.getTotalTime()
+        val totalTime = trajectory.totalTime
 
         var maxViolation = 0.0
         var maxViolationTime = 0.0

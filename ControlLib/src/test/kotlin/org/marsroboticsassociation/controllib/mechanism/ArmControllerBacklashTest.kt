@@ -71,8 +71,7 @@ class ArmControllerBacklashTest {
                 ekf.predict(dt, power, VOLTAGE)
                 ekf.correct(measuredAngleRad(plant), plant.getVelocityTps() / TICKS_PER_RAD)
 
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
 
                 val trueDeg = Math.toDegrees(plant.getTruePositionRad())
@@ -140,8 +139,7 @@ class ArmControllerBacklashTest {
                 ekf.predict(dt, power, VOLTAGE)
                 ekf.correct(measuredAngleRad(plant), plant.getVelocityTps() / TICKS_PER_RAD)
 
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
 
                 if (ms / 1000.0 > 3.0) {
@@ -360,8 +358,7 @@ class ArmControllerBacklashTest {
                     plant.getPositionTicks() / TICKS_PER_RAD + ENCODER_ZERO_OFFSET_RAD,
                     plant.getVelocityTps() / TICKS_PER_RAD,
                 )
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 if (ms / 1000.0 > 3.0) {
                     sumErrDeg += abs(Math.toDegrees(plant.getTruePositionRad() - target))
@@ -402,8 +399,7 @@ class ArmControllerBacklashTest {
                     plant.getEncoderPosition() / TICKS_PER_RAD,
                     plant.getEncoderVelocityTps() / TICKS_PER_RAD,
                 )
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 if (ms / 1000.0 > 2.0) {
                     sumErrDeg += abs(Math.toDegrees(plant.getTrueAngleRad() - target))
@@ -447,8 +443,7 @@ class ArmControllerBacklashTest {
                 val dt = (ms - lastLoopMs) / 1000.0
                 ekf.predict(dt, power, VOLTAGE)
                 ekf.correct(measuredAngleRad(plant), plant.getVelocityTps() / TICKS_PER_RAD)
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 if (ms / 1000.0 > 2.0) {
                     sumErrDeg += abs(Math.toDegrees(plant.getTruePositionRad() - target))
@@ -562,8 +557,7 @@ class ArmControllerBacklashTest {
                 val dt = (ms - lastLoopMs) / 1000.0
                 ekf.predict(dt, power, VOLTAGE)
                 ekf.correct(measuredAngleRad(plant), plant.getVelocityTps() / TICKS_PER_RAD)
-                val voltage =
-                    controller.calculate(target, ekf.getPosition(), ekf.getVelocity(), VOLTAGE, dt)
+                val voltage = controller.calculate(target, ekf.position, ekf.velocity, VOLTAGE, dt)
                 power = voltage / VOLTAGE
                 lastLoopMs = ms
                 nextLoopMs = ms + 20 + rng.nextInt(10)

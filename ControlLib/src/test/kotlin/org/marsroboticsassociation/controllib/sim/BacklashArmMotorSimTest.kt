@@ -1,5 +1,6 @@
 package org.marsroboticsassociation.controllib.sim
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sign
@@ -23,13 +24,13 @@ class BacklashArmMotorSimTest {
 
         const val TICKS_PER_REV = 28
         const val GEAR_RATIO = 100.0
-        val TICKS_PER_RAD = (TICKS_PER_REV * GEAR_RATIO) / (2.0 * Math.PI)
+        val TICKS_PER_RAD = (TICKS_PER_REV * GEAR_RATIO) / (2.0 * PI)
 
         // Front hard stop at -45 deg, back hard stop at -225 deg; encoder reads 0 at the front
         // stop.
-        val ENCODER_ZERO_OFFSET_RAD = -Math.PI / 4
-        val MIN_ANGLE_RAD = -Math.PI * 5 / 4
-        val MAX_ANGLE_RAD = -Math.PI / 4
+        val ENCODER_ZERO_OFFSET_RAD = -PI / 4
+        val MIN_ANGLE_RAD = -PI * 5 / 4
+        val MAX_ANGLE_RAD = -PI / 4
 
         val BACKLASH_RAD = Math.toRadians(5.0)
         const val HUB_VOLTAGE = 12.0
@@ -128,7 +129,7 @@ class BacklashArmMotorSimTest {
         var maxDisagreement = 0.0
         for (i in 0 until 12) {
             sim.step(DT, gravityDir, HUB_VOLTAGE)
-            if (!sim.isEngaged()) sawSeparation = true
+            if (!sim.isEngaged) sawSeparation = true
             val disagreement = abs(encoderAngleRad(sim) - sim.getTruePositionRad())
             maxDisagreement = maxOf(maxDisagreement, disagreement)
         }
@@ -198,7 +199,7 @@ class BacklashArmMotorSimTest {
     @Test
     fun statesStayBoundedUnderAggressiveInput() {
         // Slam the input back and forth to excite the contact; nothing should diverge.
-        val sim = makeSim(-Math.PI / 2)
+        val sim = makeSim(-PI / 2)
         for (i in 0 until 1000) {
             val power = if (i % 10 < 5) 1.0 else -1.0
             sim.step(DT, power, HUB_VOLTAGE)

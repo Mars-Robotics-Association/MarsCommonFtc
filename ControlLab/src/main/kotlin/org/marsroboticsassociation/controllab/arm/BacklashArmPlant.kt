@@ -51,19 +51,26 @@ internal class BacklashArmPlant(
         sim.step(dt, power, hubVoltage)
     }
 
-    override fun getPositionTicks(): Int = sim.getPositionTicks()
+    override val positionTicks: Int
+        get() = sim.getPositionTicks()
 
-    override fun getVelocityTps(): Double = sim.getVelocityTps()
+    override val velocityTps: Double
+        get() = sim.getVelocityTps()
 
-    override fun getTruePositionRad(): Double = sim.getTruePositionRad()
+    override val truePositionRad: Double
+        get() = sim.getTruePositionRad()
 
-    override fun getTrueVelocityRadPerSec(): Double = sim.getTrueVelocityRadPerSec()
+    override val trueVelocityRadPerSec: Double
+        get() = sim.getTrueVelocityRadPerSec()
 
-    override fun getMotorPositionRad(): Double = sim.getMotorPositionRad()
+    override val motorPositionRad: Double
+        get() = sim.getMotorPositionRad()
 
-    override fun isEngaged(): Boolean = sim.isEngaged()
+    override val isEngaged: Boolean
+        get() = sim.isEngaged
 
-    override fun getBacklashRad(): Double = sim.getBacklashRad()
+    override val backlashRad: Double
+        get() = sim.backlashRad
 
     override fun restComplianceRadPerVolt(): Double = sim.getRestComplianceRadPerVolt()
 
