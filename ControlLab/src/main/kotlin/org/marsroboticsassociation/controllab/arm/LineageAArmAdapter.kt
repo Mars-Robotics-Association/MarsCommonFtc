@@ -48,7 +48,7 @@ internal class LineageAArmAdapter(
             override val position: Int
                 get() = plant.positionTicks
 
-            override val velocity: Double
+            override val encoderVelocity: Double
                 get() = plant.velocityTps
 
             override fun setPower(power: Double) {
