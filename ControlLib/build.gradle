@@ -48,7 +48,12 @@ shadowJar {
 
     // Relocate EJML to avoid conflicts
     relocate 'org.ejml', 'controllib.shadow.org.ejml'
-    // Do not relocate kotlin.* — consumers and the JVM expect the standard package names.
+
+    // Leave kotlin.* out of the fat JAR. TeamCode applies the Kotlin plugin and
+    // supplies stdlib; bundling it here duplicates classes in the APK.
+    dependencies {
+        exclude(dependency('org.jetbrains.kotlin:.*'))
+    }
 
     // Keep all WpiMath classes — TeamCode uses them directly and their transitive
     // EJML references cover the entire EJML footprint, so no further excludes needed.
@@ -57,8 +62,6 @@ shadowJar {
         // Keep the full com.ruckig API so TeamCode can drive the OTG directly
         // (nonzero target velocity, multi-DoF sync) without going through ControlLib.
         exclude(project(':RuckigJava'))
-        // Kotlin stdlib + metadata must not be minimized away from the fat JAR.
-        exclude(dependency('org.jetbrains.kotlin:.*'))
     }
 }
 
