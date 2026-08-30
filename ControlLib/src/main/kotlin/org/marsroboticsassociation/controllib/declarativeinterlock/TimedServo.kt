@@ -31,6 +31,66 @@ class TimedServo<T : Any> @JvmOverloads constructor(
 
         @JvmField
         var positionTolerance = 0.0
+
+        companion object {
+            @JvmStatic
+            fun conservativeFromWorstCase(
+                worstCaseSeconds: Double,
+                timingHeadroom: Double,
+                accelerationFraction: Double,
+                positionTolerance: Double,
+                vararg targetPositions: Double,
+            ): Params {
+                val modeledWorstCaseSeconds =
+                    checkedPositive(worstCaseSeconds, "worstCaseSeconds") *
+                        checkedPositive(timingHeadroom, "timingHeadroom")
+                val accelFraction = checkedAccelerationFraction(accelerationFraction)
+                val maxTravel = maxTravel(*targetPositions)
+
+                val params = Params()
+                params.travelSeconds = worstCaseSeconds
+                params.positionTolerance = checkedNonNegative(positionTolerance, "positionTolerance")
+                if (maxTravel <= params.positionTolerance) {
+                    params.maxVelocity = 1.0
+                    params.maxAcceleration = 4.0
+                    return params
+                }
+
+                val accelTime = modeledWorstCaseSeconds * accelFraction
+                params.maxVelocity = maxTravel / (modeledWorstCaseSeconds - accelTime)
+                params.maxAcceleration = params.maxVelocity / accelTime
+                return params
+            }
+
+            private fun checkedAccelerationFraction(value: Double): Double {
+                require(value.isFinite() && value > 0.0 && value < 0.5) {
+                    "accelerationFraction must be between 0.0 and 0.5"
+                }
+                return value
+            }
+
+            private fun checkedPositive(value: Double, name: String): Double {
+                require(value.isFinite() && value > 0.0) { "$name must be finite and positive" }
+                return value
+            }
+
+            private fun checkedNonNegative(value: Double, name: String): Double {
+                require(value.isFinite() && value >= 0.0) { "$name must be finite and non-negative" }
+                return value
+            }
+
+            private fun maxTravel(vararg positions: Double): Double {
+                require(positions.isNotEmpty()) { "At least one target position is required" }
+                var min = positions[0]
+                var max = positions[0]
+                for (position in positions) {
+                    require(position.isFinite()) { "target position must be finite" }
+                    min = kotlin.math.min(min, position)
+                    max = kotlin.math.max(max, position)
+                }
+                return max - min
+            }
+        }
     }
 
     var target: T? = null
